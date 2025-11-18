@@ -1,0 +1,195 @@
+package com.example.miniproject.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Fastfood
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Store
+import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+
+// Fixed screen definitions to match your screenshot
+sealed class UserScreen(val title: String, val icon: ImageVector) {
+    object Food : UserScreen("Food", Icons.Default.Fastfood)
+    object Grocery : UserScreen("Grocery", Icons.Default.Store)
+    object MyOrder : UserScreen("My Order", Icons.Default.ShoppingCart)
+    object Account : UserScreen("Account", Icons.Default.AccountCircle)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun UserHomeScreen(navController: NavController) {
+    var currentScreen by remember { mutableStateOf<UserScreen>(UserScreen.Food) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        "Tap N Chow",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                }
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                listOf(
+                    UserScreen.Food,
+                    UserScreen.Grocery,
+                    UserScreen.MyOrder,
+                    UserScreen.Account
+                ).forEach { screen ->
+                    NavigationBarItem(
+                        icon = {
+                            Icon(
+                                imageVector = screen.icon,
+                                contentDescription = screen.title
+                            )
+                        },
+                        label = { Text(screen.title) },
+                        selected = currentScreen == screen,
+                        onClick = { currentScreen = screen }
+                    )
+                }
+            }
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            when (currentScreen) {
+                is UserScreen.Food -> FoodContent(navController)
+                is UserScreen.Grocery -> GroceryContent()
+                is UserScreen.MyOrder -> MyOrderContent()
+                is UserScreen.Account -> AccountContent(navController)
+            }
+        }
+    }
+}
+
+@Composable
+fun FoodContent(navController: NavController) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Search Bar
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Text(
+                text = "Search for shop & restaurant...",
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        // Location
+        Text(
+            text = "location...",
+            modifier = Modifier.padding(top = 8.dp, start = 16.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 14.sp
+        )
+
+        // Restaurants List
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 24.dp)
+        ) {
+            listOf(
+                "B.A.J Cafe",
+                "Chucky Cat Cafe & Store",
+                "CHATTO",
+                "LaoBanMian 老板面"
+            ).forEach { restaurant ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .padding(vertical = 8.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        text = restaurant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GroceryContent() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("Grocery Screen - Coming Soon")
+    }
+}
+
+@Composable
+fun MyOrderContent() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("My Order Screen - Coming Soon")
+    }
+}
+
+@Composable
+fun AccountContent(navController: NavController) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("Account Screen - Coming Soon")
+    }
+}
