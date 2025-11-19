@@ -12,6 +12,7 @@ data class Customer(
     val phoneNumber: String = "",
     val email: String = "",
     val password: String = "",
+    val profileImageBase64: String = "",
     val createdAt: Timestamp = Timestamp.now(),
     val updatedAt: Timestamp = Timestamp.now()
 ) {
@@ -48,6 +49,7 @@ data class Vendor(
     val vendorContact: String = "",
     val email: String = "",
     val address: String = "",
+    val profileImageBase64: String = "",
     val createdAt: Timestamp = Timestamp.now(),
     val updatedAt: Timestamp = Timestamp.now()
 ) {
@@ -129,4 +131,10 @@ data class Feedback(
     val comment: String = "",
     val feedbackDate: Timestamp = Timestamp.now(),
     val createdAt: Timestamp = Timestamp.now()
+)
+
+data class CustomerAccount(
+    val customerId: String = "",
+    val tapNChowCredit: Double = 0.0,
+    val lastUpdated: Timestamp = Timestamp.now()
 )

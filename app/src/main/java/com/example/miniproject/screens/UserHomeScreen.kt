@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -23,19 +25,25 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.miniproject.service.AuthService
+import kotlinx.coroutines.launch
 
 // Fixed screen definitions to match your screenshot
 sealed class UserScreen(val title: String, val icon: ImageVector) {
@@ -52,15 +60,29 @@ fun UserHomeScreen(navController: NavController) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Tap N Chow",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                }
-            )
+            // Green background with status bar padding
+            Box(
+                modifier = Modifier
+                    .background(Color(0xFF4CAF50)) // Green color matching your app
+                    .statusBarsPadding()
+            ) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            "Tap N Chow",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = Color.White // White text for better contrast on green
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent, // Make the TopAppBar transparent
+                        titleContentColor = Color.White,
+                        actionIconContentColor = Color.White
+                    ),
+                    modifier = Modifier.background(Color.Transparent)
+                )
+            }
         },
         bottomBar = {
             NavigationBar {
@@ -186,10 +208,32 @@ fun MyOrderContent() {
 
 @Composable
 fun AccountContent(navController: NavController) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Account Screen - Coming Soon")
+    val authService = AuthService()
+    val coroutineScope = rememberCoroutineScope()
+
+    var userType by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        coroutineScope.launch {
+            val customer = authService.getCurrentCustomer()
+            val vendor = authService.getCurrentVendor()
+
+            userType = when {
+                customer != null -> "customer"
+                vendor != null -> "vendor"
+                else -> null
+            }
+        }
+    }
+
+    when (userType) {
+        "customer" -> CustomerProfileScreen(navController) // Use CustomerProfileScreen
+        "vendor" -> VendorAccountScreen(navController) // CORRECTED: Use VendorAccountScreen
+        else -> {
+            // Show loading or redirect to login
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
     }
 }

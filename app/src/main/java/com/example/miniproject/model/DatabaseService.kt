@@ -1,6 +1,8 @@
 package com.example.miniproject.service
 
+import android.net.Uri
 import com.example.miniproject.model.*
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
@@ -15,6 +17,44 @@ class DatabaseService {
             Result.success(documentRef.id)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    suspend fun deleteProduct(productId: String): Result<Boolean> {
+        return try {
+            db.collection("products").document(productId).delete().await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateProduct(product: Product): Result<Boolean> {
+        return try {
+            db.collection("products").document(product.productId)
+                .update(
+                    mapOf(
+                        "productName" to product.productName,
+                        "productPrice" to product.productPrice,
+                        "description" to product.description,
+                        "stock" to product.stock,
+                        "imageUrl" to product.imageUrl,
+                        "category" to product.category,
+                        "updatedAt" to com.google.firebase.Timestamp.now()
+                    )
+                ).await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getProductById(productId: String): Product? {
+        return try {
+            db.collection("products").document(productId).get().await()
+                .toObject(Product::class.java)
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -120,6 +160,96 @@ class DatabaseService {
             Result.failure(e)
         }
     }
+
+    suspend fun updateVendorProfileImageBase64(vendorId: String, base64Image: String): Result<Boolean> {
+        return try {
+            db.collection("vendors").document(vendorId)
+                .update("profileImageBase64", base64Image).await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+
+    suspend fun updateVendorProfile(vendor: Vendor): Result<Boolean> {
+        return try {
+            db.collection("vendors").document(vendor.vendorId)
+                .update(
+                    mapOf(
+                        "vendorName" to vendor.vendorName,
+                        "email" to vendor.email,
+                        "vendorContact" to vendor.vendorContact,
+                        "address" to vendor.address,
+                        "updatedAt" to com.google.firebase.Timestamp.now()
+                    )
+                ).await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+
+    suspend fun getCustomerAccount(customerId: String): CustomerAccount? {
+        return try {
+            db.collection("customer_accounts")
+                .document(customerId)
+                .get()
+                .await()
+                .toObject(CustomerAccount::class.java)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+
+
+    suspend fun updateCustomerProfile(customer: Customer): Result<Boolean> {
+        return try {
+            db.collection("customers").document(customer.customerId)
+                .update(
+                    mapOf(
+                        "name" to customer.name,
+                        "phoneNumber" to customer.phoneNumber,
+                        "email" to customer.email,
+                        "updatedAt" to Timestamp.now()
+                    )
+                ).await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateCustomerCredit(customerId: String, newBalance: Double): Result<Boolean> {
+        return try {
+            val account = CustomerAccount(
+                customerId = customerId,
+                tapNChowCredit = newBalance,
+                lastUpdated = Timestamp.now()
+            )
+            db.collection("customer_accounts")
+                .document(customerId)
+                .set(account)
+                .await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Replace the upload function with this Base64 version
+    suspend fun updateCustomerProfileImageBase64(customerId: String, base64Image: String): Result<Boolean> {
+        return try {
+            db.collection("customers").document(customerId)
+                .update("profileImageBase64", base64Image).await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
 
     suspend fun getPaymentByOrder(orderId: String): Payment? {
         return try {

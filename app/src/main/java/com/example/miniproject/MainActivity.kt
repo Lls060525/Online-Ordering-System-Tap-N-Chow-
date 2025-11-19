@@ -7,6 +7,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.miniproject.screens.CustomerAccountScreen
+import com.example.miniproject.screens.CustomerProfileScreen
 import com.example.miniproject.screens.LoginScreen
 import com.example.miniproject.screens.RegisterScreen
 import com.example.miniproject.screens.UserHomeScreen
@@ -46,6 +48,15 @@ class MainActivity : ComponentActivity() {
                     composable("vendorHome") {
                         VendorHomeScreen(navController = navController)
                     }
+                    // In your NavHost setup
+                    composable("customer_account") {
+                        CustomerAccountScreen(navController = navController)
+                    }
+
+                    composable("customerProfile") {
+                        CustomerProfileScreen(navController = navController)
+                    }
+
                 }
             }
         }

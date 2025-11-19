@@ -91,10 +91,10 @@ fun VendorHomeScreen(navController: NavController) {
         ) {
             when (currentScreen) {
                 is VendorScreen.Dashboard -> VendorDashboardContent()
-                is VendorScreen.Products -> VendorProductsContent()
+                is VendorScreen.Products -> VendorProductsContent(navController)
                 is VendorScreen.Orders -> VendorOrdersContent()
                 is VendorScreen.Analytics -> VendorAnalyticsContent()
-                is VendorScreen.Account -> VendorAccountContent(navController)
+                is VendorScreen.Account -> VendorAccountScreen(navController)
             }
         }
     }
@@ -154,12 +154,3 @@ fun VendorAnalyticsContent() {
     }
 }
 
-@Composable
-fun VendorAccountContent(navController: NavController) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Vendor Account - Coming Soon")
-    }
-}
