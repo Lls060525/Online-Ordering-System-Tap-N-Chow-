@@ -85,6 +85,7 @@ class AuthService {
         email: String,
         vendorContact: String,
         address: String,
+        category: String,
         password: String
     ): Result<String> {
         return try {
@@ -101,7 +102,8 @@ class AuthService {
                 vendorName = vendorName,
                 email = email,
                 vendorContact = vendorContact,
-                address = address
+                address = address,
+                category = category
                 // createdAt and updatedAt will use default values from data class
             )
 
@@ -118,6 +120,8 @@ class AuthService {
 
             Result.success(vendorId)
         } catch (e: Exception) {
+            println("DEBUG: Registration error: ${e.message}") // Add logging
+            e.printStackTrace() // Add stack trace
             auth.currentUser?.delete()?.await()
             Result.failure(e)
         }

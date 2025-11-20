@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.miniproject.screens.CustomerAccountScreen
 import com.example.miniproject.screens.CustomerProfileScreen
+import com.example.miniproject.screens.FoodMenuScreen
 import com.example.miniproject.screens.LoginScreen
 import com.example.miniproject.screens.RegisterScreen
 import com.example.miniproject.screens.UserHomeScreen
@@ -57,6 +58,11 @@ class MainActivity : ComponentActivity() {
                         CustomerProfileScreen(navController = navController)
                     }
 
+                    composable("foodMenu/{vendorId}") { backStackEntry ->
+                        val vendorId = backStackEntry.arguments?.getString("vendorId")
+                        FoodMenuScreen(navController, vendorId)
+
+                    }
                 }
             }
         }

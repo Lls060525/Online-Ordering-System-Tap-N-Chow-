@@ -161,6 +161,18 @@ class DatabaseService {
         }
     }
 
+
+    suspend fun getAllVendors(): List<Vendor> {
+        return try {
+            db.collection("vendors")
+                .get()
+                .await()
+                .toObjects(Vendor::class.java)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     suspend fun updateVendorProfileImageBase64(vendorId: String, base64Image: String): Result<Boolean> {
         return try {
             db.collection("vendors").document(vendorId)

@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Fastfood
+import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.BottomAppBar
@@ -47,8 +48,8 @@ import kotlinx.coroutines.launch
 
 // Fixed screen definitions to match your screenshot
 sealed class UserScreen(val title: String, val icon: ImageVector) {
-    object Food : UserScreen("Food", Icons.Default.Fastfood)
-    object Grocery : UserScreen("Grocery", Icons.Default.Store)
+    object Food : UserScreen("Vendor List", Icons.Default.Store)
+    object Grocery : UserScreen("Feedback", Icons.Default.Feedback)
     object MyOrder : UserScreen("My Order", Icons.Default.ShoppingCart)
     object Account : UserScreen("Account", Icons.Default.AccountCircle)
 }
@@ -113,7 +114,7 @@ fun UserHomeScreen(navController: NavController) {
                 .padding(paddingValues)
         ) {
             when (currentScreen) {
-                is UserScreen.Food -> FoodContent(navController)
+                is UserScreen.Food -> FoodContentWithVendors(navController)
                 is UserScreen.Grocery -> GroceryContent()
                 is UserScreen.MyOrder -> MyOrderContent()
                 is UserScreen.Account -> AccountContent(navController)
@@ -159,12 +160,7 @@ fun FoodContent(navController: NavController) {
                 .fillMaxSize()
                 .padding(top = 24.dp)
         ) {
-            listOf(
-                "B.A.J Cafe",
-                "Chucky Cat Cafe & Store",
-                "CHATTO",
-                "LaoBanMian 老板面"
-            ).forEach { restaurant ->
+            listOf("").forEach { restaurant ->
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -192,7 +188,7 @@ fun GroceryContent() {
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Text("Grocery Screen - Coming Soon")
+        Text("Feedback - Coming Soon")
     }
 }
 
@@ -227,7 +223,7 @@ fun AccountContent(navController: NavController) {
     }
 
     when (userType) {
-        "customer" -> CustomerProfileScreen(navController) // Use CustomerProfileScreen
+        "customer" -> CustomerAccountScreen(navController) // Use CustomerProfileScreen
         "vendor" -> VendorAccountScreen(navController) // CORRECTED: Use VendorAccountScreen
         else -> {
             // Show loading or redirect to login

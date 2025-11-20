@@ -42,13 +42,14 @@ data class Customer(
     }
 }
 
-// Vendor Model
+// Vendor Model with category
 data class Vendor(
     val vendorId: String = "",
     val vendorName: String = "",
     val vendorContact: String = "",
     val email: String = "",
     val address: String = "",
+    val category: String = "", // New category field: "restaurant", "grocery", etc.
     val profileImageBase64: String = "",
     val createdAt: Timestamp = Timestamp.now(),
     val updatedAt: Timestamp = Timestamp.now()
@@ -62,16 +63,22 @@ data class Vendor(
                     .await()
                     .size()
 
+                println("DEBUG: Existing vendor count: $count") // Add logging
+
                 // Format as V0001, V0002, etc.
-                "V${(count + 1).toString().padStart(4, '0')}"
+                val newId = "V${(count + 1).toString().padStart(4, '0')}"
+                println("DEBUG: Generated new vendor ID: $newId") // Add logging
+                newId
             } catch (e: Exception) {
                 // Fallback if counting fails
-                "V${System.currentTimeMillis().toString().takeLast(4).padStart(4, '0')}"
+                val fallbackId =
+                    "V${System.currentTimeMillis().toString().takeLast(4).padStart(4, '0')}"
+                println("DEBUG: Using fallback vendor ID: $fallbackId") // Add logging
+                fallbackId
             }
         }
     }
 }
-
 // Product Model
 data class Product(
     @DocumentId val productId: String = "", // Keep for products as they need auto-generated IDs
@@ -138,3 +145,27 @@ data class CustomerAccount(
     val tapNChowCredit: Double = 0.0,
     val lastUpdated: Timestamp = Timestamp.now()
 )
+
+// Vendor Category Constants for easy reference
+object VendorCategory {
+    const val RESTAURANT = "restaurant"
+    const val GROCERY = "grocery"
+    const val CAFE = "cafe"
+    const val BAKERY = "bakery"
+    const val OTHER = "other"
+
+    fun getAllCategories(): List<String> {
+        return listOf(RESTAURANT, GROCERY, CAFE, BAKERY, OTHER)
+    }
+
+    fun getDisplayName(category: String): String {
+        return when (category) {
+            RESTAURANT -> "Restaurant"
+            GROCERY -> "Grocery Store"
+            CAFE -> "Cafe"
+            BAKERY -> "Bakery"
+            OTHER -> "Other"
+            else -> category
+        }
+    }
+}

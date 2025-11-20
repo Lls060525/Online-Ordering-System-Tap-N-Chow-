@@ -16,12 +16,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.miniproject.R
 import com.example.miniproject.components.CustomTextField
+import com.example.miniproject.model.VendorCategory
 import com.example.miniproject.service.AuthService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,6 +62,8 @@ fun VendorRegisterScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
     var vendorContact by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf(VendorCategory.RESTAURANT) }
+    var isCategoryExpanded by remember { mutableStateOf(false) }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -65,6 +74,7 @@ fun VendorRegisterScreen(navController: NavController) {
     var emailError by remember { mutableStateOf<String?>(null) }
     var contactError by remember { mutableStateOf<String?>(null) }
     var addressError by remember { mutableStateOf<String?>(null) }
+    var categoryError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
     var confirmPasswordError by remember { mutableStateOf<String?>(null) }
 
@@ -76,6 +86,7 @@ fun VendorRegisterScreen(navController: NavController) {
     LaunchedEffect(email) { if (email.isNotEmpty()) emailError = null }
     LaunchedEffect(vendorContact) { if (vendorContact.isNotEmpty()) contactError = null }
     LaunchedEffect(address) { if (address.isNotEmpty()) addressError = null }
+    LaunchedEffect(category) { if (category.isNotEmpty()) categoryError = null }
     LaunchedEffect(password) { if (password.isNotEmpty()) passwordError = null }
     LaunchedEffect(confirmPassword) { if (confirmPassword.isNotEmpty()) confirmPasswordError = null }
 
@@ -124,6 +135,14 @@ fun VendorRegisterScreen(navController: NavController) {
             isValid = false
         } else {
             addressError = null
+        }
+
+        // Category validation
+        if (category.isEmpty()) {
+            categoryError = "Please select a business category"
+            isValid = false
+        } else {
+            categoryError = null
         }
 
         // Password validation
@@ -263,6 +282,59 @@ fun VendorRegisterScreen(navController: NavController) {
                         supportingText = addressError
                     )
 
+                    // Category Dropdown
+                    ExposedDropdownMenuBox(
+                        expanded = isCategoryExpanded,
+                        onExpandedChange = { isCategoryExpanded = !isCategoryExpanded },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedTextField(
+                            value = VendorCategory.getDisplayName(category),
+                            onValueChange = { },
+                            readOnly = true,
+                            label = { Text("Business Category") },
+                            placeholder = { Text("Select your business category") },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryExpanded)
+                            },
+                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            isError = categoryError != null,
+                            supportingText = {
+                                if (categoryError != null) {
+                                    Text(text = categoryError!!)
+                                }
+                            }
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = isCategoryExpanded,
+                            onDismissRequest = { isCategoryExpanded = false }
+                        ) {
+                            VendorCategory.getAllCategories().forEach { categoryOption ->
+                                DropdownMenuItem(
+                                    text = { Text(VendorCategory.getDisplayName(categoryOption)) },
+                                    onClick = {
+                                        category = categoryOption
+                                        isCategoryExpanded = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = when (categoryOption) {
+                                                VendorCategory.RESTAURANT -> Icons.Default.Business
+                                                VendorCategory.GROCERY -> Icons.Default.Store
+                                                else -> Icons.Default.Business
+                                            },
+                                            contentDescription = null
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     CustomTextField(
                         value = password,
                         onValueChange = { password = it },
@@ -297,6 +369,7 @@ fun VendorRegisterScreen(navController: NavController) {
                                     email = email.trim(),
                                     vendorContact = vendorContact.trim(),
                                     address = address.trim(),
+                                    category = category,
                                     password = password
                                 )
                                 isLoading = false
