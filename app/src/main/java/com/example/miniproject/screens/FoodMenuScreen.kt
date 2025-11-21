@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -24,17 +26,21 @@ import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,12 +70,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.miniproject.R
+import com.example.miniproject.model.Cart
+import com.example.miniproject.model.CartItem
 import com.example.miniproject.model.Product
 import com.example.miniproject.model.Vendor
 import com.example.miniproject.model.VendorCategory
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.utils.ImageConverter
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.net.URLEncoder
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,18 +91,16 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
     var vendor by remember { mutableStateOf<Vendor?>(null) }
     var products by remember { mutableStateOf<List<Product>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var cartItems by remember { mutableStateOf<List<CartItem>>(emptyList()) }
+    var showCart by remember { mutableStateOf(false) }
 
     LaunchedEffect(vendorId) {
         if (vendorId != null) {
-            // Load vendor details
             val vendorData = databaseService.getVendorById(vendorId)
             vendor = vendorData
-
-            // Load vendor products
             val vendorProducts = databaseService.getProductsByVendor(vendorId)
             products = vendorProducts
         } else {
-            // If no vendorId provided, try to get current vendor
             val currentVendor = authService.getCurrentVendor()
             vendor = currentVendor
             currentVendor?.let {
@@ -117,10 +126,40 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
+                actions = {
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 16.dp)
+                            .clickable { showCart = true }
+                    ) {
+                        Icon(
+                            Icons.Default.ShoppingCart,
+                            contentDescription = "Cart",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                        if (cartItems.isNotEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .background(MaterialTheme.colorScheme.error, CircleShape)
+                                    .align(Alignment.TopEnd),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = cartItems.sumOf { it.quantity }.toString(),
+                                    color = MaterialTheme.colorScheme.onError,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         }
@@ -140,10 +179,8 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                // Vendor Header Section
                 VendorHeaderSection(vendor = vendor)
 
-                // Products List
                 if (products.isEmpty()) {
                     Box(
                         modifier = Modifier
@@ -165,11 +202,6 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                                 text = "No products available",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Text(
-                                text = "Check back later for new items",
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
                     }
                 } else {
@@ -179,14 +211,348 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                             .padding(16.dp)
                     ) {
                         items(products) { product ->
-                            ProductMenuItem(product = product)
+                            ProductMenuItem(
+                                product = product,
+                                onAddToCart = {
+                                    val existingItem = cartItems.find { it.productId == product.productId }
+                                    if (existingItem != null) {
+                                        cartItems = cartItems.map { item ->
+                                            if (item.productId == product.productId) {
+                                                item.copy(quantity = item.quantity + 1)
+                                            } else item
+                                        }
+                                    } else {
+                                        cartItems = cartItems + CartItem(
+                                            productId = product.productId,
+                                            productName = product.productName,
+                                            productPrice = product.productPrice,
+                                            quantity = 1,
+                                            vendorId = product.vendorId,
+                                            imageUrl = product.imageUrl
+                                        )
+                                    }
+                                }
+                            )
                             Spacer(modifier = Modifier.height(12.dp))
                         }
                     }
                 }
             }
         }
+
+        // Cart Dialog
+        if (showCart) {
+            CartDialog(
+                cartItems = cartItems,
+                vendor = vendor,
+                onDismiss = { showCart = false },
+                onUpdateQuantity = { productId, quantity ->
+                    if (quantity == 0) {
+                        cartItems = cartItems.filter { it.productId != productId }
+                    } else {
+                        cartItems = cartItems.map { item ->
+                            if (item.productId == productId) {
+                                item.copy(quantity = quantity)
+                            } else item
+                        }
+                    }
+                },
+                onCheckout = {
+                    showCart = false
+                    // Create Cart object
+                    val cart = Cart(
+                        vendorId = vendor?.vendorId ?: "",
+                        vendorName = vendor?.vendorName ?: "",
+                        vendorAddress = vendor?.address ?: "",
+                        vendorContact = vendor?.vendorContact ?: "",
+                        vendorProfileImage = vendor?.profileImageBase64 ?: "",
+                        items = cartItems,
+                        subtotal = cartItems.sumOf { it.productPrice * it.quantity },
+                        serviceFee = cartItems.sumOf { it.productPrice * it.quantity } * 0.10,
+                        tax = cartItems.sumOf { it.productPrice * it.quantity } * 0.08,
+                        total = cartItems.sumOf { it.productPrice * it.quantity } * 1.18
+                    )
+
+                    // Convert to JSON and navigate
+                    val cartJson = Json.encodeToString(Cart.serializer(), cart)
+                    val encodedCartJson = URLEncoder.encode(cartJson, "UTF-8")
+
+                    navController.navigate("payment/${vendor?.vendorId ?: ""}/$encodedCartJson")
+                },
+                vendorName = vendor?.vendorName ?: "Vendor"
+            )
+        }
     }
+}
+
+@Composable
+fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Product Image
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                when {
+                    product.imageUrl.isNotEmpty() -> {
+                        if (product.imageUrl.startsWith("data:image")) {
+                            val imageConverter = ImageConverter(LocalContext.current)
+                            val bitmap = imageConverter.base64ToBitmap(product.imageUrl)
+                            if (bitmap != null) {
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = "Product Image",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Fastfood,
+                                    contentDescription = "Product Image",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
+                            Icon(
+                                Icons.Default.Fastfood,
+                                contentDescription = "Product Image",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    else -> {
+                        Icon(
+                            Icons.Default.Fastfood,
+                            contentDescription = "Product Image",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.size(16.dp))
+
+            // Product Details
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = product.productName,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = product.description.ifEmpty { "No description available" },
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "RM ${"%.2f".format(product.productPrice)}",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    if (product.stock > 0) {
+                        TextButton(
+                            onClick = onAddToCart,
+                            enabled = product.stock > 0
+                        ) {
+                            Text("Add to Cart")
+                        }
+                    } else {
+                        Text(
+                            text = "Out of Stock",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CartDialog(
+    cartItems: List<CartItem>,
+    vendor: Vendor?,
+    onDismiss: () -> Unit,
+    onUpdateQuantity: (String, Int) -> Unit,
+    onCheckout: () -> Unit,
+    vendorName: String
+) {
+    val subtotal = cartItems.sumOf { it.productPrice * it.quantity }
+    val serviceFee = subtotal * 0.10
+    val tax = subtotal * 0.08
+    val finalTotal = subtotal + serviceFee + tax
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Your Cart - ${vendor?.vendorName ?: vendorName}", fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column {
+                if (cartItems.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Your cart is empty", textAlign = TextAlign.Center)
+                    }
+                } else {
+                    // Cart items
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 200.dp)
+                    ) {
+                        items(cartItems) { item ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        item.productName,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 16.sp
+                                    )
+                                    Text(
+                                        "RM ${"%.2f".format(item.productPrice)}",
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    IconButton(
+                                        onClick = { onUpdateQuantity(item.productId, item.quantity - 1) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Text("-", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                    }
+                                    Text(
+                                        text = item.quantity.toString(),
+                                        modifier = Modifier.padding(horizontal = 8.dp),
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    IconButton(
+                                        onClick = { onUpdateQuantity(item.productId, item.quantity + 1) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Text("+", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                    }
+                                }
+                                Text(
+                                    "RM ${"%.2f".format(item.productPrice * item.quantity)}",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 16.sp,
+                                    modifier = Modifier.width(70.dp)
+                                )
+                            }
+                            Divider()
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Total calculation
+                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Subtotal", fontSize = 14.sp)
+                            Text("RM ${"%.2f".format(subtotal)}", fontSize = 14.sp)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Service Fee (10%)", fontSize = 14.sp)
+                            Text("RM ${"%.2f".format(serviceFee)}", fontSize = 14.sp)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Tax (8%)", fontSize = 14.sp)
+                            Text("RM ${"%.2f".format(tax)}", fontSize = 14.sp)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Divider()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Total", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(
+                                "RM ${"%.2f".format(finalTotal)}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (cartItems.isNotEmpty()) {
+                Button(
+                    onClick = onCheckout,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("Proceed to Checkout", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Continue Shopping")
+            }
+        }
+    )
 }
 
 @Composable
@@ -675,6 +1041,7 @@ fun FoodContentWithVendors(navController: NavController) {
         )
     }
 }
+
 @Composable
 fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
     Card(

@@ -11,6 +11,8 @@ import com.example.miniproject.screens.CustomerAccountScreen
 import com.example.miniproject.screens.CustomerProfileScreen
 import com.example.miniproject.screens.FoodMenuScreen
 import com.example.miniproject.screens.LoginScreen
+import com.example.miniproject.screens.OrderConfirmationScreen
+import com.example.miniproject.screens.PaymentGatewayScreen
 import com.example.miniproject.screens.RegisterScreen
 import com.example.miniproject.screens.UserHomeScreen
 import com.example.miniproject.screens.VendorHomeScreen
@@ -62,6 +64,22 @@ class MainActivity : ComponentActivity() {
                         val vendorId = backStackEntry.arguments?.getString("vendorId")
                         FoodMenuScreen(navController, vendorId)
 
+                    }
+
+                    composable("foodMenu/{vendorId}") { backStackEntry ->
+                        val vendorId = backStackEntry.arguments?.getString("vendorId")
+                        FoodMenuScreen(navController, vendorId)
+                    }
+
+                    composable("payment/{vendorId}/{cartJson}") { backStackEntry ->
+                        val vendorId = backStackEntry.arguments?.getString("vendorId")
+                        val cartJson = backStackEntry.arguments?.getString("cartJson")
+                        PaymentGatewayScreen(navController, vendorId, cartJson)
+                    }
+
+                    composable("orderConfirmation/{orderId}") { backStackEntry ->
+                        val orderId = backStackEntry.arguments?.getString("orderId")
+                        OrderConfirmationScreen(navController, orderId)
                     }
                 }
             }

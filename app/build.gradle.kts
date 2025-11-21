@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.10"
 }
 
 android {
@@ -71,6 +72,8 @@ dependencies {
 
     //Icon Pack
     implementation("androidx.compose.material:material-icons-extended:1.6.0")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
 
     // image picking
     implementation("io.coil-kt:coil-compose:2.4.0")

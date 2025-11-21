@@ -111,6 +111,75 @@ class DatabaseService {
         }
     }
 
+    suspend fun createOrderWithDetails(orderRequest: OrderRequest): Result<String> {
+        return try {
+            // Create order
+            val order = Order(
+                customerId = orderRequest.customerId,
+                totalPrice = orderRequest.totalAmount,
+                shippingAddress = orderRequest.deliveryAddress,
+                paymentMethod = orderRequest.paymentMethod,
+                status = "pending",
+                orderDate = Timestamp.now()
+            )
+
+            val orderRef = db.collection("orders").add(order).await()
+            val orderId = orderRef.id
+
+            // Create order details
+            orderRequest.items.forEach { item ->
+                val orderDetail = OrderDetail(
+                    orderId = orderId,
+                    productId = item.productId,
+                    productName = item.productName,
+                    productPrice = item.productPrice,
+                    quantity = item.quantity,
+                    subtotal = item.productPrice * item.quantity
+                )
+                db.collection("order_details").add(orderDetail).await()
+            }
+
+            // Create payment record
+            val payment = Payment(
+                orderId = orderId,
+                amount = orderRequest.totalAmount,
+                paymentMethod = orderRequest.paymentMethod,
+                paymentStatus = "pending",
+                transactionDate = Timestamp.now()
+            )
+            db.collection("payments").add(payment).await()
+
+            Result.success(orderId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updatePaymentStatus(orderId: String, status: String): Result<Boolean> {
+        return try {
+            // Update payment status
+            val paymentQuery = db.collection("payments")
+                .whereEqualTo("orderId", orderId)
+                .get()
+                .await()
+
+            if (!paymentQuery.isEmpty) {
+                val paymentDoc = paymentQuery.documents.first()
+                paymentDoc.reference.update("paymentStatus", status).await()
+            }
+
+            // Update order status if payment is completed
+            if (status == "completed") {
+                db.collection("orders").document(orderId)
+                    .update("status", "confirmed").await()
+            }
+
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun getCustomerOrders(customerId: String): List<Order> {
         return try {
             db.collection("orders")

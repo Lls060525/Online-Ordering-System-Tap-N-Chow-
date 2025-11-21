@@ -4,6 +4,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+import kotlinx.serialization.Serializable
 
 // Customer Model (previously User)
 data class Customer(
@@ -138,6 +139,39 @@ data class Feedback(
     val comment: String = "",
     val feedbackDate: Timestamp = Timestamp.now(),
     val createdAt: Timestamp = Timestamp.now()
+)
+
+@Serializable
+data class CartItem(
+    val productId: String = "",
+    val productName: String = "",
+    val productPrice: Double = 0.0,
+    val quantity: Int = 0,
+    val vendorId: String = "",
+    val imageUrl: String = ""
+)
+
+@Serializable
+data class Cart(
+    val vendorId: String = "",
+    val vendorName: String = "",
+    val vendorAddress: String = "",
+    val vendorContact: String = "",
+    val vendorProfileImage: String = "",
+    val items: List<CartItem> = emptyList(),
+    val subtotal: Double = 0.0,
+    val serviceFee: Double = 0.0,
+    val tax: Double = 0.0,
+    val total: Double = 0.0
+)
+
+data class OrderRequest(
+    val customerId: String = "",
+    val vendorId: String = "",
+    val items: List<CartItem> = emptyList(),
+    val totalAmount: Double = 0.0,
+    val deliveryAddress: String = "",
+    val paymentMethod: String = ""
 )
 
 data class CustomerAccount(
