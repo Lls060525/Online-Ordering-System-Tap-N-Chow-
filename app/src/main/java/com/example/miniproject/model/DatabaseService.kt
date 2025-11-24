@@ -189,33 +189,38 @@ class DatabaseService {
 
     suspend fun getCustomerOrders(customerId: String): List<Order> {
         return try {
-            // Try exact match first
-            val exactMatch = db.collection("orders")
+            println("DEBUG: Searching orders for customer: $customerId")
+
+            val query = db.collection("orders")
                 .whereEqualTo("customerId", customerId)
                 .orderBy("orderDate", Query.Direction.DESCENDING)
                 .get()
                 .await()
-                .toObjects(Order::class.java)
 
-            println("DEBUG: Exact match found: ${exactMatch.size} orders")
+            println("DEBUG: Query found ${query.documents.size} documents")
 
-            // If no exact matches, try case-insensitive search (for debugging)
-            if (exactMatch.isEmpty()) {
-                val allOrders = db.collection("orders")
-                    .get()
-                    .await()
-                    .toObjects(Order::class.java)
-
-                val similarOrders = allOrders.filter {
-                    it.customerId.equals(customerId, ignoreCase = true)
-                }
-                println("DEBUG: Case-insensitive match found: ${similarOrders.size} orders")
-                return similarOrders
+            val orders = mutableListOf<Order>()
+            query.documents.forEach { doc ->
+                println("DEBUG: Processing document: ${doc.id}")
+                // Manually create Order object with document ID as orderId
+                val order = Order(
+                    orderId = doc.id, // Use document ID as orderId
+                    customerId = doc.getString("customerId") ?: "",
+                    orderDate = doc.getTimestamp("orderDate") ?: Timestamp.now(),
+                    status = doc.getString("status") ?: "pending",
+                    totalPrice = doc.getDouble("totalPrice") ?: 0.0,
+                    shippingAddress = doc.getString("shippingAddress") ?: "",
+                    paymentMethod = doc.getString("paymentMethod") ?: "",
+                    createdAt = doc.getTimestamp("createdAt") ?: Timestamp.now(),
+                    updatedAt = doc.getTimestamp("updatedAt") ?: Timestamp.now()
+                )
+                orders.add(order)
             }
 
-            exactMatch
+            orders
         } catch (e: Exception) {
             println("DEBUG: Error in getCustomerOrders: ${e.message}")
+            e.printStackTrace()
             emptyList()
         }
     }

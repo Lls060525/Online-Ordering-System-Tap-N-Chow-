@@ -1,0 +1,493 @@
+package com.example.miniproject.screens.order
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
+import com.example.miniproject.model.Order
+import com.example.miniproject.model.OrderDetail
+import com.example.miniproject.model.Payment
+import com.example.miniproject.service.AuthService
+import com.example.miniproject.service.DatabaseService
+import com.example.miniproject.util.OrderStatusHelper.formatOrderDate
+import com.example.miniproject.util.OrderStatusHelper.getStatusColor
+import com.example.miniproject.util.OrderStatusHelper.getStatusDisplayText
+import kotlinx.coroutines.launch
+import java.util.Locale
+
+@Composable
+fun OrderScreen(navController: NavController) {
+    val authService = AuthService()
+    val databaseService = DatabaseService()
+    val coroutineScope = rememberCoroutineScope()
+
+    var orders by remember { mutableStateOf<List<Order>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var selectedOrder by remember { mutableStateOf<Order?>(null) }
+    var orderDetails by remember { mutableStateOf<List<OrderDetail>>(emptyList()) }
+    var showOrderDetails by remember { mutableStateOf(false) }
+    var debugInfo by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        coroutineScope.launch {
+            try {
+                // Get current customer
+                val customer = authService.getCurrentCustomer()
+                debugInfo += "=== DEBUG INFORMATION ===\n"
+                debugInfo += "Current Customer: ${customer?.customerId ?: "NULL"}\n"
+                debugInfo += "Customer Name: ${customer?.name ?: "NULL"}\n"
+
+                if (customer == null) {
+                    debugInfo += "❌ ERROR: No customer found! User might not be logged in as customer.\n"
+                    isLoading = false
+                    return@launch
+                }
+
+                // Debug: Get ALL orders first to see what's in the database
+                debugInfo += "\n--- ALL ORDERS IN DATABASE ---\n"
+                val allOrders = databaseService.getAllOrders()
+                debugInfo += "Total orders in database: ${allOrders.size}\n"
+
+                allOrders.forEachIndexed { index, order ->
+                    debugInfo += "Order ${index + 1}: ID=${order.orderId}, CustomerID=${order.customerId}, Status=${order.status}, Total=RM${order.totalPrice}\n"
+                }
+
+                // Now get customer-specific orders
+                debugInfo += "\n--- CUSTOMER SPECIFIC ORDERS ---\n"
+                debugInfo += "Searching for customer ID: ${customer.customerId}\n"
+
+                val customerOrders = databaseService.getCustomerOrders(customer.customerId)
+                debugInfo += "Found ${customerOrders.size} orders for this customer\n"
+
+                customerOrders.forEachIndexed { index, order ->
+                    debugInfo += "Customer Order ${index + 1}: ${order.orderId} - ${order.status} - RM${order.totalPrice}\n"
+                }
+
+                orders = customerOrders
+                isLoading = false
+
+                debugInfo += "\n=== END DEBUG ===\n"
+
+            } catch (e: Exception) {
+                debugInfo += "❌ EXCEPTION: ${e.message}\n"
+                e.printStackTrace()
+                isLoading = false
+            }
+        }
+    }
+
+    if (showOrderDetails && selectedOrder != null) {
+        OrderDetailDialog(
+            order = selectedOrder!!,
+            orderDetails = orderDetails,
+            onDismiss = {
+                showOrderDetails = false
+                selectedOrder = null
+                orderDetails = emptyList()
+            }
+        )
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "My Orders",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            // Debug information (remove this section in production)
+            if (debugInfo.isNotEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFFFF8E1)
+                    )
+                ) {
+                    Text(
+                        text = debugInfo,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF8B4513),
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator()
+                        Text(
+                            text = "Loading orders...",
+                            modifier = Modifier.padding(top = 16.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else if (orders.isEmpty()) {
+                EmptyOrderState()
+            } else {
+                LazyColumn {
+                    items(orders) { order ->
+                        OrderCard(
+                            order = order,
+                            onClick = {
+                                coroutineScope.launch {
+                                    selectedOrder = order
+                                    orderDetails = databaseService.getOrderDetails(order.orderId)
+                                    showOrderDetails = true
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun OrderCard(
+    order: Order,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // Order Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Order #${order.getDisplayOrderId()}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "RM${"%.2f".format(order.totalPrice)}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Order Date
+            Text(
+                text = "Placed on ${formatOrderDate(order.orderDate)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            // Order Status
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(getStatusColor(order.status))
+                )
+                Text(
+                    text = getStatusDisplayText(order.status),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = getStatusColor(order.status),
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+
+            // Delivery Address (truncated)
+            Text(
+                text = "Delivery to: ${order.shippingAddress.take(50)}${if (order.shippingAddress.length > 50) "..." else ""}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            // Payment Method
+            Text(
+                text = "Payment: ${order.paymentMethod.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            // Tap to view details hint
+            Text(
+                text = "Tap to view details",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(top = 12.dp)
+                    .align(Alignment.End)
+            )
+        }
+    }
+}
+
+@Composable
+fun OrderDetailDialog(
+    order: Order,
+    orderDetails: List<OrderDetail>,
+    onDismiss: () -> Unit
+) {
+    val databaseService = DatabaseService()
+    var payment by remember { mutableStateOf<Payment?>(null) }
+
+    LaunchedEffect(order.orderId) {
+        payment = databaseService.getPaymentByOrder(order.orderId)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Order #${order.getDisplayOrderId()}",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                // Order Status
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Status:")
+                    Text(
+                        text = getStatusDisplayText(order.status),
+                        fontWeight = FontWeight.Medium,
+                        color = getStatusColor(order.status)
+                    )
+                }
+
+                // Order Date
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Order Date:")
+                    Text(formatOrderDate(order.orderDate))
+                }
+
+                // Payment Status
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Payment Status:")
+                    Text(
+                        text = payment?.paymentStatus?.replaceFirstChar {
+                            if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
+                        } ?: "Unknown",
+                        color = when (payment?.paymentStatus) {
+                            "completed" -> Color(0xFF4CAF50)
+                            "pending" -> Color(0xFFFF9800)
+                            "failed" -> Color(0xFFF44336)
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
+                    )
+                }
+
+                // Payment Method
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Payment Method:")
+                    Text(order.paymentMethod.replaceFirstChar {
+                        if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
+                    })
+                }
+
+                // Delivery Address
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Delivery Address:", modifier = Modifier.padding(top = 8.dp))
+                    Text(
+                        text = order.shippingAddress,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                // Order Items
+                Text(
+                    text = "Order Items:",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                )
+
+                if (orderDetails.isEmpty()) {
+                    Text(
+                        text = "No items found",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 200.dp)
+                    ) {
+                        items(orderDetails) { detail ->
+                            OrderItemRow(orderDetail = detail)
+                        }
+                    }
+                }
+
+                // Total
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Total:",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "RM${"%.2f".format(order.totalPrice)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+@Composable
+fun OrderItemRow(orderDetail: OrderDetail) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                text = orderDetail.productName,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = "RM${"%.2f".format(orderDetail.productPrice)} × ${orderDetail.quantity}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+        Text(
+            text = "RM${"%.2f".format(orderDetail.subtotal)}",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+fun EmptyOrderState(
+    icon: ImageVector = Icons.Default.ShoppingCart,
+    title: String = "No orders yet",
+    subtitle: String = "Your orders will appear here"
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = "No orders",
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+    }
+}

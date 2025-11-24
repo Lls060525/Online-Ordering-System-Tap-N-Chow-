@@ -96,7 +96,8 @@ data class Product(
 
 // Order Model
 data class Order(
-    @DocumentId val orderId: String = "", // Keep for orders as they need auto-generated IDs
+    @DocumentId val documentId: String = "", // Firestore document ID (0001, 0002, etc.)
+    val orderId: String = "", // Custom order ID (O001, O002, etc.) - can be same as documentId or different
     val customerId: String = "",
     val orderDate: Timestamp = Timestamp.now(),
     val status: String = "pending",
@@ -106,6 +107,11 @@ data class Order(
     val createdAt: Timestamp = Timestamp.now(),
     val updatedAt: Timestamp = Timestamp.now()
 ) {
+    // Helper function to get display order ID
+    fun getDisplayOrderId(): String {
+        return if (orderId.isNotEmpty()) orderId else "O${documentId.padStart(3, '0')}"
+    }
+
     companion object {
         suspend fun generateOrderId(db: FirebaseFirestore): String {
             return try {
@@ -124,6 +130,7 @@ data class Order(
         }
     }
 }
+
 // Order Detail Model
 data class OrderDetail(
     @DocumentId val orderDetailsId: String = "", // Keep for order details
