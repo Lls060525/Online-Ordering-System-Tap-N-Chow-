@@ -105,8 +105,25 @@ data class Order(
     val paymentMethod: String = "",
     val createdAt: Timestamp = Timestamp.now(),
     val updatedAt: Timestamp = Timestamp.now()
-)
+) {
+    companion object {
+        suspend fun generateOrderId(db: FirebaseFirestore): String {
+            return try {
+                // Get the count of existing orders
+                val count = db.collection("orders")
+                    .get()
+                    .await()
+                    .size()
 
+                // Format as O001, O002, etc.
+                "O${(count + 1).toString().padStart(3, '0')}"
+            } catch (e: Exception) {
+                // Fallback if counting fails
+                "O${System.currentTimeMillis().toString().takeLast(3).padStart(3, '0')}"
+            }
+        }
+    }
+}
 // Order Detail Model
 data class OrderDetail(
     @DocumentId val orderDetailsId: String = "", // Keep for order details

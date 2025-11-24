@@ -116,7 +116,7 @@ fun UserHomeScreen(navController: NavController) {
             when (currentScreen) {
                 is UserScreen.Food -> FoodContentWithVendors(navController)
                 is UserScreen.Grocery -> GroceryContent()
-                is UserScreen.MyOrder -> MyOrderContent()
+                is UserScreen.MyOrder -> MyOrderContent(navController)
                 is UserScreen.Account -> AccountContent(navController)
             }
         }
@@ -193,13 +193,9 @@ fun GroceryContent() {
 }
 
 @Composable
-fun MyOrderContent() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("My Order Screen - Coming Soon")
-    }
+fun MyOrderContent(navController: NavController) {
+
+    Text("My Order - Coming Soon")
 }
 
 @Composable

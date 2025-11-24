@@ -1,11 +1,17 @@
 package com.example.miniproject.screens
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -24,7 +30,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -34,10 +43,31 @@ import com.example.miniproject.model.CustomerAccount
 import com.example.miniproject.model.OrderRequest
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
-import com.example.miniproject.utils.ImageConverter
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.net.URLDecoder
+
+// Image Converter for Payment Screen
+class PaymentImageConverter(private val context: android.content.Context) {
+    fun base64ToBitmap(base64String: String): Bitmap? {
+        return try {
+            // Remove data URL prefix if present
+            val pureBase64 = if (base64String.contains(",")) {
+                base64String.substringAfter(",")
+            } else {
+                base64String
+            }
+
+            Log.d("PaymentImageConverter", "Base64 string length: ${pureBase64.length}")
+
+            val decodedBytes = Base64.decode(pureBase64, Base64.DEFAULT)
+            BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+        } catch (e: Exception) {
+            Log.e("PaymentImageConverter", "Error decoding base64: ${e.message}")
+            null
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,13 +81,25 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
     val databaseService = DatabaseService()
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
-    val imageConverter = ImageConverter(context)
+    val imageConverter = remember { PaymentImageConverter(context) }
 
     var customer by remember { mutableStateOf<com.example.miniproject.model.Customer?>(null) }
     var customerAccount by remember { mutableStateOf<CustomerAccount?>(null) }
     var selectedPaymentMethod by remember { mutableStateOf("wallet") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Card details state
+    var cardBankName by remember { mutableStateOf("") }
+    var cardHolderName by remember { mutableStateOf("") }
+    var cardNumber by remember { mutableStateOf("") }
+    var cardExpiryMonth by remember { mutableStateOf("") }
+    var cardExpiryYear by remember { mutableStateOf("") }
+    var cardCVV by remember { mutableStateOf("") }
+    var showCardForm by remember { mutableStateOf(false) }
+
+    // Vendor image state
+    var vendorBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     // Parse cart data from JSON
     val cart = remember(cartJson) {
@@ -74,6 +116,18 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
         }
     }
 
+    // Process vendor image when cart is loaded
+    LaunchedEffect(cart) {
+        if (cart != null && !cart.vendorProfileImage.isNullOrEmpty()) {
+            Log.d("PaymentScreen", "Processing vendor profile image")
+            val bitmap = imageConverter.base64ToBitmap(cart.vendorProfileImage)
+            vendorBitmap = bitmap
+            Log.d("PaymentScreen", "Vendor bitmap created: ${bitmap != null}")
+        } else {
+            Log.d("PaymentScreen", "No vendor profile image available")
+        }
+    }
+
     LaunchedEffect(Unit) {
         val currentCustomer = authService.getCurrentCustomer()
         customer = currentCustomer
@@ -81,6 +135,21 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
             val account = databaseService.getCustomerAccount(it.customerId)
             customerAccount = account
         }
+    }
+
+    // Update card form visibility when payment method changes
+    LaunchedEffect(selectedPaymentMethod) {
+        showCardForm = selectedPaymentMethod == "card"
+    }
+
+    // Helper function to validate card details
+    val isCardDetailsValid = {
+        cardBankName.isNotBlank() &&
+                cardHolderName.isNotBlank() &&
+                cardNumber.length == 16 &&
+                cardExpiryMonth.length == 2 &&
+                cardExpiryYear.length == 2 &&
+                cardCVV.length in 3..4
     }
 
     Scaffold(
@@ -130,7 +199,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                     .padding(paddingValues)
                     .verticalScroll(rememberScrollState())
             ) {
-                // Vendor Information with Profile Picture
+                // Vendor Information with Profile Picture - FIXED VENDOR IMAGE
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -142,49 +211,33 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            // Vendor Profile Picture with improved handling
+                            // Vendor Profile Picture - IMPROVED IMAGE HANDLING
                             Box(
                                 modifier = Modifier
-                                    .size(60.dp)
+                                    .size(80.dp)
                                     .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.surfaceVariant),
                                 contentAlignment = Alignment.Center
                             ) {
-                                // Improved image handling
-                                when {
-                                    !cart.vendorProfileImage.isNullOrEmpty() -> {
-                                        // Try to decode the base64 image
-                                        val bitmap = imageConverter.base64ToBitmap(cart.vendorProfileImage)
-                                        if (bitmap != null) {
-                                            Image(
-                                                bitmap = bitmap.asImageBitmap(),
-                                                contentDescription = "Vendor Profile",
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentScale = ContentScale.Crop
-                                            )
-                                        } else {
-                                            // If base64 decoding fails, show default icon
-                                            Icon(
-                                                painter = painterResource(id = R.drawable.logo2),
-                                                contentDescription = "Vendor Logo",
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .padding(8.dp),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                    else -> {
-                                        // No profile image available
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.logo2),
-                                            contentDescription = "Vendor Logo",
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(8.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                                // FIX: Use local variable to avoid smart cast issue
+                                val currentVendorBitmap = vendorBitmap
+                                if (currentVendorBitmap != null) {
+                                    Image(
+                                        bitmap = currentVendorBitmap.asImageBitmap(),
+                                        contentDescription = "Vendor Profile",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    // Show default vendor image
+                                    Image(
+                                        painter = painterResource(id = R.drawable.logo2),
+                                        contentDescription = "Vendor Logo",
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(12.dp),
+                                        contentScale = ContentScale.Fit
+                                    )
                                 }
                             }
 
@@ -194,18 +247,21 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                 Text(
                                     cart.vendorName,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
+                                    fontSize = 20.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
 
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Location
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         Icons.Default.LocationOn,
                                         contentDescription = "Location",
-                                        modifier = Modifier.size(14.dp),
+                                        modifier = Modifier.size(16.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         cart.vendorAddress,
                                         fontSize = 14.sp,
@@ -214,33 +270,36 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                     )
                                 }
 
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // Contact
                                 if (cart.vendorContact.isNotEmpty()) {
-                                    Spacer(modifier = Modifier.height(2.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
                                             Icons.Default.Phone,
                                             contentDescription = "Contact",
-                                            modifier = Modifier.size(14.dp),
+                                            modifier = Modifier.size(16.dp),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
-                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             "Contact: ${cart.vendorContact}",
                                             fontSize = 14.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
+                                    Spacer(modifier = Modifier.height(4.dp))
                                 }
 
-                                Spacer(modifier = Modifier.height(2.dp))
+                                // Rating
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         Icons.Default.Star,
                                         contentDescription = "Rating",
-                                        modifier = Modifier.size(14.dp),
+                                        modifier = Modifier.size(16.dp),
                                         tint = MaterialTheme.colorScheme.primary
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         "4.5 ★ (128 reviews)",
                                         fontSize = 14.sp,
@@ -250,13 +309,27 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "Ready for pickup in 10-15 mins",
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Ready for pickup
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    MaterialTheme.colorScheme.primaryContainer,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                "Ready for pickup in 10-15 mins",
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
 
@@ -271,10 +344,11 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                         Text(
                             "Your Order",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         // Order Items
                         cart.items.forEach { item ->
@@ -285,7 +359,8 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                 Column {
                                     Text(
                                         item.productName,
-                                        fontWeight = FontWeight.Medium
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 16.sp
                                     )
                                     Text(
                                         "Qty: ${item.quantity}",
@@ -295,51 +370,68 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                 }
                                 Text(
                                     "RM ${"%.2f".format(item.productPrice * item.quantity)}",
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 16.sp
                                 )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
                         }
 
-                        Divider()
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Divider(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            color = MaterialTheme.colorScheme.outline
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // Total Calculation
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Subtotal")
-                            Text("RM ${"%.2f".format(cart.subtotal)}")
+                            Text("Subtotal", fontSize = 14.sp)
+                            Text("RM ${"%.2f".format(cart.subtotal)}", fontSize = 14.sp)
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Service Fee (10%)")
-                            Text("RM ${"%.2f".format(cart.serviceFee)}")
+                            Text("Service Fee (10%)", fontSize = 14.sp)
+                            Text("RM ${"%.2f".format(cart.serviceFee)}", fontSize = 14.sp)
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Tax (8%)")
-                            Text("RM ${"%.2f".format(cart.tax)}")
+                            Text("Tax (8%)", fontSize = 14.sp)
+                            Text("RM ${"%.2f".format(cart.tax)}", fontSize = 14.sp)
                         }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Divider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            color = MaterialTheme.colorScheme.outline
+                        )
+
                         Spacer(modifier = Modifier.height(8.dp))
-                        Divider()
-                        Spacer(modifier = Modifier.height(8.dp))
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Total", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(
+                                "Total",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                             Text(
                                 "RM ${"%.2f".format(cart.total)}",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
+                                fontSize = 18.sp,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -357,10 +449,11 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                         Text(
                             "Payment Method",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         // Credit/Debit Card Option
                         Row(
@@ -377,9 +470,16 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                 selected = selectedPaymentMethod == "card",
                                 onClick = { selectedPaymentMethod = "card" }
                             )
-                            Icon(Icons.Default.CreditCard, contentDescription = "Card")
+                            Icon(
+                                Icons.Default.CreditCard,
+                                contentDescription = "Card",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("Credit / Debit Card")
+                            Text(
+                                "Credit / Debit Card",
+                                fontSize = 16.sp
+                            )
                         }
 
                         // Tap N Chow Wallet Option
@@ -397,14 +497,21 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                 selected = selectedPaymentMethod == "wallet",
                                 onClick = { selectedPaymentMethod = "wallet" }
                             )
-                            Icon(Icons.Default.Wallet, contentDescription = "Wallet")
+                            Icon(
+                                Icons.Default.Wallet,
+                                contentDescription = "Wallet",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("Tap N Chow Wallet")
+                            Text(
+                                "Tap N Chow Wallet",
+                                fontSize = 16.sp
+                            )
                             Spacer(modifier = Modifier.weight(1f))
                             customerAccount?.let { account ->
                                 Text(
                                     "Balance: RM ${"%.2f".format(account.tapNChowCredit)}",
-                                    fontSize = 12.sp,
+                                    fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -425,20 +532,168 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                 selected = selectedPaymentMethod == "cash",
                                 onClick = { selectedPaymentMethod = "cash" }
                             )
-                            Icon(Icons.Default.Money, contentDescription = "Cash")
+                            Icon(
+                                Icons.Default.Money,
+                                contentDescription = "Cash",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("Cash on Pickup")
+                            Text(
+                                "Cash on Pickup",
+                                fontSize = 16.sp
+                            )
+                        }
+                    }
+                }
+
+                // Card Details Form (shown only when card payment is selected)
+                if (showCardForm) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                "Card Details",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Bank Name
+                            OutlinedTextField(
+                                value = cardBankName,
+                                onValueChange = { cardBankName = it },
+                                label = { Text("Bank Name") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Card Holder Name
+                            OutlinedTextField(
+                                value = cardHolderName,
+                                onValueChange = { cardHolderName = it },
+                                label = { Text("Card Holder Name") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Card Number
+                            OutlinedTextField(
+                                value = cardNumber,
+                                onValueChange = {
+                                    if (it.all { char -> char.isDigit() } && it.length <= 16) {
+                                        cardNumber = it
+                                    }
+                                },
+                                label = { Text("Card Number") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                visualTransformation = CardNumberTransformation(),
+                                placeholder = { Text("1234 5678 9012 3456") },
+                                shape = RoundedCornerShape(8.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Expiry Date and CVV in one row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                // Expiry Month
+                                OutlinedTextField(
+                                    value = cardExpiryMonth,
+                                    onValueChange = {
+                                        if (it.all { char -> char.isDigit() } && it.length <= 2) {
+                                            cardExpiryMonth = it
+                                        }
+                                    },
+                                    label = { Text("MM") },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    placeholder = { Text("12") },
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+
+                                // Expiry Year
+                                OutlinedTextField(
+                                    value = cardExpiryYear,
+                                    onValueChange = {
+                                        if (it.all { char -> char.isDigit() } && it.length <= 2) {
+                                            cardExpiryYear = it
+                                        }
+                                    },
+                                    label = { Text("YY") },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    placeholder = { Text("25") },
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+
+                                // CVV
+                                OutlinedTextField(
+                                    value = cardCVV,
+                                    onValueChange = {
+                                        if (it.all { char -> char.isDigit() } && it.length <= 4) {
+                                            cardCVV = it
+                                        }
+                                    },
+                                    label = { Text("CVV") },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                                    placeholder = { Text("123") },
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Card validation message
+                            if (selectedPaymentMethod == "card" && !isCardDetailsValid()) {
+                                Text(
+                                    text = "Please fill all card details correctly",
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 14.sp
+                                )
+                            }
                         }
                     }
                 }
 
                 // Error message
                 errorMessage?.let { message ->
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                            .background(
+                                MaterialTheme.colorScheme.errorContainer,
+                                RoundedCornerShape(8.dp)
+                            )
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
 
                 // Complete Order Button
@@ -446,6 +701,11 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                     onClick = {
                         if (customer == null) {
                             errorMessage = "Please log in to complete order"
+                            return@Button
+                        }
+
+                        if (selectedPaymentMethod == "card" && !isCardDetailsValid()) {
+                            errorMessage = "Please fill all card details correctly"
                             return@Button
                         }
 
@@ -457,6 +717,8 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                         }
 
                         isLoading = true
+                        errorMessage = null
+
                         coroutineScope.launch {
                             try {
                                 val orderRequest = OrderRequest(
@@ -471,13 +733,11 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                 val result = databaseService.createOrderWithDetails(orderRequest)
 
                                 if (result.isSuccess) {
-                                    // Update wallet balance if paid with wallet
                                     if (selectedPaymentMethod == "wallet" && customerAccount != null) {
                                         val newBalance = customerAccount!!.tapNChowCredit - cart.total
                                         databaseService.updateCustomerCredit(customer!!.customerId, newBalance)
                                     }
 
-                                    // Update payment status
                                     databaseService.updatePaymentStatus(result.getOrThrow(), "completed")
 
                                     navController.navigate("orderConfirmation/${result.getOrThrow()}") {
@@ -497,9 +757,11 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                         .fillMaxWidth()
                         .padding(16.dp)
                         .height(56.dp),
-                    enabled = !isLoading && cart.items.isNotEmpty(),
+                    enabled = !isLoading && cart.items.isNotEmpty() &&
+                            (selectedPaymentMethod != "card" || isCardDetailsValid()),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
                     if (isLoading) {
@@ -509,13 +771,47 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                         )
                     } else {
                         Text(
-                            "Complete Order",
+                            "Complete Order - RM ${"%.2f".format(cart.total)}",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
+    }
+}
+
+// Fixed CardNumberTransformation implementation
+class CardNumberTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val trimmed = if (text.text.length >= 16) text.text.take(16) else text.text
+        var out = ""
+        for (i in trimmed.indices) {
+            out += trimmed[i]
+            if (i % 4 == 3 && i != 15) out += " "
+        }
+
+        val offsetMapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                return if (offset <= 3) offset
+                else if (offset <= 7) offset + 1
+                else if (offset <= 11) offset + 2
+                else if (offset <= 16) offset + 3
+                else offset + 3
+            }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                return if (offset <= 4) offset
+                else if (offset <= 9) offset - 1
+                else if (offset <= 14) offset - 2
+                else if (offset <= 19) offset - 3
+                else offset - 3
+            }
+        }
+
+        return TransformedText(AnnotatedString(out), offsetMapping)
     }
 }

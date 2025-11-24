@@ -94,9 +94,12 @@ class DatabaseService {
     // Order Operations
     suspend fun createOrder(order: Order, orderDetails: List<OrderDetail>): Result<String> {
         return try {
-            // Create order
-            val orderRef = db.collection("orders").add(order).await()
-            val orderId = orderRef.id
+            // Generate custom order ID (O001 format)
+            val orderId = Order.generateOrderId(db)
+
+            // Create order with custom ID
+            val orderWithId = order.copy(orderId = orderId)
+            db.collection("orders").document(orderId).set(orderWithId).await()
 
             // Create order details
             orderDetails.forEach { detail ->
@@ -113,8 +116,12 @@ class DatabaseService {
 
     suspend fun createOrderWithDetails(orderRequest: OrderRequest): Result<String> {
         return try {
-            // Create order
+            // Generate custom order ID (O001 format)
+            val orderId = Order.generateOrderId(db)
+
+            // Create order with custom ID
             val order = Order(
+                orderId = orderId, // Set the custom order ID
                 customerId = orderRequest.customerId,
                 totalPrice = orderRequest.totalAmount,
                 shippingAddress = orderRequest.deliveryAddress,
@@ -123,8 +130,8 @@ class DatabaseService {
                 orderDate = Timestamp.now()
             )
 
-            val orderRef = db.collection("orders").add(order).await()
-            val orderId = orderRef.id
+            // Store order using the custom orderId as document ID
+            db.collection("orders").document(orderId).set(order).await()
 
             // Create order details
             orderRequest.items.forEach { item ->
@@ -182,13 +189,33 @@ class DatabaseService {
 
     suspend fun getCustomerOrders(customerId: String): List<Order> {
         return try {
-            db.collection("orders")
+            // Try exact match first
+            val exactMatch = db.collection("orders")
                 .whereEqualTo("customerId", customerId)
                 .orderBy("orderDate", Query.Direction.DESCENDING)
                 .get()
                 .await()
                 .toObjects(Order::class.java)
+
+            println("DEBUG: Exact match found: ${exactMatch.size} orders")
+
+            // If no exact matches, try case-insensitive search (for debugging)
+            if (exactMatch.isEmpty()) {
+                val allOrders = db.collection("orders")
+                    .get()
+                    .await()
+                    .toObjects(Order::class.java)
+
+                val similarOrders = allOrders.filter {
+                    it.customerId.equals(customerId, ignoreCase = true)
+                }
+                println("DEBUG: Case-insensitive match found: ${similarOrders.size} orders")
+                return similarOrders
+            }
+
+            exactMatch
         } catch (e: Exception) {
+            println("DEBUG: Error in getCustomerOrders: ${e.message}")
             emptyList()
         }
     }
@@ -202,6 +229,26 @@ class DatabaseService {
                 .toObjects(OrderDetail::class.java)
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+
+    suspend fun getAllOrders(): List<Order> {
+        return try {
+            db.collection("orders")
+                .get()
+                .await()
+                .toObjects(Order::class.java)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun getOrderById(orderId: String): Order? {
+        return try {
+            db.collection("orders").document(orderId).get().await()
+                .toObject(Order::class.java)
+        } catch (e: Exception) {
+            null
         }
     }
 

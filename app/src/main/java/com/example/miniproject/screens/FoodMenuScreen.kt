@@ -1,5 +1,9 @@
 package com.example.miniproject.screens
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -77,10 +81,31 @@ import com.example.miniproject.model.Vendor
 import com.example.miniproject.model.VendorCategory
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
-import com.example.miniproject.utils.ImageConverter
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.net.URLEncoder
+
+// Improved Image Converter
+class ImageConverter(private val context: android.content.Context) {
+    fun base64ToBitmap(base64String: String): Bitmap? {
+        return try {
+            // Remove data URL prefix if present
+            val pureBase64 = if (base64String.contains(",")) {
+                base64String.substringAfter(",")
+            } else {
+                base64String
+            }
+
+            Log.d("ImageConverter", "Base64 string length: ${pureBase64.length}")
+
+            val decodedBytes = Base64.decode(pureBase64, Base64.DEFAULT)
+            BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+        } catch (e: Exception) {
+            Log.e("ImageConverter", "Error decoding base64: ${e.message}")
+            null
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -287,6 +312,21 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
 
 @Composable
 fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {
+    val context = LocalContext.current
+    val imageConverter = remember { ImageConverter(context) }
+
+    val productBitmap = remember(product.imageUrl) {
+        if (product.imageUrl.isNotEmpty()) {
+            Log.d("ProductImage", "Processing product image: ${product.productName}")
+            val bitmap = imageConverter.base64ToBitmap(product.imageUrl)
+            Log.d("ProductImage", "Bitmap created: ${bitmap != null}")
+            bitmap
+        } else {
+            Log.d("ProductImage", "No image URL for product: ${product.productName}")
+            null
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth(),
@@ -308,36 +348,20 @@ fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 when {
-                    product.imageUrl.isNotEmpty() -> {
-                        if (product.imageUrl.startsWith("data:image")) {
-                            val imageConverter = ImageConverter(LocalContext.current)
-                            val bitmap = imageConverter.base64ToBitmap(product.imageUrl)
-                            if (bitmap != null) {
-                                Image(
-                                    bitmap = bitmap.asImageBitmap(),
-                                    contentDescription = "Product Image",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Icon(
-                                    Icons.Default.Fastfood,
-                                    contentDescription = "Product Image",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        } else {
-                            Icon(
-                                Icons.Default.Fastfood,
-                                contentDescription = "Product Image",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    productBitmap != null -> {
+                        Image(
+                            bitmap = productBitmap.asImageBitmap(),
+                            contentDescription = "Product Image",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
                     }
                     else -> {
+                        // Fallback icon
                         Icon(
                             Icons.Default.Fastfood,
                             contentDescription = "Product Image",
+                            modifier = Modifier.size(40.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -557,6 +581,22 @@ fun CartDialog(
 
 @Composable
 fun VendorHeaderSection(vendor: Vendor?) {
+    val context = LocalContext.current
+    val imageConverter = remember { ImageConverter(context) }
+
+    val vendorBitmap = remember(vendor?.profileImageBase64) {
+        vendor?.profileImageBase64?.let { base64 ->
+            if (base64.isNotEmpty()) {
+                Log.d("VendorImage", "Processing vendor image")
+                val bitmap = imageConverter.base64ToBitmap(base64)
+                Log.d("VendorImage", "Vendor bitmap created: ${bitmap != null}")
+                bitmap
+            } else {
+                null
+            }
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -580,24 +620,13 @@ fun VendorHeaderSection(vendor: Vendor?) {
                     contentAlignment = Alignment.Center
                 ) {
                     when {
-                        !vendor?.profileImageBase64.isNullOrEmpty() -> {
-                            val imageConverter = ImageConverter(LocalContext.current)
-                            val bitmap = imageConverter.base64ToBitmap(vendor?.profileImageBase64 ?: "")
-                            if (bitmap != null) {
-                                Image(
-                                    bitmap = bitmap.asImageBitmap(),
-                                    contentDescription = "Vendor Profile",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Image(
-                                    painter = painterResource(id = R.drawable.logo2),
-                                    contentDescription = "Vendor Logo",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
+                        vendorBitmap != null -> {
+                            Image(
+                                bitmap = vendorBitmap.asImageBitmap(),
+                                contentDescription = "Vendor Profile",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
                         }
                         else -> {
                             Image(
@@ -683,115 +712,6 @@ fun VendorHeaderSection(vendor: Vendor?) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ProductMenuItem(product: Product) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Product Image
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                when {
-                    product.imageUrl.isNotEmpty() -> {
-                        if (product.imageUrl.startsWith("data:image")) {
-                            val imageConverter = ImageConverter(LocalContext.current)
-                            val bitmap = imageConverter.base64ToBitmap(product.imageUrl)
-                            if (bitmap != null) {
-                                Image(
-                                    bitmap = bitmap.asImageBitmap(),
-                                    contentDescription = "Product Image",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                // Fallback icon
-                                Icon(
-                                    Icons.Default.Fastfood,
-                                    contentDescription = "Product Image",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        } else {
-                            // Handle URL images
-                            Icon(
-                                Icons.Default.Fastfood,
-                                contentDescription = "Product Image",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    else -> {
-                        Icon(
-                            Icons.Default.Fastfood,
-                            contentDescription = "Product Image",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.size(16.dp))
-
-            // Product Details
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = product.productName,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = product.description.ifEmpty { "No description available" },
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "RM ${"%.2f".format(product.productPrice)}",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    Text(
-                        text = if (product.stock > 0) "Stock: ${product.stock}" else "Out of Stock",
-                        fontSize = 12.sp,
-                        color = if (product.stock > 0) MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.error
-                    )
                 }
             }
         }
@@ -1044,6 +964,20 @@ fun FoodContentWithVendors(navController: NavController) {
 
 @Composable
 fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
+    val context = LocalContext.current
+    val imageConverter = remember { ImageConverter(context) }
+
+    val vendorBitmap = remember(vendor.profileImageBase64) {
+        if (!vendor.profileImageBase64.isNullOrEmpty()) {
+            Log.d("RestaurantCard", "Processing vendor image: ${vendor.vendorName}")
+            val bitmap = imageConverter.base64ToBitmap(vendor.profileImageBase64)
+            Log.d("RestaurantCard", "Vendor bitmap created: ${bitmap != null}")
+            bitmap
+        } else {
+            null
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1066,24 +1000,13 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 when {
-                    !vendor.profileImageBase64.isNullOrEmpty() -> {
-                        val imageConverter = ImageConverter(LocalContext.current)
-                        val bitmap = imageConverter.base64ToBitmap(vendor.profileImageBase64)
-                        if (bitmap != null) {
-                            Image(
-                                bitmap = bitmap.asImageBitmap(),
-                                contentDescription = "Vendor Logo",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            // Fallback icon if image decoding fails
-                            Icon(
-                                Icons.Default.Store,
-                                contentDescription = "Vendor Logo",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    vendorBitmap != null -> {
+                        Image(
+                            bitmap = vendorBitmap.asImageBitmap(),
+                            contentDescription = "Vendor Logo",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
                     }
                     else -> {
                         // Default icon if no image

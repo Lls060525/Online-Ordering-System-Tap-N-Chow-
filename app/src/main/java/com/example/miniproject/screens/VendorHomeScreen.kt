@@ -605,12 +605,7 @@ fun ProductDashboardItem(product: Product) {
 
 @Composable
 fun VendorOrdersContent() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Orders Management - Coming Soon")
-    }
+    VendorOrdersScreen.VendorOrdersContent()
 }
 
 @Composable
