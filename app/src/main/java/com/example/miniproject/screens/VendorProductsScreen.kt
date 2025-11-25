@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Inventory
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -56,7 +58,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
-import coil.compose.rememberImagePainter
 import com.example.miniproject.model.Product
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
@@ -70,6 +71,7 @@ import kotlinx.coroutines.launch
 fun VendorProductsContent(navController: NavController) {
     val authService = AuthService()
     val databaseService = DatabaseService()
+    val coroutineScope = rememberCoroutineScope()
 
     var vendorId by remember { mutableStateOf<String?>(null) }
     var products by remember { mutableStateOf<List<Product>>(emptyList()) }
@@ -78,9 +80,26 @@ fun VendorProductsContent(navController: NavController) {
     var editingProduct by remember { mutableStateOf<Product?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var productToDelete by remember { mutableStateOf<Product?>(null) }
+    var showRestockDialog by remember { mutableStateOf(false) }
+    var productToRestock by remember { mutableStateOf<Product?>(null) }
+    var refreshTrigger by remember { mutableStateOf(0) }
+
+    // Refresh products function
+    val refreshProducts: () -> Unit = {
+        coroutineScope.launch {
+            vendorId?.let { id ->
+                val vendorProducts = databaseService.getProductsByVendor(id)
+                products = vendorProducts
+                println("DEBUG: Products screen refreshed: ${vendorProducts.size} items")
+                vendorProducts.forEach { product ->
+                    println("DEBUG: ${product.productName} - Stock: ${product.stock}")
+                }
+            }
+        }
+    }
 
     // Get current vendor and load products
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refreshTrigger) {
         val vendor = authService.getCurrentVendor()
         vendor?.let {
             vendorId = it.vendorId
@@ -99,6 +118,16 @@ fun VendorProductsContent(navController: NavController) {
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
                     )
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            isLoading = true
+                            refreshTrigger++
+                        }
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    }
                 }
             )
         },
@@ -125,58 +154,29 @@ fun VendorProductsContent(navController: NavController) {
                 )
             } else {
                 if (products.isEmpty()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            Icons.Default.ShoppingCart,
-                            contentDescription = "No Products",
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            "No Products Yet",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            "Tap the + button to add your first product",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    EmptyProductsState()
                 } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp)
-                    ) {
-                        items(products) { product ->
-                            ProductItem(
-                                product = product,
-                                onEditClick = {
-                                    editingProduct = product
-                                    showAddProductDialog = true
-                                },
-                                onDeleteClick = {
-                                    productToDelete = product
-                                    showDeleteDialog = true
-                                }
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
+                    ProductsList(
+                        products = products,
+                        onEditClick = { product ->
+                            editingProduct = product
+                            showAddProductDialog = true
+                        },
+                        onDeleteClick = { product ->
+                            productToDelete = product
+                            showDeleteDialog = true
+                        },
+                        onRestockClick = { product ->
+                            productToRestock = product
+                            showRestockDialog = true
                         }
-                    }
+                    )
                 }
             }
         }
     }
 
-    // Add/Edit Product Dialog
+    // Dialogs
     if (showAddProductDialog) {
         AddEditProductDialog(
             product = editingProduct,
@@ -185,23 +185,14 @@ fun VendorProductsContent(navController: NavController) {
                 showAddProductDialog = false
                 editingProduct = null
             },
-            onSave = { savedProduct ->
-                if (editingProduct != null) {
-                    // Update existing product in the list
-                    products = products.map {
-                        if (it.productId == savedProduct.productId) savedProduct else it
-                    }
-                } else {
-                    // Add new product to the list
-                    products = products + savedProduct
-                }
+            onSave = {
+                refreshTrigger++
                 showAddProductDialog = false
                 editingProduct = null
             }
         )
     }
 
-    // Delete Confirmation Dialog
     if (showDeleteDialog) {
         DeleteProductDialog(
             product = productToDelete,
@@ -209,13 +200,80 @@ fun VendorProductsContent(navController: NavController) {
                 showDeleteDialog = false
                 productToDelete = null
             },
-            onConfirm = { product ->
-                // Remove from local list AND delete from Firebase
-                products = products.filter { it.productId != product.productId }
+            onConfirm = {
+                refreshTrigger++
                 showDeleteDialog = false
                 productToDelete = null
             }
         )
+    }
+
+    if (showRestockDialog) {
+        RestockProductDialog(
+            product = productToRestock,
+            onDismiss = {
+                showRestockDialog = false
+                productToRestock = null
+            },
+            onConfirm = {
+                refreshTrigger++
+                showRestockDialog = false
+                productToRestock = null
+            }
+        )
+    }
+}
+
+@Composable
+private fun EmptyProductsState() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            Icons.Default.ShoppingCart,
+            contentDescription = "No Products",
+            modifier = Modifier.size(64.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "No Products Yet",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            "Tap the + button to add your first product",
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun ProductsList(
+    products: List<Product>,
+    onEditClick: (Product) -> Unit,
+    onDeleteClick: (Product) -> Unit,
+    onRestockClick: (Product) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        items(products) { product ->
+            ProductItem(
+                product = product,
+                onEditClick = { onEditClick(product) },
+                onDeleteClick = { onDeleteClick(product) },
+                onRestockClick = { onRestockClick(product) }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
     }
 }
 
@@ -223,12 +281,12 @@ fun VendorProductsContent(navController: NavController) {
 fun ProductItem(
     product: Product,
     onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    onRestockClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .clickable { },
+            .fillMaxWidth(),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -236,7 +294,7 @@ fun ProductItem(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // Product Image - Using better image loading
+            // Product Image
             ProductImage(
                 imageUrl = product.imageUrl,
                 modifier = Modifier.size(80.dp)
@@ -269,7 +327,10 @@ fun ProductItem(
                 Text(
                     text = "Stock: ${product.stock}",
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (product.stock > 0) {
+                        if (product.stock < 10) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    } else MaterialTheme.colorScheme.error
                 )
 
                 if (product.category.isNotEmpty()) {
@@ -277,6 +338,23 @@ fun ProductItem(
                         text = "Category: ${product.category}",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Low stock warning
+                if (product.stock < 10 && product.stock > 0) {
+                    Text(
+                        text = "⚠ Low stock",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Medium
+                    )
+                } else if (product.stock == 0) {
+                    Text(
+                        text = "🛑 Out of stock",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -290,6 +368,17 @@ fun ProductItem(
                     Icon(
                         Icons.Default.Edit,
                         contentDescription = "Edit Product",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                IconButton(
+                    onClick = onRestockClick,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Inventory,
+                        contentDescription = "Restock Product",
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -322,7 +411,6 @@ fun ProductImage(
     ) {
         when {
             imageUrl.isEmpty() -> {
-                // No image - show placeholder
                 Icon(
                     Icons.Default.ShoppingCart,
                     contentDescription = "No Image",
@@ -330,7 +418,6 @@ fun ProductImage(
                 )
             }
             imageUrl.startsWith("data:image") -> {
-                // Base64 image
                 val imageConverter = ImageConverter(LocalContext.current)
                 val bitmap = imageConverter.base64ToBitmap(imageUrl)
                 if (bitmap != null) {
@@ -349,24 +436,14 @@ fun ProductImage(
                 }
             }
             imageUrl.startsWith("http") -> {
-                // HTTP URL - use Coil with better error handling
                 Image(
-                    painter = rememberAsyncImagePainter(
-                        model = imageUrl,
-                        error = rememberImagePainter(
-                            data = null,
-                            builder = {
-                                // This will show the placeholder on error
-                            }
-                        )
-                    ),
+                    painter = rememberAsyncImagePainter(model = imageUrl),
                     contentDescription = "Product Image",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
             }
             else -> {
-                // Invalid URL format
                 Icon(
                     Icons.Default.ShoppingCart,
                     contentDescription = "Invalid Image URL",
@@ -390,7 +467,6 @@ fun AddEditProductDialog(
     val context = LocalContext.current
     val imageConverter = ImageConverter(context)
 
-    // Declare all state variables FIRST
     var productName by remember { mutableStateOf(product?.productName ?: "") }
     var productPrice by remember { mutableStateOf(product?.productPrice?.toString() ?: "") }
     var description by remember { mutableStateOf(product?.description ?: "") }
@@ -400,14 +476,11 @@ fun AddEditProductDialog(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // State for image picking
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var isImageLoading by remember { mutableStateOf(false) }
 
-    // Image picker
     val imagePicker = rememberImagePicker { uri ->
         selectedImageUri = uri
-        // Convert the selected image to base64 when image is picked
         if (uri != null) {
             isImageLoading = true
             coroutineScope.launch {
@@ -578,7 +651,6 @@ fun AddEditProductDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    // Validation
                     if (productName.isBlank()) {
                         errorMessage = "Product name is required"
                         return@Button
@@ -610,11 +682,8 @@ fun AddEditProductDialog(
                         updatedAt = Timestamp.now()
                     )
 
-                    // Use coroutine scope to call suspend functions
                     coroutineScope.launch {
-                        // Save to Firebase
                         if (product == null) {
-                            // Add new product
                             databaseService.addProduct(newProduct).onSuccess { productId ->
                                 val productWithId = newProduct.copy(productId = productId)
                                 onSave(productWithId)
@@ -624,7 +693,6 @@ fun AddEditProductDialog(
                                 isLoading = false
                             }
                         } else {
-                            // Update existing product
                             databaseService.updateProduct(newProduct).onSuccess {
                                 onSave(newProduct)
                                 isLoading = false
@@ -658,6 +726,7 @@ fun AddEditProductDialog(
         }
     )
 }
+
 @Composable
 fun DeleteProductDialog(
     product: Product?,
@@ -685,17 +754,12 @@ fun DeleteProductDialog(
                 onClick = {
                     if (product != null) {
                         isLoading = true
-                        // Use coroutine scope to call suspend functions
                         coroutineScope.launch {
-                            // FIXED: Actually delete from Firebase
                             databaseService.deleteProduct(product.productId).onSuccess {
-                                // Only call onConfirm if Firebase deletion is successful
                                 onConfirm(product)
                                 isLoading = false
                             }.onFailure {
-                                // Handle deletion error
                                 isLoading = false
-                                // You might want to show an error message here
                             }
                         }
                     }
@@ -710,6 +774,108 @@ fun DeleteProductDialog(
                     )
                 } else {
                     Text("Delete")
+                }
+            }
+        },
+        dismissButton = {
+            Button(
+                onClick = onDismiss,
+                enabled = !isLoading
+            ) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun RestockProductDialog(
+    product: Product?,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val databaseService = DatabaseService()
+    val coroutineScope = rememberCoroutineScope()
+    var additionalStock by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Restock Product",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage!!,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+
+                Text("Product: ${product?.productName ?: "Unknown"}")
+                Text("Current Stock: ${product?.stock ?: 0}")
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = additionalStock,
+                    onValueChange = {
+                        if (it.isEmpty() || it.toIntOrNull() != null) {
+                            additionalStock = it
+                        }
+                    },
+                    label = { Text("Additional Stock Quantity *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = additionalStock.isBlank() || additionalStock.toIntOrNull() == null || additionalStock.toInt() <= 0
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (additionalStock.isBlank() || additionalStock.toIntOrNull() == null || additionalStock.toInt() <= 0) {
+                        errorMessage = "Please enter a valid stock quantity"
+                        return@Button
+                    }
+
+                    if (product == null) {
+                        errorMessage = "Product not found"
+                        return@Button
+                    }
+
+                    isLoading = true
+                    errorMessage = null
+
+                    coroutineScope.launch {
+                        databaseService.restockProduct(
+                            product.productId,
+                            additionalStock.toInt()
+                        ).onSuccess {
+                            onConfirm()
+                            isLoading = false
+                        }.onFailure {
+                            errorMessage = "Failed to restock: ${it.message}"
+                            isLoading = false
+                        }
+                    }
+                },
+                enabled = !isLoading
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Restock")
                 }
             }
         },

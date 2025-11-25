@@ -60,51 +60,43 @@ fun OrderScreen(navController: NavController) {
     var selectedOrder by remember { mutableStateOf<Order?>(null) }
     var orderDetails by remember { mutableStateOf<List<OrderDetail>>(emptyList()) }
     var showOrderDetails by remember { mutableStateOf(false) }
-    var debugInfo by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         coroutineScope.launch {
             try {
                 // Get current customer
                 val customer = authService.getCurrentCustomer()
-                debugInfo += "=== DEBUG INFORMATION ===\n"
-                debugInfo += "Current Customer: ${customer?.customerId ?: "NULL"}\n"
-                debugInfo += "Customer Name: ${customer?.name ?: "NULL"}\n"
 
                 if (customer == null) {
-                    debugInfo += "❌ ERROR: No customer found! User might not be logged in as customer.\n"
+                    errorMessage = "No customer found! Please make sure you're logged in."
                     isLoading = false
                     return@launch
                 }
 
-                // Debug: Get ALL orders first to see what's in the database
-                debugInfo += "\n--- ALL ORDERS IN DATABASE ---\n"
-                val allOrders = databaseService.getAllOrders()
-                debugInfo += "Total orders in database: ${allOrders.size}\n"
-
-                allOrders.forEachIndexed { index, order ->
-                    debugInfo += "Order ${index + 1}: ID=${order.orderId}, CustomerID=${order.customerId}, Status=${order.status}, Total=RM${order.totalPrice}\n"
-                }
-
-                // Now get customer-specific orders
-                debugInfo += "\n--- CUSTOMER SPECIFIC ORDERS ---\n"
-                debugInfo += "Searching for customer ID: ${customer.customerId}\n"
-
+                // Get customer-specific orders
                 val customerOrders = databaseService.getCustomerOrders(customer.customerId)
-                debugInfo += "Found ${customerOrders.size} orders for this customer\n"
 
-                customerOrders.forEachIndexed { index, order ->
-                    debugInfo += "Customer Order ${index + 1}: ${order.orderId} - ${order.status} - RM${order.totalPrice}\n"
+                if (customerOrders.isNotEmpty()) {
+                    orders = customerOrders
+                } else {
+                    // Fallback: Check all orders to see what's available
+                    val allOrders = databaseService.getAllOrders()
+
+                    // Try to find orders with similar customer ID (case-insensitive)
+                    val similarOrders = allOrders.filter {
+                        it.customerId.equals(customer.customerId, ignoreCase = true)
+                    }
+
+                    if (similarOrders.isNotEmpty()) {
+                        orders = similarOrders
+                    }
                 }
 
-                orders = customerOrders
                 isLoading = false
 
-                debugInfo += "\n=== END DEBUG ===\n"
-
             } catch (e: Exception) {
-                debugInfo += "❌ EXCEPTION: ${e.message}\n"
-                e.printStackTrace()
+                errorMessage = "Error loading orders: ${e.message}"
                 isLoading = false
             }
         }
@@ -133,20 +125,20 @@ fun OrderScreen(navController: NavController) {
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            // Debug information (remove this section in production)
-            if (debugInfo.isNotEmpty()) {
+            // Show error message if any
+            errorMessage?.let { message ->
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 16.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFFFF8E1)
+                        containerColor = Color(0xFFFFEBEE)
                     )
                 ) {
                     Text(
-                        text = debugInfo,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF8B4513),
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFFD32F2F),
                         modifier = Modifier.padding(12.dp)
                     )
                 }
@@ -162,7 +154,7 @@ fun OrderScreen(navController: NavController) {
                     ) {
                         CircularProgressIndicator()
                         Text(
-                            text = "Loading orders...",
+                            text = "Loading your orders...",
                             modifier = Modifier.padding(top = 16.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -171,6 +163,14 @@ fun OrderScreen(navController: NavController) {
             } else if (orders.isEmpty()) {
                 EmptyOrderState()
             } else {
+                // Show order count
+                Text(
+                    text = "You have ${orders.size} order(s)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
                 LazyColumn {
                     items(orders) { order ->
                         OrderCard(
@@ -289,9 +289,11 @@ fun OrderDetailDialog(
 ) {
     val databaseService = DatabaseService()
     var payment by remember { mutableStateOf<Payment?>(null) }
+    var isLoadingPayment by remember { mutableStateOf(true) }
 
     LaunchedEffect(order.orderId) {
         payment = databaseService.getPaymentByOrder(order.orderId)
+        isLoadingPayment = false
     }
 
     AlertDialog(
@@ -336,17 +338,21 @@ fun OrderDetailDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Payment Status:")
-                    Text(
-                        text = payment?.paymentStatus?.replaceFirstChar {
-                            if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
-                        } ?: "Unknown",
-                        color = when (payment?.paymentStatus) {
-                            "completed" -> Color(0xFF4CAF50)
-                            "pending" -> Color(0xFFFF9800)
-                            "failed" -> Color(0xFFF44336)
-                            else -> MaterialTheme.colorScheme.onSurface
-                        }
-                    )
+                    if (isLoadingPayment) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                    } else {
+                        Text(
+                            text = payment?.paymentStatus?.replaceFirstChar {
+                                if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
+                            } ?: "Unknown",
+                            color = when (payment?.paymentStatus?.lowercase()) {
+                                "completed" -> Color(0xFF4CAF50)
+                                "pending" -> Color(0xFFFF9800)
+                                "failed" -> Color(0xFFF44336)
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
+                        )
+                    }
                 }
 
                 // Payment Method

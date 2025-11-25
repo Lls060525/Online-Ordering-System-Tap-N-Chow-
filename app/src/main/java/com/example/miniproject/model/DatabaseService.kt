@@ -1,6 +1,5 @@
 package com.example.miniproject.service
 
-import android.net.Uri
 import com.example.miniproject.model.*
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
@@ -40,7 +39,7 @@ class DatabaseService {
                         "stock" to product.stock,
                         "imageUrl" to product.imageUrl,
                         "category" to product.category,
-                        "updatedAt" to com.google.firebase.Timestamp.now()
+                        "updatedAt" to Timestamp.now()
                     )
                 ).await()
             Result.success(true)
@@ -84,44 +83,64 @@ class DatabaseService {
     suspend fun updateProductStock(productId: String, newStock: Int): Result<Boolean> {
         return try {
             db.collection("products").document(productId)
-                .update("stock", newStock).await()
+                .update(
+                    mapOf(
+                        "stock" to newStock,
+                        "updatedAt" to Timestamp.now()
+                    )
+                ).await()
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // Order Operations
-    suspend fun createOrder(order: Order, orderDetails: List<OrderDetail>): Result<String> {
-        return try {
-            // Generate custom order ID (O001 format)
-            val orderId = Order.generateOrderId(db)
-
-            // Create order with custom ID
-            val orderWithId = order.copy(orderId = orderId)
-            db.collection("orders").document(orderId).set(orderWithId).await()
-
-            // Create order details
-            orderDetails.forEach { detail ->
-                db.collection("order_details").add(
-                    detail.copy(orderId = orderId)
-                ).await()
-            }
-
-            Result.success(orderId)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
+    // Order Operations - COMPLETELY FIXED VERSION
     suspend fun createOrderWithDetails(orderRequest: OrderRequest): Result<String> {
         return try {
-            // Generate custom order ID (O001 format)
             val orderId = Order.generateOrderId(db)
+            val batch = db.batch()
 
-            // Create order with custom ID
+            println("🛒 DEBUG: Starting order creation for ${orderRequest.items.size} items")
+
+            // STEP 1: Validate stock for ALL items first
+            val stockUpdates = mutableMapOf<String, Int>() // productId -> newStock
+            val productDetails = mutableMapOf<String, Product>()
+
+            for (item in orderRequest.items) {
+                println("📦 DEBUG: Validating ${item.productName} - Quantity: ${item.quantity}")
+
+                val product = getProductById(item.productId)
+                if (product == null) {
+                    println("❌ DEBUG: Product ${item.productId} not found")
+                    return Result.failure(Exception("Product ${item.productName} not found"))
+                }
+
+                productDetails[item.productId] = product
+                println("📊 DEBUG: ${product.productName} - Current Stock: ${product.stock}, Required: ${item.quantity}")
+
+                if (product.stock < item.quantity) {
+                    println("❌ DEBUG: Insufficient stock for ${product.productName}")
+                    return Result.failure(Exception("Insufficient stock for ${item.productName}. Available: ${product.stock}, Requested: ${item.quantity}"))
+                }
+
+                // Calculate new stock
+                val newStock = product.stock - item.quantity
+                stockUpdates[item.productId] = newStock
+                println("✅ DEBUG: ${product.productName} - Will update stock from ${product.stock} to $newStock")
+            }
+
+            // STEP 2: Update ALL product stocks in batch
+            stockUpdates.forEach { (productId, newStock) ->
+                val productRef = db.collection("products").document(productId)
+                batch.update(productRef, "stock", newStock)
+                batch.update(productRef, "updatedAt", Timestamp.now())
+                println("🔄 DEBUG: Batch update for $productId -> stock: $newStock")
+            }
+
+            // STEP 3: Create order
             val order = Order(
-                orderId = orderId, // Set the custom order ID
+                orderId = orderId,
                 customerId = orderRequest.customerId,
                 totalPrice = orderRequest.totalAmount,
                 shippingAddress = orderRequest.deliveryAddress,
@@ -129,11 +148,11 @@ class DatabaseService {
                 status = "pending",
                 orderDate = Timestamp.now()
             )
+            val orderRef = db.collection("orders").document(orderId)
+            batch.set(orderRef, order)
+            println("📋 DEBUG: Order created with ID: $orderId")
 
-            // Store order using the custom orderId as document ID
-            db.collection("orders").document(orderId).set(order).await()
-
-            // Create order details
+            // STEP 4: Create order details
             orderRequest.items.forEach { item ->
                 val orderDetail = OrderDetail(
                     orderId = orderId,
@@ -143,10 +162,12 @@ class DatabaseService {
                     quantity = item.quantity,
                     subtotal = item.productPrice * item.quantity
                 )
-                db.collection("order_details").add(orderDetail).await()
+                val orderDetailRef = db.collection("order_details").document()
+                batch.set(orderDetailRef, orderDetail)
+                println("📝 DEBUG: Order detail for ${item.productName} - Qty: ${item.quantity}")
             }
 
-            // Create payment record
+            // STEP 5: Create payment record
             val payment = Payment(
                 orderId = orderId,
                 amount = orderRequest.totalAmount,
@@ -154,10 +175,24 @@ class DatabaseService {
                 paymentStatus = "pending",
                 transactionDate = Timestamp.now()
             )
-            db.collection("payments").add(payment).await()
+            val paymentRef = db.collection("payments").document()
+            batch.set(paymentRef, payment)
+
+            // STEP 6: Commit the batch (ALL operations happen together)
+            println("🚀 DEBUG: Committing batch transaction...")
+            batch.commit().await()
+            println("🎉 DEBUG: Order successfully created! Stock deducted for all products.")
+
+            // STEP 7: Verify stock was actually updated
+            stockUpdates.forEach { (productId, expectedStock) ->
+                val updatedProduct = getProductById(productId)
+                println("✅ VERIFICATION: ${updatedProduct?.productName} - Stock is now: ${updatedProduct?.stock} (expected: $expectedStock)")
+            }
 
             Result.success(orderId)
         } catch (e: Exception) {
+            println("💥 DEBUG: Error in createOrderWithDetails: ${e.message}")
+            e.printStackTrace()
             Result.failure(e)
         }
     }
@@ -189,38 +224,16 @@ class DatabaseService {
 
     suspend fun getCustomerOrders(customerId: String): List<Order> {
         return try {
-            println("DEBUG: Searching orders for customer: $customerId")
-
-            val query = db.collection("orders")
+            val orders = db.collection("orders")
                 .whereEqualTo("customerId", customerId)
                 .orderBy("orderDate", Query.Direction.DESCENDING)
                 .get()
                 .await()
-
-            println("DEBUG: Query found ${query.documents.size} documents")
-
-            val orders = mutableListOf<Order>()
-            query.documents.forEach { doc ->
-                println("DEBUG: Processing document: ${doc.id}")
-                // Manually create Order object with document ID as orderId
-                val order = Order(
-                    orderId = doc.id, // Use document ID as orderId
-                    customerId = doc.getString("customerId") ?: "",
-                    orderDate = doc.getTimestamp("orderDate") ?: Timestamp.now(),
-                    status = doc.getString("status") ?: "pending",
-                    totalPrice = doc.getDouble("totalPrice") ?: 0.0,
-                    shippingAddress = doc.getString("shippingAddress") ?: "",
-                    paymentMethod = doc.getString("paymentMethod") ?: "",
-                    createdAt = doc.getTimestamp("createdAt") ?: Timestamp.now(),
-                    updatedAt = doc.getTimestamp("updatedAt") ?: Timestamp.now()
-                )
-                orders.add(order)
-            }
-
+                .toObjects(Order::class.java)
+            println("DEBUG: Found ${orders.size} orders for customer $customerId")
             orders
         } catch (e: Exception) {
             println("DEBUG: Error in getCustomerOrders: ${e.message}")
-            e.printStackTrace()
             emptyList()
         }
     }
@@ -282,7 +295,6 @@ class DatabaseService {
         }
     }
 
-
     suspend fun getAllVendors(): List<Vendor> {
         return try {
             db.collection("vendors")
@@ -304,7 +316,6 @@ class DatabaseService {
         }
     }
 
-
     suspend fun updateVendorProfile(vendor: Vendor): Result<Boolean> {
         return try {
             db.collection("vendors").document(vendor.vendorId)
@@ -314,7 +325,7 @@ class DatabaseService {
                         "email" to vendor.email,
                         "vendorContact" to vendor.vendorContact,
                         "address" to vendor.address,
-                        "updatedAt" to com.google.firebase.Timestamp.now()
+                        "updatedAt" to Timestamp.now()
                     )
                 ).await()
             Result.success(true)
@@ -322,7 +333,6 @@ class DatabaseService {
             Result.failure(e)
         }
     }
-
 
     suspend fun getCustomerAccount(customerId: String): CustomerAccount? {
         return try {
@@ -335,8 +345,6 @@ class DatabaseService {
             null
         }
     }
-
-
 
     suspend fun updateCustomerProfile(customer: Customer): Result<Boolean> {
         return try {
@@ -372,7 +380,6 @@ class DatabaseService {
         }
     }
 
-    // Replace the upload function with this Base64 version
     suspend fun updateCustomerProfileImageBase64(customerId: String, base64Image: String): Result<Boolean> {
         return try {
             db.collection("customers").document(customerId)
@@ -382,7 +389,6 @@ class DatabaseService {
             Result.failure(e)
         }
     }
-
 
     suspend fun getPaymentByOrder(orderId: String): Payment? {
         return try {
@@ -422,8 +428,6 @@ class DatabaseService {
 
     suspend fun getFeedbackByProduct(productId: String): List<Feedback> {
         return try {
-            // This would require joining with order_details to get product-specific feedback
-            // For simplicity, we'll get all feedback and filter by product in the app
             db.collection("feedbacks")
                 .get()
                 .await()
@@ -466,5 +470,44 @@ class DatabaseService {
         }
     }
 
+    // Restock function for vendors
+    suspend fun restockProduct(productId: String, additionalStock: Int): Result<Boolean> {
+        return try {
+            val product = getProductById(productId)
+            if (product != null) {
+                val newStock = product.stock + additionalStock
+                updateProductStock(productId, newStock)
+            } else {
+                Result.failure(Exception("Product not found"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
+    // Test function to manually deduct stock
+    suspend fun manuallyDeductStock(productId: String, quantity: Int): Result<Boolean> {
+        return try {
+            val product = getProductById(productId)
+            if (product == null) {
+                return Result.failure(Exception("Product not found"))
+            }
+
+            println("🧪 DEBUG: Manual stock deduction for ${product.productName}")
+            println("📊 DEBUG: Current stock: ${product.stock}, Deducting: $quantity")
+
+            if (product.stock < quantity) {
+                return Result.failure(Exception("Insufficient stock. Available: ${product.stock}, Requested: $quantity"))
+            }
+
+            val newStock = product.stock - quantity
+            val result = updateProductStock(productId, newStock)
+
+            println("✅ DEBUG: Stock updated to: $newStock")
+            result
+        } catch (e: Exception) {
+            println("❌ DEBUG: Error in manual deduction: ${e.message}")
+            Result.failure(e)
+        }
+    }
 }
