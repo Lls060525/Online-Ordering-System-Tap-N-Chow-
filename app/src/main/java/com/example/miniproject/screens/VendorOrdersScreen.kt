@@ -23,6 +23,7 @@ import com.example.miniproject.model.OrderDetail
 import com.example.miniproject.model.Product
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
+import com.example.miniproject.util.OrderStatusHelper
 import kotlinx.coroutines.launch
 
 object VendorOrdersScreen {
@@ -37,6 +38,7 @@ object VendorOrdersScreen {
         var selectedOrder by remember { mutableStateOf<Order?>(null) }
         var orderDetails by remember { mutableStateOf<List<OrderDetail>>(emptyList()) }
         var showOrderDetails by remember { mutableStateOf(false) }
+        var selectedTab by remember { mutableStateOf(0) } // 0: Active, 1: Completed
 
         // Function to refresh orders
         fun refreshOrders() {
@@ -56,15 +58,28 @@ object VendorOrdersScreen {
                             vendorOrders.add(order)
                         }
                     }
-                    orders = vendorOrders.sortedByDescending { it.orderDate }
+
+                    // Sort by date and status priority
+                    orders = vendorOrders.sortedWith(compareBy(
+                        { when (it.status) {
+                            "pending" -> 0
+                            "confirmed" -> 1
+                            "preparing" -> 2
+                            "ready" -> 3
+                            "completed" -> 4
+                            "cancelled" -> 5
+                            else -> 6
+                        } },
+                        { -it.orderDate.seconds }
+                    ))
                 }
+                isLoading = false
             }
         }
 
         // Load orders on startup
         LaunchedEffect(Unit) {
             refreshOrders()
-            isLoading = false
         }
 
         // Load order details when an order is selected
@@ -95,6 +110,8 @@ object VendorOrdersScreen {
                         selectedOrder?.let { order ->
                             databaseService.updateOrderStatus(order.orderId, newStatus)
                             refreshOrders()
+                            showOrderDetails = false
+                            selectedOrder = null
                         }
                     }
                 }
@@ -114,19 +131,37 @@ object VendorOrdersScreen {
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Text(
-                    "Orders containing your products",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // Status Tabs
+                TabRow(selectedTabIndex = selectedTab) {
+                    Tab(
+                        text = { Text("Active Orders") },
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 }
+                    )
+                    Tab(
+                        text = { Text("Order History") },
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 }
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                if (orders.isEmpty()) {
-                    EmptyOrdersState()
+                // Filter orders based on tab
+                val filteredOrders = when (selectedTab) {
+                    0 -> orders.filter { it.status in listOf("pending", "confirmed", "preparing", "ready") }
+                    1 -> orders.filter { it.status in listOf("completed", "cancelled") }
+                    else -> emptyList()
+                }
+
+                if (filteredOrders.isEmpty()) {
+                    when (selectedTab) {
+                        0 -> EmptyActiveOrdersState()
+                        1 -> EmptyOrderHistoryState()
+                    }
                 } else {
                     OrdersList(
-                        orders = orders,
+                        orders = filteredOrders,
                         onOrderClick = { order ->
                             selectedOrder = order
                         }
@@ -137,10 +172,9 @@ object VendorOrdersScreen {
     }
 
     @Composable
-    private fun EmptyOrdersState() {
+    private fun EmptyActiveOrdersState() {
         Box(
-            modifier = Modifier
-                .fillMaxSize(),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -148,19 +182,51 @@ object VendorOrdersScreen {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Icon(
-                    Icons.Default.Receipt,
-                    contentDescription = "No orders",
+                    Icons.Default.Schedule,
+                    contentDescription = "No active orders",
                     modifier = Modifier.size(64.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "No orders yet",
+                    text = "No Active Orders",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "Orders from customers will appear here when they purchase your products",
+                    text = "New orders will appear here when customers place orders",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun EmptyOrderHistoryState() {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Icon(
+                    Icons.Default.History,
+                    contentDescription = "No order history",
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "No Order History",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Completed and cancelled orders will appear here",
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -199,6 +265,7 @@ object VendorOrdersScreen {
             Column(
                 modifier = Modifier.padding(16.dp)
             ) {
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -206,7 +273,7 @@ object VendorOrdersScreen {
                 ) {
                     Column {
                         Text(
-                            text = "Order #${order.orderId}", // Show full order ID
+                            text = "Order #${order.orderId}",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -223,6 +290,7 @@ object VendorOrdersScreen {
 
                 Spacer(modifier = Modifier.height(12.dp))
 
+                // Order Summary
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -235,43 +303,58 @@ object VendorOrdersScreen {
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    Text(
-                        text = "Tap to view details",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    // Next Action Indicator
+                    NextActionIndicator(status = order.status)
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Tap to manage order",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }
 
     @Composable
     private fun OrderStatusBadge(status: String) {
-        val (backgroundColor, textColor) = when (status) {
-            "pending" -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-            "confirmed" -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-            "preparing" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-            "ready" -> MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) to MaterialTheme.colorScheme.primary
-            "completed" -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-            "cancelled" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-            else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-        }
+        val statusColor = OrderStatusHelper.getStatusColor(status)
 
         Box(
             modifier = Modifier
                 .background(
-                    color = backgroundColor,
+                    color = statusColor.copy(alpha = 0.2f),
                     shape = RoundedCornerShape(8.dp)
                 )
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Text(
-                text = status.replaceFirstChar { it.uppercase() },
+                text = OrderStatusHelper.getStatusDisplayText(status),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
-                color = textColor
+                color = statusColor
             )
         }
+    }
+
+    @Composable
+    private fun NextActionIndicator(status: String) {
+        val (actionText, actionColor) = when (status) {
+            "pending" -> "Confirm Order" to MaterialTheme.colorScheme.primary
+            "confirmed" -> "Start Preparing" to MaterialTheme.colorScheme.primary
+            "preparing" -> "Mark Ready" to MaterialTheme.colorScheme.primary
+            "ready" -> "Complete Order" to MaterialTheme.colorScheme.primary
+            else -> "View Details" to MaterialTheme.colorScheme.onSurfaceVariant
+        }
+
+        Text(
+            text = actionText,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = actionColor
+        )
     }
 
     @Composable
@@ -328,7 +411,7 @@ object VendorOrdersScreen {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Order Details",
+                            "Order Management",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -336,6 +419,11 @@ object VendorOrdersScreen {
                             Icon(Icons.Default.Close, contentDescription = "Close")
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Current Status
+                    CurrentStatusSection(order)
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -357,6 +445,31 @@ object VendorOrdersScreen {
     }
 
     @Composable
+    private fun CurrentStatusSection(order: Order) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = OrderStatusHelper.getStatusColor(order.status).copy(alpha = 0.1f)
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Current Status",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = OrderStatusHelper.getStatusDisplayText(order.status),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = OrderStatusHelper.getStatusColor(order.status)
+                )
+            }
+        }
+    }
+
+    @Composable
     private fun OrderInfoSection(order: Order, customer: Customer?) {
         Column {
             Text(
@@ -366,8 +479,8 @@ object VendorOrdersScreen {
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            InfoRow("Order ID:", order.orderId) // Show full order ID
-            InfoRow("Order Date:", order.orderDate.toDate().toString())
+            InfoRow("Order ID:", order.orderId)
+            InfoRow("Order Date:", order.orderDate.toDate().toString().substring(0, 16))
             InfoRow("Customer:", customer?.name ?: "Unknown Customer")
             InfoRow("Contact:", customer?.phoneNumber ?: "N/A")
             InfoRow("Shipping Address:", order.shippingAddress)
@@ -401,6 +514,26 @@ object VendorOrdersScreen {
                     val product = allProducts[detail.productId]
                     ProductOrderItem(detail, product)
                 }
+
+                // Total for vendor products
+                val vendorTotal = vendorProducts.sumOf { it.subtotal }
+                Spacer(modifier = Modifier.height(8.dp))
+                Divider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Your Total:",
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "RM${"%.2f".format(vendorTotal)}",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }
@@ -426,7 +559,7 @@ object VendorOrdersScreen {
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "Quantity: ${detail.quantity}",
+                        text = "Quantity: ${detail.quantity} × RM${"%.2f".format(detail.productPrice)}",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -456,29 +589,50 @@ object VendorOrdersScreen {
 
         Column {
             Text(
-                "Order Status: ${order.status.replaceFirstChar { it.uppercase() }}",
+                "Order Actions",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
 
             if (nextStatus != null) {
                 Button(
                     onClick = {
                         onUpdateStatus(nextStatus)
-                        onDismiss()
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
                 ) {
-                    Text("Mark as ${nextStatus.replaceFirstChar { it.uppercase() }}")
+                    Icon(
+                        when (nextStatus) {
+                            "confirmed" -> Icons.Default.Check
+                            "preparing" -> Icons.Default.Restaurant
+                            "ready" -> Icons.Default.DoneAll
+                            "completed" -> Icons.Default.Star
+                            else -> Icons.Default.Edit
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        when (nextStatus) {
+                            "confirmed" -> "Confirm Order"
+                            "preparing" -> "Start Preparing"
+                            "ready" -> "Mark as Ready for Pickup"
+                            "completed" -> "Complete Order"
+                            else -> "Update Status"
+                        }
+                    )
                 }
             }
 
-            if (order.status != "cancelled") {
+            if (order.status != "cancelled" && order.status != "completed") {
                 OutlinedButton(
                     onClick = {
                         onUpdateStatus("cancelled")
-                        onDismiss()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -487,7 +641,21 @@ object VendorOrdersScreen {
                         contentColor = MaterialTheme.colorScheme.error
                     )
                 ) {
+                    Icon(Icons.Default.Cancel, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text("Cancel Order")
+                }
+            }
+
+            if (order.status == "completed" || order.status == "cancelled") {
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Text("Close")
                 }
             }
         }
@@ -515,7 +683,6 @@ object VendorOrdersScreen {
         }
     }
 
-    // Add this function to support scrolling in the dialog
     @Composable
     private fun rememberScrollState(): androidx.compose.foundation.ScrollState {
         return androidx.compose.foundation.rememberScrollState()

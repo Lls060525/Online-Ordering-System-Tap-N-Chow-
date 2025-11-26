@@ -119,14 +119,14 @@ class DatabaseService {
             // Generate custom order ID (O001 format)
             val orderId = Order.generateOrderId(db)
 
-            // Create order with custom ID
+            // Create order with custom ID - SET INITIAL STATUS AS "pending"
             val order = Order(
-                orderId = orderId, // Set the custom order ID
+                orderId = orderId,
                 customerId = orderRequest.customerId,
                 totalPrice = orderRequest.totalAmount,
                 shippingAddress = orderRequest.deliveryAddress,
                 paymentMethod = orderRequest.paymentMethod,
-                status = "pending",
+                status = "pending", // Start as pending
                 orderDate = Timestamp.now()
             )
 
@@ -161,7 +161,20 @@ class DatabaseService {
             Result.failure(e)
         }
     }
-
+    suspend fun markOrderAsDelivered(orderId: String): Result<Boolean> {
+        return try {
+            db.collection("orders").document(orderId)
+                .update(
+                    mapOf(
+                        "status" to "delivered",
+                        "updatedAt" to Timestamp.now()
+                    )
+                ).await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     suspend fun updatePaymentStatus(orderId: String, status: String): Result<Boolean> {
         return try {
             // Update payment status
@@ -274,7 +287,12 @@ class DatabaseService {
     suspend fun updateOrderStatus(orderId: String, status: String): Result<Boolean> {
         return try {
             db.collection("orders").document(orderId)
-                .update("status", status).await()
+                .update(
+                    mapOf(
+                        "status" to status,
+                        "updatedAt" to Timestamp.now()
+                    )
+                ).await()
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)
@@ -411,13 +429,83 @@ class DatabaseService {
         }
     }
 
+    // Add these functions to your DatabaseService class
+
     // Feedback Operations
     suspend fun addFeedback(feedback: Feedback): Result<String> {
         return try {
             val feedbackRef = db.collection("feedbacks").add(feedback).await()
+
+            // Update product rating summary
+            updateProductRating(feedback.productId, feedback.rating)
+
+            // Update vendor rating summary
+            updateVendorRating(feedback.vendorId, feedback.rating)
+
             Result.success(feedbackRef.id)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    private suspend fun updateProductRating(productId: String, newRating: Double) {
+        try {
+            val feedbacks = db.collection("feedbacks")
+                .whereEqualTo("productId", productId)
+                .get()
+                .await()
+                .toObjects(Feedback::class.java)
+
+            if (feedbacks.isNotEmpty()) {
+                val averageRating = feedbacks.map { it.rating }.average()
+                val ratingDistribution = mutableMapOf<Int, Int>()
+
+                // Initialize distribution
+                for (i in 1..5) ratingDistribution[i] = 0
+
+                // Count ratings
+                feedbacks.forEach { feedback ->
+                    val starRating = feedback.rating.toInt().coerceIn(1, 5)
+                    ratingDistribution[starRating] = ratingDistribution[starRating]!! + 1
+                }
+
+                val productRating = ProductRating(
+                    productId = productId,
+                    averageRating = averageRating,
+                    totalRatings = feedbacks.size,
+                    ratingDistribution = ratingDistribution,
+                    lastUpdated = Timestamp.now()
+                )
+
+                db.collection("product_ratings").document(productId).set(productRating).await()
+            }
+        } catch (e: Exception) {
+            // Handle error silently
+        }
+    }
+
+    private suspend fun updateVendorRating(vendorId: String, newRating: Double) {
+        try {
+            val feedbacks = db.collection("feedbacks")
+                .whereEqualTo("vendorId", vendorId)
+                .get()
+                .await()
+                .toObjects(Feedback::class.java)
+
+            if (feedbacks.isNotEmpty()) {
+                val averageRating = feedbacks.map { it.rating }.average()
+
+                val vendorRating = VendorRating(
+                    vendorId = vendorId,
+                    averageRating = averageRating,
+                    totalRatings = feedbacks.size,
+                    lastUpdated = Timestamp.now()
+                )
+
+                db.collection("vendor_ratings").document(vendorId).set(vendorRating).await()
+            }
+        } catch (e: Exception) {
+            // Handle error silently
         }
     }
 
@@ -434,16 +522,96 @@ class DatabaseService {
         }
     }
 
-    suspend fun getFeedbackByProduct(productId: String): List<Feedback> {
+    suspend fun getFeedbackByCustomer(customerId: String): List<Feedback> {
         return try {
-            // This would require joining with order_details to get product-specific feedback
-            // For simplicity, we'll get all feedback and filter by product in the app
+            println("🟢 DEBUG: Getting feedback for customer: $customerId")
+
+            val result = db.collection("feedbacks")
+                .whereEqualTo("customerId", customerId)
+                .get()
+                .await()
+
+            println("🟢 DEBUG: Query completed. Found ${result.documents.size} documents")
+
+            if (result.documents.isEmpty()) {
+                println("🟡 DEBUG: No feedback documents found for customer $customerId")
+                return emptyList()
+            }
+
+            // Print raw document data
+            result.documents.forEachIndexed { index, document ->
+                println("📄 DEBUG: Document $index - ID: ${document.id}")
+                println("📄 DEBUG: Document data: ${document.data}")
+            }
+
+            val feedbacks = result.toObjects(Feedback::class.java)
+            println("🟢 DEBUG: Successfully converted to ${feedbacks.size} Feedback objects")
+
+            // Print each feedback details
+            feedbacks.forEachIndexed { index, feedback ->
+                println("⭐ DEBUG: Feedback $index - " +
+                        "CustomerID: ${feedback.customerId}, " +
+                        "Vendor: ${feedback.vendorName}, " +
+                        "Rating: ${feedback.rating}, " +
+                        "OrderID: ${feedback.orderId}, " +
+                        "Date: ${feedback.feedbackDate?.toDate()}")
+            }
+
+            // Sort by date, newest first
+            val sortedFeedbacks = feedbacks.sortedByDescending { it.feedbackDate?.seconds ?: 0 }
+            println("🟢 DEBUG: Returning ${sortedFeedbacks.size} sorted feedbacks")
+
+            sortedFeedbacks
+        } catch (e: Exception) {
+            println("🔴 DEBUG: Error in getFeedbackByCustomer: ${e.message}")
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    suspend fun getFeedbackByVendor(vendorId: String): List<Feedback> {
+        return try {
             db.collection("feedbacks")
+                .whereEqualTo("vendorId", vendorId)
+                .whereEqualTo("isVisible", true)
+                .orderBy("feedbackDate", Query.Direction.DESCENDING)
                 .get()
                 .await()
                 .toObjects(Feedback::class.java)
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+
+    suspend fun getFeedbackByProduct(productId: String): List<Feedback> {
+        return try {
+            db.collection("feedbacks")
+                .whereEqualTo("productId", productId)
+                .whereEqualTo("isVisible", true)
+                .orderBy("feedbackDate", Query.Direction.DESCENDING)
+                .get()
+                .await()
+                .toObjects(Feedback::class.java)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun getProductRating(productId: String): ProductRating? {
+        return try {
+            db.collection("product_ratings").document(productId).get().await()
+                .toObject(ProductRating::class.java)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun getVendorRating(vendorId: String): VendorRating? {
+        return try {
+            db.collection("vendor_ratings").document(vendorId).get().await()
+                .toObject(VendorRating::class.java)
+        } catch (e: Exception) {
+            null
         }
     }
 

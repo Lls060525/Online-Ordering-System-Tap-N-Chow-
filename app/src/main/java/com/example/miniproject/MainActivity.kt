@@ -9,10 +9,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.miniproject.screens.CustomerAccountScreen
 import com.example.miniproject.screens.CustomerProfileScreen
+import com.example.miniproject.screens.FeedbackScreen
 import com.example.miniproject.screens.FoodMenuScreen
 import com.example.miniproject.screens.LoginScreen
 import com.example.miniproject.screens.OrderConfirmationScreen
 import com.example.miniproject.screens.PaymentGatewayScreen
+import com.example.miniproject.screens.RateOrderScreen
 import com.example.miniproject.screens.RegisterScreen
 import com.example.miniproject.screens.UserHomeScreen
 import com.example.miniproject.screens.VendorHomeScreen
@@ -82,6 +84,29 @@ class MainActivity : ComponentActivity() {
                         OrderConfirmationScreen(navController, orderId)
                     }
 
+                    // Add these composables to your NavHost in MainActivity.kt
+                    composable("feedback") {
+                        FeedbackScreen(navController = navController)
+                    }
+
+                    composable("rateOrder/{orderId}") { backStackEntry ->
+                        val orderId = backStackEntry.arguments?.getString("orderId")
+                        RateOrderScreen(navController, orderId)
+                    }
+
+                    composable("rateOrder/{orderId}") { backStackEntry ->
+                        val orderId = backStackEntry.arguments?.getString("orderId")
+                        RateOrderScreen(navController, orderId)
+                    }
+
+                    composable("orderConfirmation/{orderId}") { backStackEntry ->
+                        val orderId = backStackEntry.arguments?.getString("orderId")
+                        OrderConfirmationScreen(navController, orderId)
+                    }
+
+                    composable("home") {
+                        UserHomeScreen(navController = navController)
+                    }
                 }
             }
         }

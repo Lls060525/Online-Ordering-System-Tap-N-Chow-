@@ -719,6 +719,9 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                         isLoading = true
                         errorMessage = null
 
+// In the payment completion section of PaymentGatewayScreen.kt
+// Replace the existing payment completion code with this:
+
                         coroutineScope.launch {
                             try {
                                 val orderRequest = OrderRequest(
@@ -733,15 +736,23 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                 val result = databaseService.createOrderWithDetails(orderRequest)
 
                                 if (result.isSuccess) {
+                                    val orderId = result.getOrThrow()
+
+                                    // Update payment status and order status to "confirmed" for vendor to see
+                                    databaseService.updatePaymentStatus(orderId, "completed")
+                                    databaseService.updateOrderStatus(orderId, "confirmed") // Changed from "delivered" to "confirmed"
+
                                     if (selectedPaymentMethod == "wallet" && customerAccount != null) {
                                         val newBalance = customerAccount!!.tapNChowCredit - cart.total
                                         databaseService.updateCustomerCredit(customer!!.customerId, newBalance)
                                     }
 
-                                    databaseService.updatePaymentStatus(result.getOrThrow(), "completed")
-
-                                    navController.navigate("orderConfirmation/${result.getOrThrow()}") {
-                                        popUpTo("userHome") { inclusive = false }
+                                    // FIXED NAVIGATION: Clear the back stack and go to order confirmation
+                                    navController.navigate("orderConfirmation/${orderId}") {
+                                        // Clear everything up to and including the payment screen
+                                        popUpTo("home") { inclusive = false }
+                                        // This ensures user can't go back to payment screen
+                                        launchSingleTop = true
                                     }
                                 } else {
                                     errorMessage = "Failed to create order: ${result.exceptionOrNull()?.message}"

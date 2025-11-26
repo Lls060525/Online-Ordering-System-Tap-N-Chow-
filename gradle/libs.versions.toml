@@ -11,6 +11,7 @@ composeBom = "2024.09.00"
 playServicesAppindexing = "9.8.0"
 firebaseStorageKtx = "22.0.1"
 material3 = "1.4.0"
+foundation = "1.9.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -30,6 +31,7 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 play-services-appindexing = { group = "com.google.android.gms", name = "play-services-appindexing", version.ref = "playServicesAppindexing" }
 firebase-storage-ktx = { group = "com.google.firebase", name = "firebase-storage-ktx", version.ref = "firebaseStorageKtx" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -50,7 +50,7 @@ import kotlinx.coroutines.launch
 // Fixed screen definitions to match your screenshot
 sealed class UserScreen(val title: String, val icon: ImageVector) {
     object Food : UserScreen("Vendor List", Icons.Default.Store)
-    object Grocery : UserScreen("Feedback", Icons.Default.Feedback)
+    object Feedback : UserScreen("Feedback", Icons.Default.Feedback) // Changed from Grocery to Feedback
     object MyOrder : UserScreen("My Order", Icons.Default.ShoppingCart)
     object Account : UserScreen("Account", Icons.Default.AccountCircle)
 }
@@ -90,7 +90,7 @@ fun UserHomeScreen(navController: NavController) {
             NavigationBar {
                 listOf(
                     UserScreen.Food,
-                    UserScreen.Grocery,
+                    UserScreen.Feedback, // This should point to FeedbackScreen
                     UserScreen.MyOrder,
                     UserScreen.Account
                 ).forEach { screen ->
@@ -107,6 +107,7 @@ fun UserHomeScreen(navController: NavController) {
                     )
                 }
             }
+
         }
     ) { paddingValues ->
         Box(
@@ -116,7 +117,7 @@ fun UserHomeScreen(navController: NavController) {
         ) {
             when (currentScreen) {
                 is UserScreen.Food -> FoodContentWithVendors(navController)
-                is UserScreen.Grocery -> GroceryContent()
+                is UserScreen.Feedback -> FeedbackScreen(navController) // Show FeedbackScreen
                 is UserScreen.MyOrder -> MyOrderContent(navController)
                 is UserScreen.Account -> AccountContent(navController)
             }
@@ -185,11 +186,12 @@ fun FoodContent(navController: NavController) {
 
 @Composable
 fun GroceryContent() {
+    // You can keep this as is or redirect to FeedbackScreen
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Text("Feedback - Coming Soon")
+        Text("Feedback - Use the Feedback tab below")
     }
 }
 

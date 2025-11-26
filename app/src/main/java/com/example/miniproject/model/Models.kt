@@ -155,14 +155,44 @@ data class Payment(
 )
 
 // Feedback Model
+// Feedback Model with enhanced fields
 data class Feedback(
-    @DocumentId val feedbackId: String = "", // Keep for feedback
+    @DocumentId val feedbackId: String = "",
     val customerId: String = "",
+    val customerName: String = "",
+    val vendorId: String = "",
+    val vendorName: String = "",
     val orderId: String = "",
-    val rating: Int = 0,
+    val productId: String = "",
+    val productName: String = "",
+    val rating: Double = 0.0,
     val comment: String = "",
     val feedbackDate: Timestamp = Timestamp.now(),
-    val createdAt: Timestamp = Timestamp.now()
+    val createdAt: Timestamp = Timestamp.now(),
+    val isVisible: Boolean = true
+)
+
+// Product Rating Summary Model
+data class ProductRating(
+    val productId: String = "",
+    val averageRating: Double = 0.0,
+    val totalRatings: Int = 0,
+    val ratingDistribution: Map<Int, Int> = mapOf( // 1 to 5 stars count
+        1 to 0,
+        2 to 0,
+        3 to 0,
+        4 to 0,
+        5 to 0
+    ),
+    val lastUpdated: Timestamp = Timestamp.now()
+)
+
+// Vendor Rating Summary Model
+data class VendorRating(
+    val vendorId: String = "",
+    val averageRating: Double = 0.0,
+    val totalRatings: Int = 0,
+    val lastUpdated: Timestamp = Timestamp.now()
 )
 
 @Serializable
