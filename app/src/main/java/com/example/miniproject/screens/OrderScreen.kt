@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -19,6 +21,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -36,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.miniproject.model.Order
@@ -60,51 +64,56 @@ fun OrderScreen(navController: NavController) {
     var selectedOrder by remember { mutableStateOf<Order?>(null) }
     var orderDetails by remember { mutableStateOf<List<OrderDetail>>(emptyList()) }
     var showOrderDetails by remember { mutableStateOf(false) }
-    var debugInfo by remember { mutableStateOf("") }
+<<<<<<< HEAD
+=======
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
 
     LaunchedEffect(Unit) {
         coroutineScope.launch {
             try {
                 // Get current customer
                 val customer = authService.getCurrentCustomer()
-                debugInfo += "=== DEBUG INFORMATION ===\n"
-                debugInfo += "Current Customer: ${customer?.customerId ?: "NULL"}\n"
-                debugInfo += "Customer Name: ${customer?.name ?: "NULL"}\n"
 
                 if (customer == null) {
-                    debugInfo += "❌ ERROR: No customer found! User might not be logged in as customer.\n"
+<<<<<<< HEAD
+=======
+                    errorMessage = "No customer found! Please make sure you're logged in."
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
                     isLoading = false
                     return@launch
                 }
 
-                // Debug: Get ALL orders first to see what's in the database
-                debugInfo += "\n--- ALL ORDERS IN DATABASE ---\n"
-                val allOrders = databaseService.getAllOrders()
-                debugInfo += "Total orders in database: ${allOrders.size}\n"
-
-                allOrders.forEachIndexed { index, order ->
-                    debugInfo += "Order ${index + 1}: ID=${order.orderId}, CustomerID=${order.customerId}, Status=${order.status}, Total=RM${order.totalPrice}\n"
-                }
-
-                // Now get customer-specific orders
-                debugInfo += "\n--- CUSTOMER SPECIFIC ORDERS ---\n"
-                debugInfo += "Searching for customer ID: ${customer.customerId}\n"
-
+                // Get customer-specific orders
                 val customerOrders = databaseService.getCustomerOrders(customer.customerId)
-                debugInfo += "Found ${customerOrders.size} orders for this customer\n"
-
-                customerOrders.forEachIndexed { index, order ->
-                    debugInfo += "Customer Order ${index + 1}: ${order.orderId} - ${order.status} - RM${order.totalPrice}\n"
-                }
-
+<<<<<<< HEAD
                 orders = customerOrders
                 isLoading = false
 
-                debugInfo += "\n=== END DEBUG ===\n"
+            } catch (e: Exception) {
+=======
+
+                if (customerOrders.isNotEmpty()) {
+                    orders = customerOrders
+                } else {
+                    // Fallback: Check all orders to see what's available
+                    val allOrders = databaseService.getAllOrders()
+
+                    // Try to find orders with similar customer ID (case-insensitive)
+                    val similarOrders = allOrders.filter {
+                        it.customerId.equals(customer.customerId, ignoreCase = true)
+                    }
+
+                    if (similarOrders.isNotEmpty()) {
+                        orders = similarOrders
+                    }
+                }
+
+                isLoading = false
 
             } catch (e: Exception) {
-                debugInfo += "❌ EXCEPTION: ${e.message}\n"
-                e.printStackTrace()
+                errorMessage = "Error loading orders: ${e.message}"
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
                 isLoading = false
             }
         }
@@ -133,25 +142,28 @@ fun OrderScreen(navController: NavController) {
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            // Debug information (remove this section in production)
-            if (debugInfo.isNotEmpty()) {
+<<<<<<< HEAD
+=======
+            // Show error message if any
+            errorMessage?.let { message ->
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 16.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFFFF8E1)
+                        containerColor = Color(0xFFFFEBEE)
                     )
                 ) {
                     Text(
-                        text = debugInfo,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF8B4513),
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFFD32F2F),
                         modifier = Modifier.padding(12.dp)
                     )
                 }
             }
 
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
             if (isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -162,7 +174,7 @@ fun OrderScreen(navController: NavController) {
                     ) {
                         CircularProgressIndicator()
                         Text(
-                            text = "Loading orders...",
+                            text = "Loading your orders...",
                             modifier = Modifier.padding(top = 16.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -171,6 +183,14 @@ fun OrderScreen(navController: NavController) {
             } else if (orders.isEmpty()) {
                 EmptyOrderState()
             } else {
+                // Show order count
+                Text(
+                    text = "You have ${orders.size} order(s)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
                 LazyColumn {
                     items(orders) { order ->
                         OrderCard(
@@ -289,32 +309,53 @@ fun OrderDetailDialog(
 ) {
     val databaseService = DatabaseService()
     var payment by remember { mutableStateOf<Payment?>(null) }
+<<<<<<< HEAD
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(order.orderId) {
+        try {
+            payment = databaseService.getPaymentByOrder(order.orderId)
+        } catch (e: Exception) {
+            // Handle error silently
+        }
+        isLoading = false
+=======
+    var isLoadingPayment by remember { mutableStateOf(true) }
 
     LaunchedEffect(order.orderId) {
         payment = databaseService.getPaymentByOrder(order.orderId)
+        isLoadingPayment = false
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(
-                text = "Order #${order.getDisplayOrderId()}",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
             Column {
-                // Order Status
+                Text(
+                    text = "Order #${order.getDisplayOrderId()}",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                // Show status with color
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 4.dp)
                 ) {
-                    Text("Status:")
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(getStatusColor(order.status))
+                    )
                     Text(
                         text = getStatusDisplayText(order.status),
+                        style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
+<<<<<<< HEAD
+                        color = getStatusColor(order.status),
+                        modifier = Modifier.padding(start = 8.dp)
+=======
                         color = getStatusColor(order.status)
                     )
                 }
@@ -336,17 +377,21 @@ fun OrderDetailDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Payment Status:")
-                    Text(
-                        text = payment?.paymentStatus?.replaceFirstChar {
-                            if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
-                        } ?: "Unknown",
-                        color = when (payment?.paymentStatus) {
-                            "completed" -> Color(0xFF4CAF50)
-                            "pending" -> Color(0xFFFF9800)
-                            "failed" -> Color(0xFFF44336)
-                            else -> MaterialTheme.colorScheme.onSurface
-                        }
-                    )
+                    if (isLoadingPayment) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                    } else {
+                        Text(
+                            text = payment?.paymentStatus?.replaceFirstChar {
+                                if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
+                            } ?: "Unknown",
+                            color = when (payment?.paymentStatus?.lowercase()) {
+                                "completed" -> Color(0xFF4CAF50)
+                                "pending" -> Color(0xFFFF9800)
+                                "failed" -> Color(0xFFF44336)
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
+                        )
+                    }
                 }
 
                 // Payment Method
@@ -416,13 +461,198 @@ fun OrderDetailDialog(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
                     )
                 }
             }
         },
+        text = {
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                Column {
+                    // Order Information Section
+                    Text(
+                        text = "Order Information",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    // Order Date
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Order Date:")
+                        Text(formatOrderDate(order.orderDate))
+                    }
+
+                    // Payment Status
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Payment Status:")
+                        Text(
+                            text = payment?.paymentStatus?.replaceFirstChar {
+                                if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
+                            } ?: "Unknown",
+                            color = when (payment?.paymentStatus?.lowercase()) {
+                                "completed" -> Color(0xFF4CAF50)
+                                "pending" -> Color(0xFFFF9800)
+                                "failed" -> Color(0xFFF44336)
+                                else -> MaterialTheme.colorScheme.onSurface
+                            },
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // Payment Method
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Payment Method:")
+                        Text(
+                            order.paymentMethod.replaceFirstChar {
+                                if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
+                            },
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // Delivery Address
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                    ) {
+                        Text(
+                            "Delivery Address:",
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Text(
+                            text = order.shippingAddress,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Divider
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Divider()
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Order Items Section
+                    Text(
+                        text = "Order Items",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    if (orderDetails.isEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Default.ShoppingCart,
+                                contentDescription = "No items",
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "No items found in this order",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                            Text(
+                                text = "Order ID: ${order.orderId}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 300.dp)
+                        ) {
+                            items(orderDetails) { detail ->
+                                OrderItemRow(orderDetail = detail)
+                                if (orderDetails.indexOf(detail) < orderDetails.size - 1) {
+                                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+                                }
+                            }
+                        }
+                    }
+
+                    // Total Amount Section
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Divider()
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Total Amount:",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "RM${"%.2f".format(order.totalPrice)}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    // Additional order information
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                    ) {
+                        Text(
+                            text = "Need help with this order?",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Contact customer support with your order ID.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+            }
+        },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.padding(8.dp)
+            ) {
+                Text("Close Order Details")
             }
         }
     )
@@ -433,26 +663,32 @@ fun OrderItemRow(orderDetail: OrderDetail) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
             Text(
                 text = orderDetail.productName,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = "RM${"%.2f".format(orderDetail.productPrice)} × ${orderDetail.quantity}",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.padding(top = 2.dp)
             )
         }
         Text(
             text = "RM${"%.2f".format(orderDetail.subtotal)}",
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary
         )
     }
 }

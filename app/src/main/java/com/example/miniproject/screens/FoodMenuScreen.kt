@@ -24,7 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material.icons.filled.LocationOn
@@ -44,7 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -148,7 +148,7 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
@@ -508,7 +508,7 @@ fun CartDialog(
                                     modifier = Modifier.width(70.dp)
                                 )
                             }
-                            Divider()
+                            HorizontalDivider()
                         }
                     }
 
@@ -540,7 +540,7 @@ fun CartDialog(
                             Text("RM ${"%.2f".format(tax)}", fontSize = 14.sp)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
-                        Divider()
+                        HorizontalDivider()
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1065,7 +1065,7 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
 
             // Navigation arrow
             Icon(
-                Icons.Default.ArrowBack,
+                Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "View Menu",
                 modifier = Modifier
                     .size(20.dp)
