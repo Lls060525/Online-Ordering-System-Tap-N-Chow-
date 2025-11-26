@@ -64,14 +64,6 @@ fun OrderScreen(navController: NavController) {
     var selectedOrder by remember { mutableStateOf<Order?>(null) }
     var orderDetails by remember { mutableStateOf<List<OrderDetail>>(emptyList()) }
     var showOrderDetails by remember { mutableStateOf(false) }
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-    var errorMessage by remember { mutableStateOf<String?>(null) }
->>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
-=======
-    var errorMessage by remember { mutableStateOf<String?>(null) }
->>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
 
     LaunchedEffect(Unit) {
         coroutineScope.launch {
@@ -80,72 +72,16 @@ fun OrderScreen(navController: NavController) {
                 val customer = authService.getCurrentCustomer()
 
                 if (customer == null) {
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-                    errorMessage = "No customer found! Please make sure you're logged in."
->>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
-=======
-                    errorMessage = "No customer found! Please make sure you're logged in."
->>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
                     isLoading = false
                     return@launch
                 }
 
                 // Get customer-specific orders
                 val customerOrders = databaseService.getCustomerOrders(customer.customerId)
-<<<<<<< HEAD
-<<<<<<< HEAD
                 orders = customerOrders
                 isLoading = false
 
             } catch (e: Exception) {
-=======
-
-                if (customerOrders.isNotEmpty()) {
-                    orders = customerOrders
-                } else {
-                    // Fallback: Check all orders to see what's available
-                    val allOrders = databaseService.getAllOrders()
-
-                    // Try to find orders with similar customer ID (case-insensitive)
-                    val similarOrders = allOrders.filter {
-                        it.customerId.equals(customer.customerId, ignoreCase = true)
-                    }
-
-                    if (similarOrders.isNotEmpty()) {
-                        orders = similarOrders
-                    }
-                }
-
-                isLoading = false
-
-            } catch (e: Exception) {
-                errorMessage = "Error loading orders: ${e.message}"
->>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
-=======
-
-                if (customerOrders.isNotEmpty()) {
-                    orders = customerOrders
-                } else {
-                    // Fallback: Check all orders to see what's available
-                    val allOrders = databaseService.getAllOrders()
-
-                    // Try to find orders with similar customer ID (case-insensitive)
-                    val similarOrders = allOrders.filter {
-                        it.customerId.equals(customer.customerId, ignoreCase = true)
-                    }
-
-                    if (similarOrders.isNotEmpty()) {
-                        orders = similarOrders
-                    }
-                }
-
-                isLoading = false
-
-            } catch (e: Exception) {
-                errorMessage = "Error loading orders: ${e.message}"
->>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
                 isLoading = false
             }
         }
@@ -174,31 +110,6 @@ fun OrderScreen(navController: NavController) {
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
-            // Show error message if any
-            errorMessage?.let { message ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFFFEBEE)
-                    )
-                ) {
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFD32F2F),
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-            }
-
->>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
             if (isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -209,7 +120,7 @@ fun OrderScreen(navController: NavController) {
                     ) {
                         CircularProgressIndicator()
                         Text(
-                            text = "Loading your orders...",
+                            text = "Loading orders...",
                             modifier = Modifier.padding(top = 16.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -218,14 +129,6 @@ fun OrderScreen(navController: NavController) {
             } else if (orders.isEmpty()) {
                 EmptyOrderState()
             } else {
-                // Show order count
-                Text(
-                    text = "You have ${orders.size} order(s)",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
                 LazyColumn {
                     items(orders) { order ->
                         OrderCard(
@@ -344,8 +247,6 @@ fun OrderDetailDialog(
 ) {
     val databaseService = DatabaseService()
     var payment by remember { mutableStateOf<Payment?>(null) }
-<<<<<<< HEAD
-<<<<<<< HEAD
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(order.orderId) {
@@ -355,18 +256,6 @@ fun OrderDetailDialog(
             // Handle error silently
         }
         isLoading = false
-=======
-=======
->>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
-    var isLoadingPayment by remember { mutableStateOf(true) }
-
-    LaunchedEffect(order.orderId) {
-        payment = databaseService.getPaymentByOrder(order.orderId)
-        isLoadingPayment = false
-<<<<<<< HEAD
->>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
-=======
->>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
     }
 
     AlertDialog(
@@ -393,116 +282,8 @@ fun OrderDetailDialog(
                         text = getStatusDisplayText(order.status),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
-<<<<<<< HEAD
                         color = getStatusColor(order.status),
                         modifier = Modifier.padding(start = 8.dp)
-=======
-                        color = getStatusColor(order.status)
-                    )
-                }
-
-                // Order Date
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Order Date:")
-                    Text(formatOrderDate(order.orderDate))
-                }
-
-                // Payment Status
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Payment Status:")
-                    if (isLoadingPayment) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                    } else {
-                        Text(
-                            text = payment?.paymentStatus?.replaceFirstChar {
-                                if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
-                            } ?: "Unknown",
-                            color = when (payment?.paymentStatus?.lowercase()) {
-                                "completed" -> Color(0xFF4CAF50)
-                                "pending" -> Color(0xFFFF9800)
-                                "failed" -> Color(0xFFF44336)
-                                else -> MaterialTheme.colorScheme.onSurface
-                            }
-                        )
-                    }
-                }
-
-                // Payment Method
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Payment Method:")
-                    Text(order.paymentMethod.replaceFirstChar {
-                        if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
-                    })
-                }
-
-                // Delivery Address
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Delivery Address:", modifier = Modifier.padding(top = 8.dp))
-                    Text(
-                        text = order.shippingAddress,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-
-                // Order Items
-                Text(
-                    text = "Order Items:",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                )
-
-                if (orderDetails.isEmpty()) {
-                    Text(
-                        text = "No items found",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.heightIn(max = 200.dp)
-                    ) {
-                        items(orderDetails) { detail ->
-                            OrderItemRow(orderDetail = detail)
-                        }
-                    }
-                }
-
-                // Total
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Total:",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "RM${"%.2f".format(order.totalPrice)}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
->>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
                     )
                 }
             }

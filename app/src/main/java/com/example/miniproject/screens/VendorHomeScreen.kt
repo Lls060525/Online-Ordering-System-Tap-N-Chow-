@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -25,7 +24,6 @@ import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Receipt
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.Card
@@ -64,8 +62,6 @@ import com.example.miniproject.model.Vendor
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.utils.ImageConverter
-import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 
 sealed class VendorScreen(val title: String, val icon: ImageVector) {
     object Dashboard : VendorScreen("Dashboard", Icons.Default.Store)
@@ -124,7 +120,7 @@ fun VendorHomeScreen(navController: NavController) {
         ) {
             when (currentScreen) {
                 is VendorScreen.Dashboard -> VendorDashboardContent(navController)
-                is VendorScreen.Products -> VendorProductsContent(navController)
+                is VendorScreen.Products -> VendorProductsContent(navController) // Use your existing screen
                 is VendorScreen.Orders -> VendorOrdersContent()
                 is VendorScreen.Analytics -> VendorAnalyticsContent()
                 is VendorScreen.Account -> VendorAccountScreen(navController)
@@ -137,33 +133,20 @@ fun VendorHomeScreen(navController: NavController) {
 fun VendorDashboardContent(navController: NavController) {
     val authService = AuthService()
     val databaseService = DatabaseService()
-    val coroutineScope = rememberCoroutineScope()
 
     var vendor by remember { mutableStateOf<Vendor?>(null) }
     var products by remember { mutableStateOf<List<Product>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var refreshTrigger by remember { mutableStateOf(0) }
 
-    // Refresh function
-    val refreshProducts: () -> Unit = {
-        coroutineScope.launch {
-            val currentVendor = authService.getCurrentVendor()
-            vendor = currentVendor
+    LaunchedEffect(Unit) {
+        val currentVendor = authService.getCurrentVendor()
+        vendor = currentVendor
 
-            currentVendor?.let {
-                val vendorProducts = databaseService.getProductsByVendor(it.vendorId)
-                products = vendorProducts
-                println("DEBUG: Refreshed products: ${vendorProducts.size} items")
-                vendorProducts.forEach { product ->
-                    println("DEBUG: ${product.productName} - Stock: ${product.stock}")
-                }
-            }
-            isLoading = false
+        currentVendor?.let {
+            val vendorProducts = databaseService.getProductsByVendor(it.vendorId)
+            products = vendorProducts
         }
-    }
-
-    LaunchedEffect(refreshTrigger) {
-        refreshProducts()
+        isLoading = false
     }
 
     if (isLoading) {
@@ -188,33 +171,7 @@ fun VendorDashboardContent(navController: NavController) {
                 QuickStatsCard(products = products)
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Refresh button
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(
-                        text = "Last updated: ${java.text.SimpleDateFormat("HH:mm:ss").format(java.util.Date())}",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = {
-                            isLoading = true
-                            refreshTrigger++
-                        }
-                    ) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = "Refresh",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Products Header
+                // Products Header with navigation to full products screen
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -235,6 +192,16 @@ fun VendorDashboardContent(navController: NavController) {
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.size(8.dp))
+                        IconButton(
+                            onClick = { /* Navigate to products screen - handled by bottom nav */ }
+                        ) {
+                            Icon(
+                                Icons.Default.Inventory,
+                                contentDescription = "View All Products",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -650,6 +617,3 @@ fun VendorAnalyticsContent() {
         Text("Analytics - Coming Soon")
     }
 }
-
-// REMOVED THE DUPLICATE VendorAccountScreen FUNCTION
-// If you need VendorAccountScreen, make sure it's only defined once in your project

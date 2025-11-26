@@ -80,7 +80,6 @@ data class Vendor(
         }
     }
 }
-
 // Product Model
 data class Product(
     @DocumentId val productId: String = "", // Keep for products as they need auto-generated IDs
@@ -93,29 +92,12 @@ data class Product(
     val category: String = "",
     val createdAt: Timestamp = Timestamp.now(),
     val updatedAt: Timestamp = Timestamp.now()
-) {
-    fun isInStock(): Boolean {
-        return stock > 0
-    }
-
-    fun hasSufficientStock(quantity: Int): Boolean {
-        return stock >= quantity
-    }
-
-    // Add display product ID function
-    fun getDisplayProductId(): String {
-        return if (this.productId.length > 8) {
-            // Show shortened version for auto-generated IDs
-            "${this.productId.take(4)}...${this.productId.takeLast(4)}"
-        } else {
-            this.productId
-        }
-    }
-}
+)
 
 // Order Model
 data class Order(
-    @DocumentId val orderId: String = "", // Keep for orders as they need auto-generated IDs
+    @DocumentId val documentId: String = "", // Firestore document ID (0001, 0002, etc.)
+    val orderId: String = "", // Custom order ID (O001, O002, etc.) - can be same as documentId or different
     val customerId: String = "",
     val orderDate: Timestamp = Timestamp.now(),
     val status: String = "pending",
@@ -125,14 +107,9 @@ data class Order(
     val createdAt: Timestamp = Timestamp.now(),
     val updatedAt: Timestamp = Timestamp.now()
 ) {
-    // Add this function to get display order ID
+    // Helper function to get display order ID
     fun getDisplayOrderId(): String {
-        return if (this.orderId.startsWith("O")) {
-            // Remove the "O" prefix and return just the number
-            this.orderId.substring(1)
-        } else {
-            this.orderId
-        }
+        return if (orderId.isNotEmpty()) orderId else "O${documentId.padStart(3, '0')}"
     }
 
     companion object {
@@ -196,14 +173,7 @@ data class CartItem(
     val quantity: Int = 0,
     val vendorId: String = "",
     val imageUrl: String = ""
-) {
-    fun isValidForOrder(): Boolean {
-        return productId.isNotBlank() &&
-                productName.isNotBlank() &&
-                quantity > 0 &&
-                vendorId.isNotBlank()
-    }
-}
+)
 
 @Serializable
 data class Cart(
@@ -217,14 +187,7 @@ data class Cart(
     val serviceFee: Double = 0.0,
     val tax: Double = 0.0,
     val total: Double = 0.0
-) {
-    fun isValidForCheckout(): Boolean {
-        return vendorId.isNotBlank() &&
-                items.isNotEmpty() &&
-                items.all { it.isValidForOrder() } &&
-                total > 0
-    }
-}
+)
 
 data class OrderRequest(
     val customerId: String = "",
@@ -233,16 +196,7 @@ data class OrderRequest(
     val totalAmount: Double = 0.0,
     val deliveryAddress: String = "",
     val paymentMethod: String = ""
-) {
-    fun isValid(): Boolean {
-        return customerId.isNotBlank() &&
-                vendorId.isNotBlank() &&
-                items.isNotEmpty() &&
-                totalAmount > 0 &&
-                deliveryAddress.isNotBlank() &&
-                paymentMethod.isNotBlank()
-    }
-}
+)
 
 data class CustomerAccount(
     val customerId: String = "",
@@ -273,7 +227,3 @@ object VendorCategory {
         }
     }
 }
-
-// Extension functions for display purposes
-fun Order.getShortOrderId(): String = this.getDisplayOrderId()
-fun Product.getShortProductId(): String = this.getDisplayProductId()
