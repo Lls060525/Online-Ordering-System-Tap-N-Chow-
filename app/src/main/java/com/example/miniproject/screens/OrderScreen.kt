@@ -65,6 +65,10 @@ fun OrderScreen(navController: NavController) {
     var orderDetails by remember { mutableStateOf<List<OrderDetail>>(emptyList()) }
     var showOrderDetails by remember { mutableStateOf(false) }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
 =======
     var errorMessage by remember { mutableStateOf<String?>(null) }
 >>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
@@ -77,6 +81,10 @@ fun OrderScreen(navController: NavController) {
 
                 if (customer == null) {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+                    errorMessage = "No customer found! Please make sure you're logged in."
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
 =======
                     errorMessage = "No customer found! Please make sure you're logged in."
 >>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
@@ -87,10 +95,34 @@ fun OrderScreen(navController: NavController) {
                 // Get customer-specific orders
                 val customerOrders = databaseService.getCustomerOrders(customer.customerId)
 <<<<<<< HEAD
+<<<<<<< HEAD
                 orders = customerOrders
                 isLoading = false
 
             } catch (e: Exception) {
+=======
+
+                if (customerOrders.isNotEmpty()) {
+                    orders = customerOrders
+                } else {
+                    // Fallback: Check all orders to see what's available
+                    val allOrders = databaseService.getAllOrders()
+
+                    // Try to find orders with similar customer ID (case-insensitive)
+                    val similarOrders = allOrders.filter {
+                        it.customerId.equals(customer.customerId, ignoreCase = true)
+                    }
+
+                    if (similarOrders.isNotEmpty()) {
+                        orders = similarOrders
+                    }
+                }
+
+                isLoading = false
+
+            } catch (e: Exception) {
+                errorMessage = "Error loading orders: ${e.message}"
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
 =======
 
                 if (customerOrders.isNotEmpty()) {
@@ -143,7 +175,10 @@ fun OrderScreen(navController: NavController) {
             )
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
             // Show error message if any
             errorMessage?.let { message ->
                 Card(
@@ -310,6 +345,7 @@ fun OrderDetailDialog(
     val databaseService = DatabaseService()
     var payment by remember { mutableStateOf<Payment?>(null) }
 <<<<<<< HEAD
+<<<<<<< HEAD
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(order.orderId) {
@@ -320,11 +356,16 @@ fun OrderDetailDialog(
         }
         isLoading = false
 =======
+=======
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
     var isLoadingPayment by remember { mutableStateOf(true) }
 
     LaunchedEffect(order.orderId) {
         payment = databaseService.getPaymentByOrder(order.orderId)
         isLoadingPayment = false
+<<<<<<< HEAD
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
+=======
 >>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
     }
 

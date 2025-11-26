@@ -225,6 +225,7 @@ class DatabaseService {
     suspend fun getCustomerOrders(customerId: String): List<Order> {
         return try {
 <<<<<<< HEAD
+<<<<<<< HEAD
             println("DEBUG: Getting ALL orders and filtering for customer: $customerId")
 
             val allOrders = db.collection("orders")
@@ -262,12 +263,17 @@ class DatabaseService {
             }
 
 =======
+=======
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
             val orders = db.collection("orders")
                 .whereEqualTo("customerId", customerId)
                 .orderBy("orderDate", Query.Direction.DESCENDING)
                 .get()
                 .await()
                 .toObjects(Order::class.java)
+<<<<<<< HEAD
+>>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
+=======
 >>>>>>> bafca0c93a1fde491674d3612618706a9464d8d4
             println("DEBUG: Found ${orders.size} orders for customer $customerId")
             orders
