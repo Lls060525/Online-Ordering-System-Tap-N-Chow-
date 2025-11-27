@@ -20,6 +20,7 @@ import com.example.miniproject.screens.UserHomeScreen
 import com.example.miniproject.screens.VendorHomeScreen
 import com.example.miniproject.screens.VendorLoginScreen
 import com.example.miniproject.screens.VendorRegisterScreen
+import com.example.miniproject.screens.VendorReviewsScreen
 import com.example.miniproject.ui.theme.MiniProjectTheme
 
 class MainActivity : ComponentActivity() {
@@ -106,6 +107,10 @@ class MainActivity : ComponentActivity() {
 
                     composable("home") {
                         UserHomeScreen(navController = navController)
+                    }
+
+                    composable("vendorReviews") {
+                        VendorReviewsScreen(navController = navController)
                     }
                 }
             }

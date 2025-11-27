@@ -59,6 +59,7 @@ import androidx.navigation.NavController
 import com.example.miniproject.R
 import com.example.miniproject.model.Product
 import com.example.miniproject.model.Vendor
+import com.example.miniproject.model.VendorRating
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.utils.ImageConverter
@@ -277,8 +278,22 @@ fun VendorDashboardContent(navController: NavController) {
     }
 }
 
+
 @Composable
-fun VendorInfoCard(vendor: Vendor?) {
+fun     VendorInfoCard(vendor: Vendor?) {
+    val databaseService = DatabaseService()
+    var vendorRating by remember { mutableStateOf<VendorRating?>(null) }
+    var isLoadingRating by remember { mutableStateOf(true) }
+
+    LaunchedEffect(vendor?.vendorId) {
+        vendor?.vendorId?.let { vendorId ->
+            vendorRating = databaseService.getVendorRating(vendorId)
+            isLoadingRating = false
+        } ?: run {
+            isLoadingRating = false
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth(),
@@ -408,7 +423,7 @@ fun VendorInfoCard(vendor: Vendor?) {
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Rating (you can add actual rating logic later)
+                    // Dynamic Rating from Firebase
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -419,11 +434,26 @@ fun VendorInfoCard(vendor: Vendor?) {
                             tint = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.size(8.dp))
-                        Text(
-                            text = "4.5 ★ (128 reviews)",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
+                        if (isLoadingRating) {
+                            Text(
+                                text = "Loading ratings...",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else if (vendorRating != null && vendorRating!!.totalRatings > 0) {
+                            Text(
+                                text = "${"%.1f".format(vendorRating!!.averageRating)} ★ (${vendorRating!!.totalRatings} reviews)",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            Text(
+                                text = "No reviews yet",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
