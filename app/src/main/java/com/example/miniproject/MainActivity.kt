@@ -17,6 +17,7 @@ import com.example.miniproject.screens.PaymentGatewayScreen
 import com.example.miniproject.screens.RateOrderScreen
 import com.example.miniproject.screens.RegisterScreen
 import com.example.miniproject.screens.UserHomeScreen
+import com.example.miniproject.screens.VendorFeedbackAnalyticsScreen
 import com.example.miniproject.screens.VendorHomeScreen
 import com.example.miniproject.screens.VendorLoginScreen
 import com.example.miniproject.screens.VendorRegisterScreen
@@ -111,6 +112,9 @@ class MainActivity : ComponentActivity() {
 
                     composable("vendorReviews") {
                         VendorReviewsScreen(navController = navController)
+                    }
+                    composable("vendorFeedbackAnalytics") {
+                        VendorFeedbackAnalyticsScreen(navController = navController)
                     }
                 }
             }

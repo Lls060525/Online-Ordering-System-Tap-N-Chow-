@@ -36,11 +36,25 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
     var overallComment by remember { mutableStateOf("") }
     var isSubmitting by remember { mutableStateOf(false) }
     var showSuccessDialog by remember { mutableStateOf(false) }
+    var vendorId by remember { mutableStateOf("") }
+    var vendorName by remember { mutableStateOf("Unknown Vendor") }
 
     LaunchedEffect(orderId) {
         if (orderId != null) {
             order = databaseService.getOrderById(orderId)
             orderDetails = databaseService.getOrderDetails(orderId)
+
+            // Get vendor ID from order details more reliably
+            if (orderDetails.isNotEmpty()) {
+                val firstProduct = databaseService.getProductById(orderDetails[0].productId)
+                firstProduct?.let { product ->
+                    // Store vendor info for use in feedback
+                    vendorId = product.vendorId
+                    val vendor = databaseService.getVendorById(product.vendorId)
+                    vendorName = vendor?.vendorName ?: "Unknown Vendor"
+                    println("DEBUG: Vendor info - ID: $vendorId, Name: $vendorName")
+                }
+            }
             isLoading = false
         }
     }
@@ -302,8 +316,8 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
                                         val vendorFeedback = Feedback(
                                             customerId = customer.customerId,
                                             customerName = customer.name,
-                                            vendorId = vendorId,
-                                            vendorName = vendorName,
+                                            vendorId = vendorId, // Use the stored vendorId
+                                            vendorName = vendorName, // Use the stored vendorName
                                             orderId = orderId ?: "",
                                             productId = "", // Empty for vendor feedback
                                             productName = "", // Empty for vendor feedback

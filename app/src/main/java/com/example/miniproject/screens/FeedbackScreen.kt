@@ -18,11 +18,14 @@ import com.example.miniproject.model.Feedback
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Locale
+import com.example.miniproject.components.StarRatingDisplay
 
 @Composable
 fun FeedbackScreen(navController: NavController) {
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("To Rate", "My Reviews", "Rating Statistics")
+    val tabs = listOf("To Rate", "My Reviews") // Removed "Rating Statistics"
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Tab Row
@@ -40,7 +43,6 @@ fun FeedbackScreen(navController: NavController) {
         when (selectedTab) {
             0 -> ToRateContent(navController)
             1 -> MyReviewsContent(navController)
-            2 -> RatingStatisticsContent(navController)
         }
     }
 }
@@ -165,6 +167,11 @@ fun MyReviewsContent(navController: NavController) {
                     val reviews = databaseService.getFeedbackByCustomer(cust.customerId)
                     println("DEBUG: Retrieved ${reviews.size} reviews from database")
 
+                    // Debug: Print each review to check for vendor replies
+                    reviews.forEachIndexed { index, feedback ->
+                        println("DEBUG: Review $index - Vendor: ${feedback.vendorName}, Has Reply: ${feedback.isReplied}, Reply: ${feedback.vendorReply}")
+                    }
+
                     myReviews = reviews
                     lastRefreshTime = System.currentTimeMillis()
                 } ?: run {
@@ -262,64 +269,6 @@ fun MyReviewsContent(navController: NavController) {
                 items(myReviews) { feedback ->
                     ReviewItem(feedback = feedback)
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun RatingStatisticsContent(navController: NavController) {
-    // This could show overall ratings and statistics
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            "Rating Statistics",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-        Text(
-            "View overall ratings and statistics for vendors and products",
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Placeholder for future statistics
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    Icons.Default.Analytics,
-                    contentDescription = "Statistics",
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "Statistics Coming Soon",
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    "Detailed rating analytics will be available here",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
             }
         }
     }
@@ -469,6 +418,48 @@ fun ReviewItem(feedback: Feedback) {
                 )
             }
 
+            // Vendor Reply (if exists) - Enhanced display
+            if (feedback.isReplied && feedback.vendorReply.isNotEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Vendor's Response",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                feedback.vendorReplyDate?.toDate()?.let { date ->
+                                    SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(date)
+                                } ?: "",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = feedback.vendorReply,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            }
+
             // Order and date info
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -487,34 +478,6 @@ fun ReviewItem(feedback: Feedback) {
                 )
             }
         }
-    }
-}
-
-@Composable
-fun StarRatingDisplay(rating: Double, size: androidx.compose.ui.unit.Dp = 16.dp) {
-    val totalStars = 5
-
-    Row {
-        for (i in 1..totalStars) {
-            Icon(
-                imageVector = Icons.Default.Star,
-                contentDescription = "Star $i",
-                modifier = Modifier.size(size),
-                tint = if (i <= rating) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.outline
-                }
-            )
-        }
-
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            "%.1f".format(rating),
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
     }
 }
 

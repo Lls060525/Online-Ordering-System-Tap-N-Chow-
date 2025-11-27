@@ -169,7 +169,28 @@ data class Feedback(
     val comment: String = "",
     val feedbackDate: Timestamp = Timestamp.now(),
     val createdAt: Timestamp = Timestamp.now(),
-    val isVisible: Boolean = true
+    val isVisible: Boolean = true,
+    // New fields for vendor replies
+    val vendorReply: String = "",
+    val vendorReplyDate: Timestamp? = null,
+    val isReplied: Boolean = false
+)
+
+// Add Vendor Analytics Model
+data class VendorAnalytics(
+    val vendorId: String = "",
+    val totalReviews: Int = 0,
+    val averageRating: Double = 0.0,
+    val ratingDistribution: Map<Int, Int> = mapOf( // 1 to 5 stars count
+        1 to 0,
+        2 to 0,
+        3 to 0,
+        4 to 0,
+        5 to 0
+    ),
+    val totalReplies: Int = 0,
+    val replyRate: Double = 0.0, // Percentage of reviews with replies
+    val lastUpdated: Timestamp = Timestamp.now()
 )
 
 // Product Rating Summary Model

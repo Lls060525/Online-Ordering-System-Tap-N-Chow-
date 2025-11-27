@@ -56,13 +56,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.example.miniproject.R
 import com.example.miniproject.model.Product
 import com.example.miniproject.model.Vendor
 import com.example.miniproject.model.VendorRating
+import com.example.miniproject.screens.VendorOrdersScreen.VendorOrdersContent
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.utils.ImageConverter
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Chat
 
 sealed class VendorScreen(val title: String, val icon: ImageVector) {
     object Dashboard : VendorScreen("Dashboard", Icons.Default.Store)
@@ -123,7 +130,7 @@ fun VendorHomeScreen(navController: NavController) {
                 is VendorScreen.Dashboard -> VendorDashboardContent(navController)
                 is VendorScreen.Products -> VendorProductsContent(navController) // Use your existing screen
                 is VendorScreen.Orders -> VendorOrdersContent()
-                is VendorScreen.Analytics -> VendorAnalyticsContent()
+                is VendorScreen.Analytics -> VendorAnalyticsContent(navController)
                 is VendorScreen.Account -> VendorAccountScreen(navController)
             }
         }
@@ -278,6 +285,114 @@ fun VendorDashboardContent(navController: NavController) {
     }
 }
 
+@Composable
+fun VendorAnalyticsContent(navController: NavController) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            "Analytics & Feedback",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+
+        // Analytics Sales Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .clickable {
+                    // Navigate to sales analytics
+                    // You can implement this later
+                },
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.BarChart,
+                    contentDescription = "Sales Analytics",
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        "Sales Analytics",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "View your sales performance and revenue",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                Icon(
+                    Icons.Default.ArrowForward,
+                    contentDescription = "Go to Sales Analytics",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Feedback Management Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .clickable {
+                    navController.navigate("vendorFeedbackAnalytics")
+                },
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Chat,
+                    contentDescription = "Feedback Management",
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        "Customer Feedback",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "View and reply to customer reviews",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                Icon(
+                    Icons.Default.ArrowForward,
+                    contentDescription = "Go to Feedback Management",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
 
 @Composable
 fun     VendorInfoCard(vendor: Vendor?) {
@@ -633,17 +748,3 @@ fun ProductDashboardItem(product: Product) {
     }
 }
 
-@Composable
-fun VendorOrdersContent() {
-    VendorOrdersScreen.VendorOrdersContent()
-}
-
-@Composable
-fun VendorAnalyticsContent() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Analytics - Coming Soon")
-    }
-}

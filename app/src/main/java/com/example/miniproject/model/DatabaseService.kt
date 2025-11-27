@@ -432,9 +432,19 @@ class DatabaseService {
     // Add these functions to your DatabaseService class
 
     // Feedback Operations
+// In DatabaseService.kt - Add to addFeedback function
     suspend fun addFeedback(feedback: Feedback): Result<String> {
         return try {
+            println("🟡 DEBUG: Adding feedback to Firestore:")
+            println("🟡 DEBUG: - Customer: ${feedback.customerName} (${feedback.customerId})")
+            println("🟡 DEBUG: - Vendor: ${feedback.vendorName} (${feedback.vendorId})")
+            println("🟡 DEBUG: - Order: ${feedback.orderId}")
+            println("🟡 DEBUG: - Rating: ${feedback.rating}")
+            println("🟡 DEBUG: - Comment: ${feedback.comment}")
+
             val feedbackRef = db.collection("feedbacks").add(feedback).await()
+
+            println("🟢 DEBUG: Feedback saved with ID: ${feedbackRef.id}")
 
             // Update product rating summary
             updateProductRating(feedback.productId, feedback.rating)
@@ -444,6 +454,7 @@ class DatabaseService {
 
             Result.success(feedbackRef.id)
         } catch (e: Exception) {
+            println("🔴 DEBUG: Failed to save feedback: ${e.message}")
             Result.failure(e)
         }
     }
@@ -483,6 +494,195 @@ class DatabaseService {
             // Handle error silently
         }
     }
+
+    // Add to DatabaseService.kt
+
+    // Feedback reply functions
+    suspend fun addVendorReply(feedbackId: String, reply: String): Result<Boolean> {
+        return try {
+            val updateData = hashMapOf<String, Any>(
+                "vendorReply" to reply,
+                "vendorReplyDate" to Timestamp.now(),
+                "isReplied" to true,
+                "replied" to true // Update both field names for compatibility
+            )
+
+            db.collection("feedbacks").document(feedbackId)
+                .update(updateData).await()
+
+            // Update analytics
+            updateVendorAnalytics(feedbackId)
+
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateVendorReply(feedbackId: String, reply: String): Result<Boolean> {
+        return try {
+            val updateData = hashMapOf<String, Any>(
+                "vendorReply" to reply,
+                "vendorReplyDate" to Timestamp.now()
+            )
+
+            db.collection("feedbacks").document(feedbackId)
+                .update(updateData).await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteVendorReply(feedbackId: String): Result<Boolean> {
+        return try {
+            db.collection("feedbacks").document(feedbackId)
+                .update(
+                    mapOf(
+                        "vendorReply" to "",
+                        "vendorReplyDate" to null,
+                        "isReplied" to false
+                    )
+                ).await()
+
+            // Update analytics
+            updateVendorAnalytics(feedbackId)
+
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Vendor Analytics functions
+    private suspend fun updateVendorAnalytics(feedbackId: String) {
+        try {
+            val feedback = db.collection("feedbacks").document(feedbackId).get().await()
+                .toObject(Feedback::class.java)
+
+            feedback?.vendorId?.let { vendorId ->
+                updateVendorAnalyticsData(vendorId)
+            }
+        } catch (e: Exception) {
+            // Handle error silently
+        }
+    }
+
+    suspend fun updateVendorAnalyticsData(vendorId: String) {
+        try {
+            val feedbacks = db.collection("feedbacks")
+                .whereEqualTo("vendorId", vendorId)
+                .whereEqualTo("isVisible", true)
+                .get()
+                .await()
+                .toObjects(Feedback::class.java)
+
+            if (feedbacks.isNotEmpty()) {
+                val totalReviews = feedbacks.size
+                val averageRating = feedbacks.map { it.rating }.average()
+                val totalReplies = feedbacks.count { it.isReplied }
+                val replyRate = if (totalReviews > 0) (totalReplies.toDouble() / totalReviews) * 100 else 0.0
+
+                val ratingDistribution = mutableMapOf<Int, Int>()
+                for (i in 1..5) ratingDistribution[i] = 0
+
+                // Count ratings
+                feedbacks.forEach { feedback ->
+                    val starRating = feedback.rating.toInt().coerceIn(1, 5)
+                    ratingDistribution[starRating] = ratingDistribution[starRating]!! + 1
+                }
+
+                val vendorAnalytics = VendorAnalytics(
+                    vendorId = vendorId,
+                    totalReviews = totalReviews,
+                    averageRating = averageRating,
+                    ratingDistribution = ratingDistribution,
+                    totalReplies = totalReplies,
+                    replyRate = replyRate,
+                    lastUpdated = Timestamp.now()
+                )
+
+                db.collection("vendor_analytics").document(vendorId).set(vendorAnalytics).await()
+            }
+        } catch (e: Exception) {
+            // Handle error silently
+        }
+    }
+
+    suspend fun getVendorAnalytics(vendorId: String): VendorAnalytics? {
+        return try {
+            db.collection("vendor_analytics").document(vendorId).get().await()
+                .toObject(VendorAnalytics::class.java)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    // Get feedback with replies for vendor
+// In DatabaseService.kt - Add more debugging
+    suspend fun getFeedbackWithReplies(vendorId: String): List<Feedback> {
+        return try {
+            println("DEBUG: Querying feedbacks for vendor: $vendorId")
+
+            if (vendorId.isBlank()) {
+                println("DEBUG: Vendor ID is blank!")
+                return emptyList()
+            }
+
+            val result = db.collection("feedbacks")
+                .whereEqualTo("vendorId", vendorId)
+                .get()
+                .await()
+
+            println("DEBUG: Query completed. Found ${result.documents.size} documents")
+
+            // Manual conversion to handle field name differences
+            val feedbacks = result.documents.mapNotNull { document ->
+                try {
+                    val data = document.data ?: return@mapNotNull null
+
+                    Feedback(
+                        feedbackId = document.id,
+                        customerId = data["customerId"] as? String ?: "",
+                        customerName = data["customerName"] as? String ?: "",
+                        vendorId = data["vendorId"] as? String ?: "",
+                        vendorName = data["vendorName"] as? String ?: "",
+                        orderId = data["orderId"] as? String ?: "",
+                        productId = data["productId"] as? String ?: "",
+                        productName = data["productName"] as? String ?: "",
+                        rating = (data["rating"] as? Double) ?: (data["rating"] as? Long)?.toDouble() ?: 0.0,
+                        comment = data["comment"] as? String ?: "",
+                        feedbackDate = data["feedbackDate"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
+                        createdAt = data["createdAt"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
+                        isVisible = data["isVisible"] as? Boolean ?: true,
+                        vendorReply = data["vendorReply"] as? String ?: "",
+                        vendorReplyDate = data["vendorReplyDate"] as? com.google.firebase.Timestamp,
+                        isReplied = data["isReplied"] as? Boolean ?: (data["replied"] as? Boolean) ?: false
+                    )
+                } catch (e: Exception) {
+                    println("DEBUG: Error converting document ${document.id}: ${e.message}")
+                    null
+                }
+            }
+
+            println("DEBUG: Successfully converted to ${feedbacks.size} Feedback objects")
+
+            // Filter by isVisible
+            val visibleFeedbacks = feedbacks.filter { it.isVisible }
+            println("DEBUG: After filtering - ${visibleFeedbacks.size} visible feedbacks")
+
+            // Sort by date, newest first
+            val sortedFeedbacks = visibleFeedbacks.sortedByDescending { it.feedbackDate?.seconds ?: 0 }
+
+            sortedFeedbacks
+        } catch (e: Exception) {
+            println("DEBUG: Error in getFeedbackWithReplies: ${e.message}")
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+
 
     private suspend fun updateVendorRating(vendorId: String, newRating: Double) {
         try {
@@ -524,46 +724,69 @@ class DatabaseService {
 
     suspend fun getFeedbackByCustomer(customerId: String): List<Feedback> {
         return try {
-            println("🟢 DEBUG: Getting feedback for customer: $customerId")
+            println("DEBUG: Getting feedback for customer: $customerId")
 
             val result = db.collection("feedbacks")
                 .whereEqualTo("customerId", customerId)
                 .get()
                 .await()
 
-            println("🟢 DEBUG: Query completed. Found ${result.documents.size} documents")
+            println("DEBUG: Query completed. Found ${result.documents.size} documents")
 
             if (result.documents.isEmpty()) {
-                println("🟡 DEBUG: No feedback documents found for customer $customerId")
+                println("DEBUG: No feedback documents found for customer $customerId")
                 return emptyList()
             }
 
-            // Print raw document data
-            result.documents.forEachIndexed { index, document ->
-                println("📄 DEBUG: Document $index - ID: ${document.id}")
-                println("📄 DEBUG: Document data: ${document.data}")
+            // Manual conversion to handle field name differences
+            val feedbacks = result.documents.mapNotNull { document ->
+                try {
+                    val data = document.data ?: return@mapNotNull null
+
+                    Feedback(
+                        feedbackId = document.id,
+                        customerId = data["customerId"] as? String ?: "",
+                        customerName = data["customerName"] as? String ?: "",
+                        vendorId = data["vendorId"] as? String ?: "",
+                        vendorName = data["vendorName"] as? String ?: "",
+                        orderId = data["orderId"] as? String ?: "",
+                        productId = data["productId"] as? String ?: "",
+                        productName = data["productName"] as? String ?: "",
+                        rating = (data["rating"] as? Double) ?: (data["rating"] as? Long)?.toDouble() ?: 0.0,
+                        comment = data["comment"] as? String ?: "",
+                        feedbackDate = data["feedbackDate"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
+                        createdAt = data["createdAt"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
+                        isVisible = data["isVisible"] as? Boolean ?: true,
+                        vendorReply = data["vendorReply"] as? String ?: "",
+                        vendorReplyDate = data["vendorReplyDate"] as? com.google.firebase.Timestamp,
+                        isReplied = data["isReplied"] as? Boolean ?: (data["replied"] as? Boolean) ?: false
+                    )
+                } catch (e: Exception) {
+                    println("DEBUG: Error converting document ${document.id}: ${e.message}")
+                    null
+                }
             }
 
-            val feedbacks = result.toObjects(Feedback::class.java)
-            println("🟢 DEBUG: Successfully converted to ${feedbacks.size} Feedback objects")
+            println("DEBUG: Successfully converted to ${feedbacks.size} Feedback objects")
 
-            // Print each feedback details
+            // Print each feedback details for debugging
             feedbacks.forEachIndexed { index, feedback ->
-                println("⭐ DEBUG: Feedback $index - " +
+                println("DEBUG: Feedback $index - " +
                         "CustomerID: ${feedback.customerId}, " +
                         "Vendor: ${feedback.vendorName}, " +
                         "Rating: ${feedback.rating}, " +
-                        "OrderID: ${feedback.orderId}, " +
-                        "Date: ${feedback.feedbackDate?.toDate()}")
+                        "Has Reply: ${feedback.isReplied}, " +
+                        "Reply: ${feedback.vendorReply}, " +
+                        "OrderID: ${feedback.orderId}")
             }
 
             // Sort by date, newest first
             val sortedFeedbacks = feedbacks.sortedByDescending { it.feedbackDate?.seconds ?: 0 }
-            println("🟢 DEBUG: Returning ${sortedFeedbacks.size} sorted feedbacks")
+            println("DEBUG: Returning ${sortedFeedbacks.size} sorted feedbacks")
 
             sortedFeedbacks
         } catch (e: Exception) {
-            println("🔴 DEBUG: Error in getFeedbackByCustomer: ${e.message}")
+            println("DEBUG: Error in getFeedbackByCustomer: ${e.message}")
             e.printStackTrace()
             emptyList()
         }
