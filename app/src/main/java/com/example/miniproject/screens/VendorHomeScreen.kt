@@ -56,7 +56,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.example.miniproject.R
 import com.example.miniproject.model.Product
 import com.example.miniproject.model.Vendor
@@ -66,7 +65,6 @@ import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.utils.ImageConverter
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Chat
@@ -85,17 +83,7 @@ fun VendorHomeScreen(navController: NavController) {
     var currentScreen by remember { mutableStateOf<VendorScreen>(VendorScreen.Dashboard) }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Vendor Dashboard",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                }
-            )
-        },
+
         bottomBar = {
             NavigationBar {
                 listOf(
@@ -290,7 +278,8 @@ fun VendorAnalyticsContent(navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(4.dp)
+            .statusBarsPadding(),
     ) {
         Text(
             "Analytics & Feedback",
@@ -395,10 +384,12 @@ fun VendorAnalyticsContent(navController: NavController) {
 }
 
 @Composable
-fun     VendorInfoCard(vendor: Vendor?) {
+fun VendorInfoCard(vendor: Vendor?) {
     val databaseService = DatabaseService()
     var vendorRating by remember { mutableStateOf<VendorRating?>(null) }
     var isLoadingRating by remember { mutableStateOf(true) }
+    val context = LocalContext.current
+    val imageConverter = remember { ImageConverter(context) }
 
     LaunchedEffect(vendor?.vendorId) {
         vendor?.vendorId?.let { vendorId ->
@@ -406,6 +397,17 @@ fun     VendorInfoCard(vendor: Vendor?) {
             isLoadingRating = false
         } ?: run {
             isLoadingRating = false
+        }
+    }
+
+    val vendorBitmap = remember(vendor?.profileImageBase64, imageConverter) {
+        vendor?.profileImageBase64?.let { base64 ->
+            if (base64.isNotEmpty()) {
+                val bitmap = imageConverter.base64ToBitmap(base64)
+                bitmap
+            } else {
+                null
+            }
         }
     }
 
@@ -431,24 +433,13 @@ fun     VendorInfoCard(vendor: Vendor?) {
                     contentAlignment = Alignment.Center
                 ) {
                     when {
-                        !vendor?.profileImageBase64.isNullOrEmpty() -> {
-                            val imageConverter = ImageConverter(LocalContext.current)
-                            val bitmap = imageConverter.base64ToBitmap(vendor?.profileImageBase64 ?: "")
-                            if (bitmap != null) {
-                                Image(
-                                    bitmap = bitmap.asImageBitmap(),
-                                    contentDescription = "Vendor Profile",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Image(
-                                    painter = painterResource(id = R.drawable.logo2),
-                                    contentDescription = "Vendor Logo",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
+                        vendorBitmap != null -> {
+                            Image(
+                                bitmap = vendorBitmap.asImageBitmap(),
+                                contentDescription = "Vendor Profile",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
                         }
                         else -> {
                             Image(
@@ -605,7 +596,7 @@ fun QuickStatsCard(products: List<Product>) {
             StatItem(
                 value = "RM${"%.2f".format(totalValue)}",
                 label = "Inventory Value",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1.5f)
             )
 
             // Low Stock Alert
@@ -618,7 +609,6 @@ fun QuickStatsCard(products: List<Product>) {
         }
     }
 }
-
 @Composable
 fun StatItem(value: String, label: String, modifier: Modifier = Modifier, isAlert: Boolean = false) {
     Column(
@@ -641,6 +631,18 @@ fun StatItem(value: String, label: String, modifier: Modifier = Modifier, isAler
 
 @Composable
 fun ProductDashboardItem(product: Product) {
+    val context = LocalContext.current
+    val imageConverter = remember { ImageConverter(context) }
+
+    val productBitmap = remember(product.imageUrl, imageConverter) {
+        if (product.imageUrl.isNotEmpty()) {
+            val bitmap = imageConverter.base64ToBitmap(product.imageUrl)
+            bitmap
+        } else {
+            null
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth(),
@@ -662,31 +664,13 @@ fun ProductDashboardItem(product: Product) {
                 contentAlignment = Alignment.Center
             ) {
                 when {
-                    product.imageUrl.isNotEmpty() -> {
-                        if (product.imageUrl.startsWith("data:image")) {
-                            val imageConverter = ImageConverter(LocalContext.current)
-                            val bitmap = imageConverter.base64ToBitmap(product.imageUrl)
-                            if (bitmap != null) {
-                                Image(
-                                    bitmap = bitmap.asImageBitmap(),
-                                    contentDescription = "Product Image",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Icon(
-                                    Icons.Default.Inventory,
-                                    contentDescription = "Product Image",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        } else {
-                            Icon(
-                                Icons.Default.Inventory,
-                                contentDescription = "Product Image",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    productBitmap != null -> {
+                        Image(
+                            bitmap = productBitmap.asImageBitmap(),
+                            contentDescription = "Product Image",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
                     }
                     else -> {
                         Icon(
@@ -747,4 +731,3 @@ fun ProductDashboardItem(product: Product) {
         }
     }
 }
-

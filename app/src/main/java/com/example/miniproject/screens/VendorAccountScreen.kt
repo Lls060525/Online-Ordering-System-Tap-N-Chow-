@@ -756,8 +756,7 @@ fun NavigationCards(navController: NavController) {
             title = "My Retail",
             description = "Manage your products and inventory",
             onClick = {
-                // Navigate to retail management screen
-                // navController.navigate("vendorRetail")
+                 //navController.navigate("vendorProduct")
             }
         )
 
@@ -766,8 +765,7 @@ fun NavigationCards(navController: NavController) {
             title = "Report",
             description = "View sales reports and analytics",
             onClick = {
-                // Navigate to reports screen
-                // navController.navigate("vendorReports")
+                //navController.navigate("vendorAnalytics")
             }
         )
 
