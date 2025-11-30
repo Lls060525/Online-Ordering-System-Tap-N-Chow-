@@ -132,9 +132,12 @@ class MainActivity : ComponentActivity() {
                     composable("vendorAnalytics") {
                         VendorAnalyticsContent(navController = navController)
                     }
+<<<<<<< HEAD
                     composable("vendorFeedbackStatistics") {
                         VendorFeedbackStatisticsScreen(navController = navController)
                     }
+=======
+>>>>>>> 275ebdebd779d5386869ac036fbecc732657ada7
                 }
             }
         }
