@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import android.content.Context
+import android.util.Log
 
 class ImageConverter(private val context: Context) {
 
@@ -60,9 +61,27 @@ class ImageConverter(private val context: Context) {
 
     fun base64ToBitmap(base64String: String): Bitmap? {
         return try {
-            val decodedBytes = android.util.Base64.decode(base64String, android.util.Base64.DEFAULT)
-            BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+            // Handle both formats: with and without data URI prefix
+            val pureBase64 = if (base64String.contains(",")) {
+                base64String.substringAfter(",")
+            } else {
+                base64String
+            }
+
+            Log.d("ImageConverter", "Base64 string length: ${pureBase64.length}")
+
+            val decodedBytes = android.util.Base64.decode(pureBase64, android.util.Base64.DEFAULT)
+            val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+
+            if (bitmap == null) {
+                Log.e("ImageConverter", "Failed to decode bitmap from Base64")
+            } else {
+                Log.d("ImageConverter", "Bitmap decoded successfully: ${bitmap.width}x${bitmap.height}")
+            }
+
+            bitmap
         } catch (e: Exception) {
+            Log.e("ImageConverter", "Error decoding Base64: ${e.message}")
             e.printStackTrace()
             null
         }

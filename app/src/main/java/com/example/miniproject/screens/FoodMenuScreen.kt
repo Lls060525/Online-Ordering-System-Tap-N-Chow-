@@ -583,6 +583,19 @@ fun CartDialog(
 fun VendorHeaderSection(vendor: Vendor?) {
     val context = LocalContext.current
     val imageConverter = remember { ImageConverter(context) }
+    val databaseService = DatabaseService()
+
+    // State for vendor rating
+    var vendorRating by remember { mutableStateOf<com.example.miniproject.model.VendorRating?>(null) }
+    var isLoadingRating by remember { mutableStateOf(true) }
+
+    // Load vendor rating
+    LaunchedEffect(vendor?.vendorId) {
+        vendor?.vendorId?.let { vendorId ->
+            vendorRating = databaseService.getVendorRating(vendorId)
+        }
+        isLoadingRating = false
+    }
 
     val vendorBitmap = remember(vendor?.profileImageBase64) {
         vendor?.profileImageBase64?.let { base64 ->
@@ -654,6 +667,32 @@ fun VendorHeaderSection(vendor: Vendor?) {
 
                     Spacer(modifier = Modifier.height(8.dp))
 
+                    // Rating display
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = "Rating",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.size(8.dp))
+                        Text(
+                            text = if (isLoadingRating) {
+                                "Loading rating..."
+                            } else if (vendorRating != null && vendorRating!!.totalRatings > 0) {
+                                "%.1f/5.0 • ${vendorRating!!.totalRatings} reviews".format(vendorRating!!.averageRating)
+                            } else {
+                                "No ratings yet"
+                            },
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -692,31 +731,13 @@ fun VendorHeaderSection(vendor: Vendor?) {
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Rating (you can add actual rating logic later)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Star,
-                            contentDescription = "Rating",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.size(8.dp))
-                        Text(
-                            text = "4.5 ★ (128 reviews)",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
             }
         }
     }
 }
+
+
 
 @Composable
 fun FoodContentWithVendors(navController: NavController) {
@@ -966,6 +987,17 @@ fun FoodContentWithVendors(navController: NavController) {
 fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
     val context = LocalContext.current
     val imageConverter = remember { ImageConverter(context) }
+    val databaseService = DatabaseService()
+
+    // State for vendor rating
+    var vendorRating by remember { mutableStateOf<com.example.miniproject.model.VendorRating?>(null) }
+    var isLoadingRating by remember { mutableStateOf(true) }
+
+    // Load vendor rating
+    LaunchedEffect(vendor.vendorId) {
+        vendorRating = databaseService.getVendorRating(vendor.vendorId)
+        isLoadingRating = false
+    }
 
     val vendorBitmap = remember(vendor.profileImageBase64) {
         if (!vendor.profileImageBase64.isNullOrEmpty()) {
@@ -1034,6 +1066,32 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
 
                 Spacer(modifier = Modifier.height(4.dp))
 
+                // Rating Row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = "Rating",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.size(4.dp))
+                    Text(
+                        text = if (isLoadingRating) {
+                            "Loading..."
+                        } else if (vendorRating != null && vendorRating!!.totalRatings > 0) {
+                            "%.1f".format(vendorRating!!.averageRating) + " (${vendorRating!!.totalRatings} reviews)"
+                        } else {
+                            "No ratings yet"
+                        },
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1048,7 +1106,7 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
                         text = vendor.address,
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2
+                        maxLines = 1
                     )
                 }
 

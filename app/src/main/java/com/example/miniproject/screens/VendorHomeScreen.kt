@@ -285,6 +285,7 @@ fun VendorDashboardContent(navController: NavController) {
     }
 }
 
+// Update in VendorHomeScreen.kt - VendorAnalyticsContent composable
 @Composable
 fun VendorAnalyticsContent(navController: NavController) {
     Column(
@@ -391,8 +392,57 @@ fun VendorAnalyticsContent(navController: NavController) {
                 )
             }
         }
+
+        // ADD THIS NEW CARD FOR FEEDBACK STATISTICS
+// Feedback Statistics Card
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .clickable {
+                    navController.navigate("vendorFeedbackStatistics")
+                },
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Analytics, // Changed to Analytics icon
+                    contentDescription = "Feedback Statistics",
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        "Feedback Statistics",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "View ratings and review statistics over time",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                Icon(
+                    Icons.Default.ArrowForward,
+                    contentDescription = "Go to Feedback Statistics",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
+
 
 @Composable
 fun     VendorInfoCard(vendor: Vendor?) {

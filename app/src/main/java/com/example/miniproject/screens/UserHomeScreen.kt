@@ -184,16 +184,6 @@ fun FoodContent(navController: NavController) {
     }
 }
 
-@Composable
-fun GroceryContent() {
-    // You can keep this as is or redirect to FeedbackScreen
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Feedback - Use the Feedback tab below")
-    }
-}
 
 @Composable
 fun MyOrderContent(navController: NavController) {

@@ -1,6 +1,7 @@
 package com.example.miniproject.screens
 
 import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -55,8 +56,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import coil.compose.rememberAsyncImagePainter
-import coil.compose.rememberImagePainter
 import com.example.miniproject.model.Product
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
@@ -79,7 +78,7 @@ fun VendorProductsContent(navController: NavController) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var productToDelete by remember { mutableStateOf<Product?>(null) }
 
-    // Get current vendor and load products
+    // Get current vendor and load products - ADD THIS BACK!
     LaunchedEffect(Unit) {
         val vendor = authService.getCurrentVendor()
         vendor?.let {
@@ -87,12 +86,28 @@ fun VendorProductsContent(navController: NavController) {
             val vendorProducts = databaseService.getProductsByVendor(it.vendorId)
             products = vendorProducts
             isLoading = false
+        } ?: run {
+            // If no vendor found, still stop loading
+            isLoading = false
+        }
+    }
+
+    // Debug products - KEEP THIS BUT FIX THE KEY
+    LaunchedEffect(products) {
+        if (products.isNotEmpty()) {
+            products.forEach { product ->
+                Log.d("ProductDebug", "Product: ${product.productName}")
+                Log.d("ProductDebug", "Image URL length: ${product.imageUrl.length}")
+                Log.d("ProductDebug", "Image URL starts with: ${product.imageUrl.take(50)}...")
+            }
         }
     }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
+
+                modifier = Modifier.padding(12.dp),
                 title = {
                     Text(
                         "My Products",
@@ -314,6 +329,21 @@ fun ProductImage(
     imageUrl: String,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val imageConverter = remember { ImageConverter(context) }
+
+    val productBitmap = remember(imageUrl, imageConverter) {
+        if (imageUrl.isNotEmpty()) {
+            Log.d("VendorProductImage", "Processing product image, length: ${imageUrl.length}")
+            val bitmap = imageConverter.base64ToBitmap(imageUrl)
+            Log.d("VendorProductImage", "Bitmap created: ${bitmap != null}")
+            bitmap
+        } else {
+            Log.d("VendorProductImage", "Empty image URL")
+            null
+        }
+    }
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
@@ -321,55 +351,19 @@ fun ProductImage(
         contentAlignment = Alignment.Center
     ) {
         when {
-            imageUrl.isEmpty() -> {
-                // No image - show placeholder
-                Icon(
-                    Icons.Default.ShoppingCart,
-                    contentDescription = "No Image",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            imageUrl.startsWith("data:image") -> {
-                // Base64 image
-                val imageConverter = ImageConverter(LocalContext.current)
-                val bitmap = imageConverter.base64ToBitmap(imageUrl)
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "Product Image",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.ShoppingCart,
-                        contentDescription = "Invalid Image",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            imageUrl.startsWith("http") -> {
-                // HTTP URL - use Coil with better error handling
+            productBitmap != null -> {
                 Image(
-                    painter = rememberAsyncImagePainter(
-                        model = imageUrl,
-                        error = rememberImagePainter(
-                            data = null,
-                            builder = {
-                                // This will show the placeholder on error
-                            }
-                        )
-                    ),
+                    bitmap = productBitmap.asImageBitmap(),
                     contentDescription = "Product Image",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
             }
             else -> {
-                // Invalid URL format
+                // No image - show placeholder
                 Icon(
                     Icons.Default.ShoppingCart,
-                    contentDescription = "Invalid Image URL",
+                    contentDescription = "No Image",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -388,7 +382,7 @@ fun AddEditProductDialog(
     val databaseService = DatabaseService()
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
-    val imageConverter = ImageConverter(context)
+    val imageConverter = remember { ImageConverter(context) }
 
     // Declare all state variables FIRST
     var productName by remember { mutableStateOf(product?.productName ?: "") }
@@ -658,6 +652,7 @@ fun AddEditProductDialog(
         }
     )
 }
+
 @Composable
 fun DeleteProductDialog(
     product: Product?,

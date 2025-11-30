@@ -149,8 +149,8 @@ fun CustomerAccountScreen(navController: NavController) {
                     navController.navigate("customerProfile")
                 },
                 onOrderHistory = {
-                    // Navigate to order history
-                    // navController.navigate("orderHistory")
+
+                    navController.navigate("orderHistory")
                 },
                 onFavourites = {
                     // Navigate to favourites

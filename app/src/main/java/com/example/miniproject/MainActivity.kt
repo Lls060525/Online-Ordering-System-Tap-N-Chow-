@@ -17,11 +17,15 @@ import com.example.miniproject.screens.PaymentGatewayScreen
 import com.example.miniproject.screens.RateOrderScreen
 import com.example.miniproject.screens.RegisterScreen
 import com.example.miniproject.screens.UserHomeScreen
+import com.example.miniproject.screens.VendorAnalyticsContent
 import com.example.miniproject.screens.VendorFeedbackAnalyticsScreen
+import com.example.miniproject.screens.VendorFeedbackStatisticsScreen
 import com.example.miniproject.screens.VendorHomeScreen
 import com.example.miniproject.screens.VendorLoginScreen
+import com.example.miniproject.screens.VendorProductsContent
 import com.example.miniproject.screens.VendorRegisterScreen
 import com.example.miniproject.screens.VendorReviewsScreen
+import com.example.miniproject.screens.order.OrderHistoryScreen
 import com.example.miniproject.ui.theme.MiniProjectTheme
 
 class MainActivity : ComponentActivity() {
@@ -115,6 +119,21 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("vendorFeedbackAnalytics") {
                         VendorFeedbackAnalyticsScreen(navController = navController)
+                    }
+
+                    composable("orderHistory") {
+                        OrderHistoryScreen(navController = navController)
+                    }
+
+                    composable("vendorProduct") {
+                        VendorProductsContent(navController = navController)
+                    }
+
+                    composable("vendorAnalytics") {
+                        VendorAnalyticsContent(navController = navController)
+                    }
+                    composable("vendorFeedbackStatistics") {
+                        VendorFeedbackStatisticsScreen(navController = navController)
                     }
                 }
             }
