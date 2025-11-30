@@ -295,8 +295,7 @@ fun VendorAnalyticsContent(navController: NavController) {
                 .fillMaxWidth()
                 .height(120.dp)
                 .clickable {
-                    // Navigate to sales analytics
-                    // You can implement this later
+                    navController.navigate("salesAnalytics") // Updated navigation
                 },
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
