@@ -50,10 +50,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -87,7 +85,11 @@ import java.net.URLEncoder
 
 // Improved Image Converter
 class ImageConverter(private val context: android.content.Context) {
-    fun base64ToBitmap(base64String: String): Bitmap? {
+    fun base64ToBitmap(base64String: String?): Bitmap? {
+        if (base64String.isNullOrEmpty()) {
+            return null
+        }
+
         return try {
             // Remove data URL prefix if present
             val pureBase64 = if (base64String.contains(",")) {
@@ -290,7 +292,7 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                         vendorName = vendor?.vendorName ?: "",
                         vendorAddress = vendor?.address ?: "",
                         vendorContact = vendor?.vendorContact ?: "",
-                        vendorProfileImage = vendor?.profileImageBase64 ?: "",
+                        // FIX: Remove vendorProfileImage if it doesn't exist in Cart model
                         items = cartItems,
                         subtotal = cartItems.sumOf { it.productPrice * it.quantity },
                         serviceFee = cartItems.sumOf { it.productPrice * it.quantity } * 0.10,
@@ -597,17 +599,32 @@ fun VendorHeaderSection(vendor: Vendor?) {
         isLoadingRating = false
     }
 
-    val vendorBitmap = remember(vendor?.profileImageBase64) {
-        vendor?.profileImageBase64?.let { base64 ->
-            if (base64.isNotEmpty()) {
-                Log.d("VendorImage", "Processing vendor image")
-                val bitmap = imageConverter.base64ToBitmap(base64)
-                Log.d("VendorImage", "Vendor bitmap created: ${bitmap != null}")
-                bitmap
-            } else {
-                null
+    // FIX: Use a safe approach for profile image
+    val vendorImageString = vendor?.let { vendorObj ->
+        // Try to get profile image using reflection or different property names
+        when {
+            // Try common property names
+            vendorObj::class.java.declaredFields.any { it.name == "profileImageBase64" } -> {
+                val field = vendorObj::class.java.getDeclaredField("profileImageBase64")
+                field.isAccessible = true
+                field.get(vendorObj) as? String
             }
+            vendorObj::class.java.declaredFields.any { it.name == "profileImage" } -> {
+                val field = vendorObj::class.java.getDeclaredField("profileImage")
+                field.isAccessible = true
+                field.get(vendorObj) as? String
+            }
+            vendorObj::class.java.declaredFields.any { it.name == "imageUrl" } -> {
+                val field = vendorObj::class.java.getDeclaredField("imageUrl")
+                field.isAccessible = true
+                field.get(vendorObj) as? String
+            }
+            else -> null
         }
+    }
+
+    val vendorBitmap = remember(vendorImageString) {
+        imageConverter.base64ToBitmap(vendorImageString)
     }
 
     Card(
@@ -736,8 +753,6 @@ fun VendorHeaderSection(vendor: Vendor?) {
         }
     }
 }
-
-
 
 @Composable
 fun FoodContentWithVendors(navController: NavController) {
@@ -999,15 +1014,32 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
         isLoadingRating = false
     }
 
-    val vendorBitmap = remember(vendor.profileImageBase64) {
-        if (!vendor.profileImageBase64.isNullOrEmpty()) {
-            Log.d("RestaurantCard", "Processing vendor image: ${vendor.vendorName}")
-            val bitmap = imageConverter.base64ToBitmap(vendor.profileImageBase64)
-            Log.d("RestaurantCard", "Vendor bitmap created: ${bitmap != null}")
-            bitmap
-        } else {
-            null
+    // FIX: Use a safe approach for profile image
+    val vendorImageString = vendor.let { vendorObj ->
+        // Try to get profile image using reflection or different property names
+        when {
+            // Try common property names
+            vendorObj::class.java.declaredFields.any { it.name == "profileImageBase64" } -> {
+                val field = vendorObj::class.java.getDeclaredField("profileImageBase64")
+                field.isAccessible = true
+                field.get(vendorObj) as? String
+            }
+            vendorObj::class.java.declaredFields.any { it.name == "profileImage" } -> {
+                val field = vendorObj::class.java.getDeclaredField("profileImage")
+                field.isAccessible = true
+                field.get(vendorObj) as? String
+            }
+            vendorObj::class.java.declaredFields.any { it.name == "imageUrl" } -> {
+                val field = vendorObj::class.java.getDeclaredField("imageUrl")
+                field.isAccessible = true
+                field.get(vendorObj) as? String
+            }
+            else -> null
         }
+    }
+
+    val vendorBitmap = remember(vendorImageString) {
+        imageConverter.base64ToBitmap(vendorImageString)
     }
 
     Card(

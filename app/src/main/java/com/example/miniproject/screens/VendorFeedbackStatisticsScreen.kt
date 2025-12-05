@@ -149,9 +149,9 @@ fun VendorFeedbackStatisticsScreen(navController: NavController) {
                         .padding(16.dp)
                 ) {
                     // Time Range Selector
-                    TimeRangeSelector(
+                    VendorTimeRangeSelector(
                         selectedTimeRange = selectedTimeRange,
-                        onTimeRangeSelected = { selectedTimeRange = it }
+                        onTimeRangeSelected = { newRange -> selectedTimeRange = newRange }
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -188,7 +188,7 @@ fun VendorFeedbackStatisticsScreen(navController: NavController) {
 }
 
 @Composable
-fun TimeRangeSelector(
+private fun VendorTimeRangeSelector(
     selectedTimeRange: String,
     onTimeRangeSelected: (String) -> Unit
 ) {
@@ -421,7 +421,7 @@ fun RatingBarChart(statistics: FeedbackStatistics) {
                     .height(200.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                statistics.ratingDistribution.entries.sortedBy { it.key }.forEach { (rating, count) ->
+                statistics.ratingDistribution.entries.sortedBy { entry -> entry.key }.forEach { (rating, count) ->
                     BarChartItem(
                         rating = rating,
                         count = count,
@@ -551,7 +551,7 @@ fun CanvasPieChart(
     val total = statistics.totalReviews
     if (total == 0) return
 
-    val ratings = statistics.ratingDistribution.entries.sortedBy { it.key }
+    val ratings = statistics.ratingDistribution.entries.sortedBy { entry -> entry.key }
     var startAngle = -90f // Start from top (12 o'clock position)
 
     Canvas(modifier = Modifier.fillMaxSize()) {

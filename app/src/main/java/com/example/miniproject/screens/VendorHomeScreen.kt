@@ -68,6 +68,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.graphics.Color
 
 sealed class VendorScreen(val title: String, val icon: ImageVector) {
     object Dashboard : VendorScreen("Dashboard", Icons.Default.Store)
@@ -82,7 +84,31 @@ sealed class VendorScreen(val title: String, val icon: ImageVector) {
 fun VendorHomeScreen(navController: NavController) {
     var currentScreen by remember { mutableStateOf<VendorScreen>(VendorScreen.Dashboard) }
 
-    Scaffold(
+    Scaffold(        topBar = {
+        // Orange background with status bar padding
+        Box(
+            modifier = Modifier
+                .background(Color(0xFFFFA500)) // Orange color
+                .statusBarsPadding()
+        ) {
+            TopAppBar(
+                title = {
+                    Text(
+                        "Tap N Chow - Vendor",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        color = Color.White // White text for better contrast on orange
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent, // Make the TopAppBar transparent
+                    titleContentColor = Color.White,
+                    actionIconContentColor = Color.White
+                ),
+                modifier = Modifier.background(Color.Transparent)
+            )
+        }
+    },
 
         bottomBar = {
             NavigationBar {

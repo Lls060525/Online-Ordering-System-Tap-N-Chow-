@@ -1,3 +1,4 @@
+// [file name]: AuthService.kt
 package com.example.miniproject.service
 
 import com.example.miniproject.model.Customer
@@ -12,18 +13,145 @@ class AuthService {
     private val auth = FirebaseAuth.getInstance()
     private val db = FirebaseFirestore.getInstance()
 
+    // HARDCODED ADMIN CREDENTIALS
+    private val ADMIN_ID = "ADMIN001"
+    private val ADMIN_EMAIL = "admin@admin.com.my"
+    private val ADMIN_PASSWORD = "administrator"
+
     suspend fun login(email: String, password: String): Result<String> {
         return try {
+            // 1. Attempt to sign in with Firebase Auth
             val result = auth.signInWithEmailAndPassword(email, password).await()
+
             if (result.user != null) {
-                Result.success(result.user!!.uid)
+                val uid = result.user!!.uid
+
+                // 2. Get user mapping to identify if Customer, Vendor, or Admin
+                val mapping = db.collection("user_mappings").document(uid).get().await()
+
+                val databaseService = DatabaseService()
+
+                if (mapping.exists()) {
+                    val isAdmin = mapping.getBoolean("isAdmin") ?: false
+                    val customerId = mapping.getString("customerId")
+                    val vendorId = mapping.getString("vendorId")
+
+                    // 3. CHECK FREEZE STATUS (only for customers and vendors, NOT admin)
+                    if (!customerId.isNullOrEmpty()) {
+                        // It's a Customer - check if frozen
+                        val customer = databaseService.getCustomerById(customerId)
+                        if (customer == null) {
+                            auth.signOut()
+                            return Result.failure(Exception("User profile not found."))
+                        }
+                        if (customer.isFrozen) {
+                            // CRITICAL: LOG OUT IMMEDIATELY
+                            auth.signOut()
+                            return Result.failure(Exception("Your account has been frozen. Please contact support."))
+                        }
+                        databaseService.updateCustomerLoginActivity(customerId)
+
+                    } else if (!vendorId.isNullOrEmpty()) {
+                        // It's a Vendor - check if frozen
+                        val vendor = databaseService.getVendorById(vendorId)
+                        if (vendor == null) {
+                            auth.signOut()
+                            return Result.failure(Exception("Vendor profile not found."))
+                        }
+                        if (vendor.isFrozen) {
+                            // CRITICAL: LOG OUT IMMEDIATELY
+                            auth.signOut()
+                            return Result.failure(Exception("Your vendor account has been frozen. Please contact support."))
+                        }
+                        databaseService.updateVendorLoginActivity(vendorId)
+
+                    } else if (isAdmin) {
+                        // It's an Admin - NO FREEZE CHECK NEEDED
+                        // Update admin login activity if you have that function
+                        println("Admin logged in successfully")
+                    }
+                }
+
+                Result.success(uid)
             } else {
                 Result.failure(Exception("Login failed - no user returned"))
             }
         } catch (e: Exception) {
+            // Ensure signed out if exception occurs during checks
+            auth.signOut()
             Result.failure(Exception("Login failed: ${e.message}"))
         }
     }
+
+    // HARDCODED ADMIN LOGIN - SEPARATE FUNCTION
+    suspend fun adminLogin(email: String, password: String): Result<String> {
+        return try {
+            // Check hardcoded credentials FIRST
+            if (email != ADMIN_EMAIL || password != ADMIN_PASSWORD) {
+                return Result.failure(Exception("Invalid admin credentials"))
+            }
+
+            // First check if admin exists in database
+            val databaseService = DatabaseService()
+            val adminExists = databaseService.adminExists()
+
+            if (!adminExists) {
+                // Create admin if doesn't exist
+                databaseService.createAdmin()
+            }
+
+            // Sign in with Firebase
+            try {
+                val result = auth.signInWithEmailAndPassword(email, password).await()
+                val uid = result.user!!.uid
+                ensureAdminMapping(uid)
+                Result.success(uid)
+            } catch (e: Exception) {
+                // If Firebase account doesn't exist, create it
+                try {
+                    val createResult = auth.createUserWithEmailAndPassword(email, password).await()
+                    val uid = createResult.user!!.uid
+                    ensureAdminMapping(uid)
+                    Result.success(uid)
+                } catch (createError: Exception) {
+                    Result.failure(Exception("Admin account setup failed: ${createError.message}"))
+                }
+            }
+        } catch (e: Exception) {
+            auth.signOut()
+            Result.failure(Exception("Admin login failed: ${e.message}"))
+        }
+    }
+
+    private suspend fun ensureAdminMapping(firebaseUid: String) {
+        try {
+            // Create admin mapping without vendorId
+            db.collection("user_mappings").document(firebaseUid).set(
+                mapOf(
+                    "adminId" to ADMIN_ID,
+                    "firebaseUid" to firebaseUid,
+                    "isAdmin" to true,
+                    "createdAt" to Timestamp.now()
+                )
+            ).await()
+        } catch (e: Exception) {
+            println("Error ensuring admin mapping: ${e.message}")
+        }
+    }
+
+    suspend fun isAdminUser(): Boolean {
+        return try {
+            val currentUser = auth.currentUser
+            currentUser?.let { user ->
+                if (user.email == ADMIN_EMAIL) return true
+                val mapping = db.collection("user_mappings").document(user.uid).get().await()
+                mapping.getBoolean("isAdmin") ?: false
+            } ?: false
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     suspend fun registerCustomer(
         name: String,
         email: String,
@@ -31,27 +159,23 @@ class AuthService {
         password: String
     ): Result<String> {
         return try {
-            // Check if user already exists by trying to sign in first
             try {
                 auth.signInWithEmailAndPassword(email, password).await()
                 return Result.failure(Exception("User already exists with this email"))
             } catch (e: Exception) {
-                // User doesn't exist, proceed with registration
+                // Proceed
             }
 
             val authResult = auth.createUserWithEmailAndPassword(email, password).await()
             val firebaseUserId = authResult.user?.uid ?: throw Exception("Customer creation failed")
 
-            // Generate custom customer ID (C0001 format)
             val customerId = Customer.generateCustomerId(db)
 
-            // Update profile
             val profileUpdates = UserProfileChangeRequest.Builder()
                 .setDisplayName(name)
                 .build()
             authResult.user?.updateProfile(profileUpdates)?.await()
 
-            // Create customer document with custom ID
             val customer = Customer(
                 customerId = customerId,
                 name = name,
@@ -61,10 +185,8 @@ class AuthService {
                 updatedAt = Timestamp.now()
             )
 
-            // Store using the custom customerId as document ID
             db.collection("customers").document(customerId).set(customer).await()
 
-            // Also store the mapping between Firebase UID and custom customer ID
             db.collection("user_mappings").document(firebaseUserId).set(
                 mapOf(
                     "customerId" to customerId,
@@ -75,11 +197,11 @@ class AuthService {
             Result.success(customerId)
 
         } catch (e: Exception) {
-            // Clean up auth user if Firestore fails
             auth.currentUser?.delete()?.await()
             Result.failure(Exception("Registration failed: ${e.message}"))
         }
     }
+
     suspend fun registerVendor(
         vendorName: String,
         email: String,
@@ -89,14 +211,11 @@ class AuthService {
         password: String
     ): Result<String> {
         return try {
-            // Create auth vendor
             val authResult = auth.createUserWithEmailAndPassword(email, password).await()
             val firebaseUserId = authResult.user?.uid ?: throw Exception("Vendor creation failed")
 
-            // Generate custom vendor ID (V0001 format)
             val vendorId = Vendor.generateVendorId(db)
 
-            // Create vendor document with custom ID
             val vendor = Vendor(
                 vendorId = vendorId,
                 vendorName = vendorName,
@@ -104,24 +223,20 @@ class AuthService {
                 vendorContact = vendorContact,
                 address = address,
                 category = category
-                // createdAt and updatedAt will use default values from data class
             )
 
-            // Store using the custom vendorId as document ID
             db.collection("vendors").document(vendorId).set(vendor).await()
 
-            // Also store the mapping between Firebase UID and custom vendor ID
             db.collection("user_mappings").document(firebaseUserId).set(
                 mapOf(
                     "vendorId" to vendorId,
-                    "firebaseUid" to firebaseUserId
+                    "firebaseUid" to firebaseUserId,
+                    "isAdmin" to false
                 )
             ).await()
 
             Result.success(vendorId)
         } catch (e: Exception) {
-            println("DEBUG: Registration error: ${e.message}") // Add logging
-            e.printStackTrace() // Add stack trace
             auth.currentUser?.delete()?.await()
             Result.failure(e)
         }
@@ -162,7 +277,6 @@ class AuthService {
     }
 
     // Get current vendor data
-// Get current vendor data
     suspend fun getCurrentVendor(): Vendor? {
         return try {
             val currentUser = auth.currentUser
@@ -204,4 +318,57 @@ class AuthService {
 
     fun getCurrentUser() = auth.currentUser
     fun logout() = auth.signOut()
+
+    // Helper function to check if current user should see admin features
+    suspend fun shouldShowAdminFeatures(): Boolean {
+        return isAdminUser()
+    }
+
+    // Get current user role
+    suspend fun getCurrentUserRole(): String {
+        return try {
+            val currentUser = auth.currentUser
+            currentUser?.let { user ->
+                if (user.email == ADMIN_EMAIL) return "admin"
+                val mapping = db.collection("user_mappings").document(user.uid).get().await()
+                when {
+                    mapping.getBoolean("isAdmin") == true -> "admin"
+                    mapping.getString("vendorId") != null -> "vendor"
+                    mapping.getString("customerId") != null -> "customer"
+                    else -> "unknown"
+                }
+            } ?: "unknown"
+        } catch (e: Exception) {
+            "unknown"
+        }
+    }
+
+    // Add function to check if user is frozen
+    suspend fun isUserFrozen(): Boolean {
+        return try {
+            val currentUser = auth.currentUser ?: return false
+            val mapping = db.collection("user_mappings").document(currentUser.uid).get().await()
+
+            if (mapping.exists()) {
+                val isAdmin = mapping.getBoolean("isAdmin") ?: false
+                if (isAdmin) return false // Admin cannot be frozen
+
+                val customerId = mapping.getString("customerId")
+                val vendorId = mapping.getString("vendorId")
+
+                if (!customerId.isNullOrEmpty()) {
+                    val customer = DatabaseService().getCustomerById(customerId)
+                    return customer?.isFrozen ?: false
+                }
+
+                if (!vendorId.isNullOrEmpty()) {
+                    val vendor = DatabaseService().getVendorById(vendorId)
+                    return vendor?.isFrozen ?: false
+                }
+            }
+            false
+        } catch (e: Exception) {
+            false
+        }
+    }
 }

@@ -19,6 +19,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -27,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +54,8 @@ fun LoginScreen(navController: NavController) {
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
 
 
@@ -145,7 +150,18 @@ fun LoginScreen(navController: NavController) {
                                             popUpTo("login") { inclusive = true }
                                         }
                                     } else {
-                                        errorMessage = result.exceptionOrNull()?.message
+                                        val errorMsg = result.exceptionOrNull()?.message ?: "Login failed"
+                                        errorMessage = errorMsg
+
+                                        // Show snackbar if account is frozen
+                                        if (errorMsg.contains("frozen", ignoreCase = true)) {
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    message = errorMsg,
+                                                    duration = SnackbarDuration.Long
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             } else {
@@ -181,6 +197,13 @@ fun LoginScreen(navController: NavController) {
                             onClick = { navController.navigate("vendorLogin") } // Changed from vendorRegister
                         ) {
                             Text("Become a Vendor?")
+                        }
+                        TextButton(
+                            onClick = {
+                                navController.navigate("adminLogin")
+                            }
+                        ) {
+                            Text("Login as Admin")
                         }
                     }
 

@@ -19,6 +19,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -27,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,7 +54,8 @@ fun VendorLoginScreen(navController: NavController) {
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -60,6 +65,7 @@ fun VendorLoginScreen(navController: NavController) {
             modifier = Modifier
                 .statusBarsPadding()
                 .padding(top = 30.dp),
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
                     title = { Text("Tap N Chow - Vendor") }
@@ -134,7 +140,15 @@ fun VendorLoginScreen(navController: NavController) {
                                             popUpTo("vendorLogin") { inclusive = true }
                                         }
                                     } else {
-                                        errorMessage = result.exceptionOrNull()?.message ?: "Login failed"
+                                        val errorMsg = result.exceptionOrNull()?.message ?: "Login failed"
+                                        if (errorMsg.contains("frozen", ignoreCase = true)) {
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    message = errorMsg,
+                                                    duration = SnackbarDuration.Long
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             } else {

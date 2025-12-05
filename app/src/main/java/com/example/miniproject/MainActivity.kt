@@ -26,6 +26,14 @@ import com.example.miniproject.screens.VendorLoginScreen
 import com.example.miniproject.screens.VendorProductsContent
 import com.example.miniproject.screens.VendorRegisterScreen
 import com.example.miniproject.screens.VendorReviewsScreen
+import com.example.miniproject.screens.AdminAnalyticsScreen
+import com.example.miniproject.screens.AdminDashboardScreen
+import com.example.miniproject.screens.AdminFeedbackListScreen
+import com.example.miniproject.screens.AdminOrderListScreen
+import com.example.miniproject.screens.AdminUserManagementScreen
+import com.example.miniproject.screens.AdminVendorListScreen
+import com.example.miniproject.screens.AdminVendorSalesReportScreen
+import com.example.miniproject.screens.AdminLoginScreen
 import com.example.miniproject.screens.order.OrderHistoryScreen
 import com.example.miniproject.ui.theme.MiniProjectTheme
 
@@ -42,6 +50,39 @@ class MainActivity : ComponentActivity() {
                     navController = navController,
                     startDestination = "login"
                 ) {
+                    // Add this route to your navigation setup
+                    composable("adminVendorSalesReport/{vendorId}") { backStackEntry ->
+                        val vendorId = backStackEntry.arguments?.getString("vendorId") ?: ""
+                        AdminVendorSalesReportScreen(navController, vendorId)
+                    }
+                    // Admin routes
+                    composable("adminLogin") {
+                        AdminLoginScreen(navController)
+                    }
+                    composable("adminDashboard") {
+                        AdminDashboardScreen(navController)
+                    }
+                    composable("adminVendors") {
+                        AdminVendorListScreen(navController)
+                    }
+                    composable("adminUserManagement") {
+                        AdminUserManagementScreen(navController)
+                    }
+                    composable("adminOrders") {
+                        AdminOrderListScreen(navController)
+                    }
+                    composable("adminFeedback") {
+                        AdminFeedbackListScreen(navController)
+                    }
+                    composable("adminAnalytics") {
+                        AdminAnalyticsScreen(navController)
+                    }
+                    composable("adminVendorDetails/{vendorId}") { backStackEntry ->
+                        // You can create a detailed vendor view screen
+                    }
+                    composable("adminOrderDetails/{orderId}") { backStackEntry ->
+                        // You can create a detailed order view screen
+                    }
                     composable("login") {
                         LoginScreen(navController = navController)
                     }
