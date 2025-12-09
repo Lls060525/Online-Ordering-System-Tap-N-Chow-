@@ -46,6 +46,7 @@ import com.example.miniproject.service.DatabaseService
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.net.URLDecoder
+import java.util.Calendar
 
 // Image Converter for Payment Screen
 class PaymentImageConverter(private val context: android.content.Context) {
@@ -68,6 +69,31 @@ class PaymentImageConverter(private val context: android.content.Context) {
         }
     }
 }
+
+// Malaysian banks data
+data class Bank(
+    val id: String,
+    val name: String,
+    val code: String
+)
+
+val malaysianBanks = listOf(
+    Bank("maybank", "Maybank", "MB"),
+    Bank("public", "Public Bank", "PB"),
+    Bank("cimb", "CIMB Bank", "CIMB"),
+    Bank("rhb", "RHB Bank", "RHB"),
+    Bank("hongleong", "Hong Leong Bank", "HLB"),
+    Bank("ambank", "AmBank", "AMB"),
+    Bank("uob", "UOB Malaysia", "UOB"),
+    Bank("ocbc", "OCBC Bank Malaysia", "OCBC"),
+    Bank("standard", "Standard Chartered Malaysia", "SC"),
+    Bank("bankislam", "Bank Islam", "BIMB"),
+    Bank("muamalat", "Bank Muamalat", "BMMB"),
+    Bank("affin", "Affin Bank", "AFFIN"),
+    Bank("alliance", "Alliance Bank", "ABMB"),
+    Bank("bankrakyat", "Bank Rakyat", "BR"),
+    Bank("bsn", "Bank Simpanan Nasional", "BSN")
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,13 +121,22 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
     var vendorBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     // Card details state
-    var cardBankName by remember { mutableStateOf("") }
+    var selectedBank by remember { mutableStateOf<Bank?>(null) }
     var cardHolderName by remember { mutableStateOf("") }
     var cardNumber by remember { mutableStateOf("") }
     var cardExpiryMonth by remember { mutableStateOf("") }
     var cardExpiryYear by remember { mutableStateOf("") }
     var cardCVV by remember { mutableStateOf("") }
     var showCardForm by remember { mutableStateOf(false) }
+
+    // Dropdown states
+    var isBankDropdownExpanded by remember { mutableStateOf(false) }
+
+    // Validation states
+    var isExpiryMonthValid by remember { mutableStateOf(true) }
+    var isExpiryYearValid by remember { mutableStateOf(true) }
+    var isExpiryDateValid by remember { mutableStateOf(true) } // For future date validation
+    var isCVVValid by remember { mutableStateOf(true) }
 
     // Parse cart data from JSON
     val cart = remember(cartJson) {
@@ -163,14 +198,80 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
         showCardForm = selectedPaymentMethod == "card"
     }
 
-    // Helper function to validate card details
+    // Helper function to validate expiry month
+    val validateExpiryMonth = { month: String ->
+        if (month.isNotEmpty()) {
+            val monthNum = month.toIntOrNull()
+            val isValid = monthNum in 1..12
+            isExpiryMonthValid = isValid
+            isValid
+        } else {
+            isExpiryMonthValid = true
+            true
+        }
+    }
+
+    // Helper function to validate expiry year
+    val validateExpiryYear = { year: String ->
+        if (year.isNotEmpty()) {
+            val currentYear = Calendar.getInstance().get(Calendar.YEAR) % 100 // Get last 2 digits (25 for 2025)
+            val yearNum = year.toIntOrNull()
+            val isValid = yearNum != null && yearNum >= currentYear
+            isExpiryYearValid = isValid
+            isValid
+        } else {
+            isExpiryYearValid = true
+            true
+        }
+    }
+
+    // Helper function to validate expiry date not in past
+    val validateExpiryDateNotPast = { month: String, year: String ->
+        if (month.isNotEmpty() && year.isNotEmpty()) {
+            val monthNum = month.toIntOrNull()
+            val yearNum = year.toIntOrNull()
+            val currentYear = Calendar.getInstance().get(Calendar.YEAR) % 100
+            val currentMonth = Calendar.getInstance().get(Calendar.MONTH) + 1 // January is 0
+
+            val isValid = if (yearNum == currentYear) {
+                // If same year, month must be >= current month
+                monthNum != null && monthNum >= currentMonth
+            } else {
+                // If future year, any month is valid
+                true
+            }
+            isExpiryDateValid = isValid
+            isValid
+        } else {
+            isExpiryDateValid = true
+            true
+        }
+    }
+
+    // Helper function to validate CVV
+    val validateCVV = { cvv: String ->
+        if (cvv.isNotEmpty()) {
+            val isValid = cvv.length == 3 && cvv.all { it.isDigit() }
+            isCVVValid = isValid
+            isValid
+        } else {
+            isCVVValid = true
+            true
+        }
+    }
+
+    // Helper function to validate all card details
     val isCardDetailsValid = {
-        cardBankName.isNotBlank() &&
+        selectedBank != null &&
                 cardHolderName.isNotBlank() &&
                 cardNumber.length == 16 &&
                 cardExpiryMonth.length == 2 &&
                 cardExpiryYear.length == 2 &&
-                cardCVV.length in 3..4
+                cardCVV.length == 3 &&
+                validateExpiryMonth(cardExpiryMonth) &&
+                validateExpiryYear(cardExpiryYear) &&
+                validateExpiryDateNotPast(cardExpiryMonth, cardExpiryYear) &&
+                validateCVV(cardCVV)
     }
 
     Scaffold(
@@ -623,15 +724,51 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // Bank Name
-                            OutlinedTextField(
-                                value = cardBankName,
-                                onValueChange = { cardBankName = it },
-                                label = { Text("Bank Name") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                shape = RoundedCornerShape(8.dp)
+                            // Bank Name - Now a Dropdown Menu
+                            Text(
+                                "Bank Name",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 4.dp)
                             )
+
+                            ExposedDropdownMenuBox(
+                                expanded = isBankDropdownExpanded,
+                                onExpandedChange = { isBankDropdownExpanded = !isBankDropdownExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = selectedBank?.name ?: "",
+                                    onValueChange = {}, // No direct text input
+                                    readOnly = true,
+                                    trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(
+                                            expanded = isBankDropdownExpanded
+                                        )
+                                    },
+                                    placeholder = { Text("Select your bank") },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .menuAnchor(),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                                )
+
+                                ExposedDropdownMenu(
+                                    expanded = isBankDropdownExpanded,
+                                    onDismissRequest = { isBankDropdownExpanded = false }
+                                ) {
+                                    malaysianBanks.forEach { bank ->
+                                        DropdownMenuItem(
+                                            text = { Text(bank.name) },
+                                            onClick = {
+                                                selectedBank = bank
+                                                isBankDropdownExpanded = false
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }
+                            }
 
                             Spacer(modifier = Modifier.height(12.dp))
 
@@ -677,6 +814,8 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                     onValueChange = {
                                         if (it.all { char -> char.isDigit() } && it.length <= 2) {
                                             cardExpiryMonth = it
+                                            validateExpiryMonth(it)
+                                            validateExpiryDateNotPast(it, cardExpiryYear)
                                         }
                                     },
                                     label = { Text("MM") },
@@ -684,7 +823,15 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     placeholder = { Text("12") },
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(8.dp),
+                                    isError = !isExpiryMonthValid || !isExpiryDateValid,
+                                    supportingText = {
+                                        if (!isExpiryMonthValid) {
+                                            Text("Month must be 01-12")
+                                        } else if (!isExpiryDateValid) {
+                                            Text("Card is expired")
+                                        }
+                                    }
                                 )
 
                                 // Expiry Year
@@ -693,22 +840,37 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                     onValueChange = {
                                         if (it.all { char -> char.isDigit() } && it.length <= 2) {
                                             cardExpiryYear = it
+                                            validateExpiryYear(it)
+                                            validateExpiryDateNotPast(cardExpiryMonth, it)
                                         }
                                     },
                                     label = { Text("YY") },
                                     modifier = Modifier.weight(1f),
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    placeholder = { Text("25") },
-                                    shape = RoundedCornerShape(8.dp)
+                                    placeholder = {
+                                        val currentYear = Calendar.getInstance().get(Calendar.YEAR) % 100
+                                        Text(currentYear.toString().padStart(2, '0'))
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    isError = !isExpiryYearValid || !isExpiryDateValid,
+                                    supportingText = {
+                                        if (!isExpiryYearValid) {
+                                            val currentYear = Calendar.getInstance().get(Calendar.YEAR) % 100
+                                            Text("Year must be $currentYear or later")
+                                        } else if (!isExpiryDateValid) {
+                                            Text("Card is expired")
+                                        }
+                                    }
                                 )
 
-                                // CVV
+                                // CVV - Now only 3 digits
                                 OutlinedTextField(
                                     value = cardCVV,
                                     onValueChange = {
-                                        if (it.all { char -> char.isDigit() } && it.length <= 4) {
+                                        if (it.all { char -> char.isDigit() } && it.length <= 3) {
                                             cardCVV = it
+                                            validateCVV(it)
                                         }
                                     },
                                     label = { Text("CVV") },
@@ -716,7 +878,13 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                                     placeholder = { Text("123") },
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(8.dp),
+                                    isError = !isCVVValid,
+                                    supportingText = {
+                                        if (!isCVVValid) {
+                                            Text("CVV must be 3 digits")
+                                        }
+                                    }
                                 )
                             }
 
@@ -729,6 +897,45 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                     color = MaterialTheme.colorScheme.error,
                                     fontSize = 14.sp
                                 )
+                            }
+
+                            // Specific validation messages
+                            if (selectedPaymentMethod == "card") {
+                                if (selectedBank == null) {
+                                    Text(
+                                        text = "Please select a bank",
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                if (cardHolderName.isBlank()) {
+                                    Text(
+                                        text = "Please enter card holder name",
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                if (cardNumber.length != 16) {
+                                    Text(
+                                        text = "Card number must be 16 digits",
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                if (cardExpiryMonth.length != 2 || cardExpiryYear.length != 2) {
+                                    Text(
+                                        text = "Please enter valid expiry date (MM/YY)",
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                if (cardCVV.length != 3) {
+                                    Text(
+                                        text = "CVV must be 3 digits",
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 12.sp
+                                    )
+                                }
                             }
                         }
                     }
