@@ -8,6 +8,10 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.auth.ActionCodeSettings
+import java.util.Date
 
 class AuthService {
     private val auth = FirebaseAuth.getInstance()
@@ -17,6 +21,138 @@ class AuthService {
     private val ADMIN_ID = "ADMIN001"
     private val ADMIN_EMAIL = "admin@admin.com.my"
     private val ADMIN_PASSWORD = "administrator"
+
+    suspend fun resetPasswordWithOTP(email: String): Result<Boolean> {
+        return try {
+            // First check if the email exists in our system
+            val databaseService = DatabaseService()
+
+            // Check if it's a customer
+            val customers = databaseService.getAllCustomers()
+            val isCustomer = customers.any { it.email.equals(email, ignoreCase = true) }
+
+            // Check if it's a vendor
+            val vendors = databaseService.getAllVendors()
+            val isVendor = vendors.any { it.email.equals(email, ignoreCase = true) }
+
+            // Check if it's an admin
+            val isAdmin = email == ADMIN_EMAIL
+
+            if (!isCustomer && !isVendor && !isAdmin) {
+                return Result.failure(Exception("Email not found in our system"))
+            }
+
+            // Generate OTP (6-digit code)
+            val otp = (100000..999999).random().toString()
+
+            // Store OTP in Firestore with expiration (5 minutes)
+            val otpData = hashMapOf(
+                "email" to email,
+                "otp" to otp,
+                "createdAt" to Timestamp.now(),
+                "expiresAt" to Timestamp(Date(Date().time + 5 * 60 * 1000)), // 5 minutes
+                "used" to false
+            )
+
+            db.collection("password_reset_otps")
+                .document(email)
+                .set(otpData)
+                .await()
+
+            // In a real app, you would send the OTP via email/SMS
+            // For development, we'll just log it
+            println("DEBUG: OTP for $email is: $otp")
+
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun verifyOTP(email: String, otp: String): Result<Boolean> {
+        return try {
+            val otpDoc = db.collection("password_reset_otps")
+                .document(email)
+                .get()
+                .await()
+
+            if (!otpDoc.exists()) {
+                return Result.failure(Exception("OTP not found or expired"))
+            }
+
+            val data = otpDoc.data ?: return Result.failure(Exception("Invalid OTP"))
+
+            val storedOTP = data["otp"] as? String
+            val expiresAt = data["expiresAt"] as? Timestamp
+            val used = data["used"] as? Boolean ?: false
+
+            // Check if OTP is used
+            if (used) {
+                return Result.failure(Exception("OTP has already been used"))
+            }
+
+            // Check if OTP is expired
+            val now = Timestamp.now()
+            if (expiresAt == null || expiresAt.seconds < now.seconds) {
+                return Result.failure(Exception("OTP has expired"))
+            }
+
+            // Verify OTP
+            if (storedOTP == otp) {
+                // Mark OTP as used
+                db.collection("password_reset_otps")
+                    .document(email)
+                    .update("used", true)
+                    .await()
+
+                Result.success(true)
+            } else {
+                Result.failure(Exception("Invalid OTP"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun resetPassword(email: String, newPassword: String, confirmPassword: String): Result<Boolean> {
+        return try {
+            // Validate passwords
+            if (newPassword != confirmPassword) {
+                return Result.failure(Exception("Passwords do not match"))
+            }
+
+            if (newPassword.length < 6) {
+                return Result.failure(Exception("Password must be at least 6 characters"))
+            }
+
+            // Update password in Firebase Auth
+            val currentUser = auth.currentUser
+
+            if (currentUser?.email == email) {
+                // If user is currently logged in, update their password
+                currentUser.updatePassword(newPassword).await()
+            } else {
+                // For password reset without login
+                // Note: Firebase Admin SDK is needed for this on server-side
+                // For client-side, we need to re-authenticate or use email link
+                return Result.failure(Exception("Please complete OTP verification first"))
+            }
+
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Add this function for sending password reset email (alternative method)
+    suspend fun sendPasswordResetEmail(email: String): Result<Boolean> {
+        return try {
+            auth.sendPasswordResetEmail(email).await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     suspend fun login(email: String, password: String): Result<String> {
         return try {

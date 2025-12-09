@@ -35,6 +35,7 @@ import com.example.miniproject.screens.AdminVendorListScreen
 import com.example.miniproject.screens.AdminVendorSalesReportScreen
 import com.example.miniproject.screens.AdminLoginScreen
 import com.example.miniproject.screens.AdminOrderDetailsScreen
+import com.example.miniproject.screens.ForgotPasswordScreen
 import com.example.miniproject.screens.order.OrderHistoryScreen
 import com.example.miniproject.ui.theme.MiniProjectTheme
 
@@ -66,6 +67,11 @@ class MainActivity : ComponentActivity() {
                     composable("adminVendors") {
                         AdminVendorListScreen(navController)
                     }
+
+                    composable("forgotPassword") {
+                        ForgotPasswordScreen(navController = navController)
+                    }
+
                     composable("adminUserManagement") {
                         AdminUserManagementScreen(navController)
                     }
