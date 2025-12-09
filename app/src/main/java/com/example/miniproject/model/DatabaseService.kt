@@ -137,12 +137,11 @@ class DatabaseService {
         return try {
             println("DEBUG: Freezing vendor account $vendorId")
             val updates = mapOf(
-                "isFrozen" to true,
+                "isFrozen" to true,  // Use consistent field name
                 "updatedAt" to Timestamp.now()
             )
             db.collection("vendors").document(vendorId).update(updates).await()
             println("DEBUG: Vendor account $vendorId frozen successfully")
-            createFreezeLog(vendorId, "vendor", "Account frozen by admin")
             Result.success(true)
         } catch (e: Exception) {
             println("DEBUG: Error freezing vendor account $vendorId: ${e.message}")
@@ -150,22 +149,23 @@ class DatabaseService {
         }
     }
 
+
     suspend fun unfreezeVendorAccount(vendorId: String): Result<Boolean> {
         return try {
             println("DEBUG: Unfreezing vendor account $vendorId")
             val updates = mapOf(
-                "isFrozen" to false,
+                "isFrozen" to false,  // Use consistent field name
                 "updatedAt" to Timestamp.now()
             )
             db.collection("vendors").document(vendorId).update(updates).await()
             println("DEBUG: Vendor account $vendorId unfrozen successfully")
-            createFreezeLog(vendorId, "vendor", "Account unfrozen by admin")
             Result.success(true)
         } catch (e: Exception) {
             println("DEBUG: Error unfreezing vendor account $vendorId: ${e.message}")
             Result.failure(e)
         }
     }
+
 
     suspend fun freezeCustomerAccount(customerId: String): Result<Boolean> {
         return try {
@@ -174,13 +174,11 @@ class DatabaseService {
                 "updatedAt" to Timestamp.now()
             )
             db.collection("customers").document(customerId).update(updates).await()
-            createFreezeLog(customerId, "customer", "Account frozen by admin")
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
-
     suspend fun unfreezeCustomerAccount(customerId: String): Result<Boolean> {
         return try {
             val updates = mapOf(
@@ -188,15 +186,11 @@ class DatabaseService {
                 "updatedAt" to Timestamp.now()
             )
             db.collection("customers").document(customerId).update(updates).await()
-            createFreezeLog(customerId, "customer", "Account unfrozen by admin")
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
-
-// ... rest of the file
-
 
     suspend fun updateCustomerFrozenStatus(customerId: String, isFrozen: Boolean): Result<Unit> {
         return try {
@@ -742,27 +736,103 @@ class DatabaseService {
     // Update getAllVendors function
     suspend fun getAllVendors(): List<Vendor> {
         return try {
-            db.collection("vendors")
-                .get(Source.SERVER)  // Force server fetch
+            val result = db.collection("vendors")
+                .get(Source.SERVER)
                 .await()
-                .toObjects(Vendor::class.java)
+
+            println("DEBUG getAllVendors: Got ${result.documents.size} vendors")
+
+            // MANUAL CONVERSION to ensure isFrozen is correctly mapped
+            val vendors = mutableListOf<Vendor>()
+
+            result.documents.forEach { document ->
+                val data = document.data ?: return@forEach
+
+                // DEBUG: Print raw data
+                println("DEBUG Vendor ${document.id}:")
+                data.forEach { (key, value) ->
+                    println("  $key = $value (type: ${value?.javaClass?.simpleName})")
+                }
+
+                val vendor = Vendor(
+                    vendorId = document.id,
+                    vendorName = data["vendorName"] as? String ?: "",
+                    email = data["email"] as? String ?: "",
+                    vendorContact = data["vendorContact"] as? String ?: "",
+                    address = data["address"] as? String ?: "",
+                    category = data["category"] as? String ?: "",
+                    profileImageBase64 = data["profileImageBase64"] as? String ?: "",
+                    // IMPORTANT: Check isFrozen field manually
+                    isFrozen = data["isFrozen"] as? Boolean ?: false,
+                    lastLogin = data["lastLogin"] as? Timestamp,
+                    loginCount = (data["loginCount"] as? Long)?.toInt() ?: 0,
+                    orderCount = (data["orderCount"] as? Long)?.toInt() ?: 0,
+                    totalRevenue = (data["totalRevenue"] as? Double) ?: 0.0,
+                    rating = (data["rating"] as? Double) ?: 0.0,
+                    reviewCount = (data["reviewCount"] as? Long)?.toInt() ?: 0
+                )
+
+                println("DEBUG Mapped vendor ${document.id}: isFrozen = ${vendor.isFrozen}")
+                vendors.add(vendor)
+            }
+
+            vendors
         } catch (e: Exception) {
+            println("ERROR in getAllVendors: ${e.message}")
             emptyList()
         }
     }
-
     // Update getAllCustomers function
     suspend fun getAllCustomers(): List<Customer> {
         return try {
-            db.collection("customers")
+            val result = db.collection("customers")
                 .get(Source.SERVER)  // Force server fetch
                 .await()
-                .toObjects(Customer::class.java)
+
+            println("DEBUG: getAllCustomers - Document count: ${result.documents.size}")
+
+            val customers = mutableListOf<Customer>()
+
+            result.documents.forEach { document ->
+                val data = document.data ?: return@forEach
+
+                // MANUAL FIELD MAPPING
+                val customer = Customer(
+                    customerId = document.id,
+                    name = data["name"] as? String ?: "",
+                    email = data["email"] as? String ?: "",
+                    phoneNumber = data["phoneNumber"] as? String ?: "",
+                    profileImageBase64 = data["profileImageBase64"] as? String ?: "",
+                    createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
+                    updatedAt = data["updatedAt"] as? Timestamp ?: Timestamp.now(),
+                    // IMPORTANT: Manually check isFrozen field
+                    isFrozen = data["isFrozen"] as? Boolean ?: false, // Default to false if not found
+                    lastLogin = data["lastLogin"] as? Timestamp,
+                    loginCount = (data["loginCount"] as? Long)?.toInt() ?: 0,
+                    orderCount = (data["orderCount"] as? Long)?.toInt() ?: 0,
+                    totalSpent = (data["totalSpent"] as? Double) ?: 0.0
+                )
+
+                // DEBUG: Print C0001 specifically
+                if (document.id == "C0001") {
+                    println("DEBUG C0001:")
+                    println("  - Document ID: ${document.id}")
+                    println("  - Raw isFrozen value: ${data["isFrozen"]}")
+                    println("  - Type of isFrozen: ${data["isFrozen"]?.javaClass?.simpleName}")
+                    println("  - Mapped isFrozen: ${customer.isFrozen}")
+                    println("  - All fields: ${data.keys}")
+                }
+
+                customers.add(customer)
+            }
+
+            customers
         } catch (e: Exception) {
+            println("ERROR getting all customers: ${e.message}")
+            e.printStackTrace()
             emptyList()
         }
     }
-
     suspend fun updateVendorProfileImageBase64(vendorId: String, base64Image: String): Result<Boolean> {
         return try {
             db.collection("vendors").document(vendorId)
@@ -1252,23 +1322,108 @@ class DatabaseService {
     // Vendor Operations
     suspend fun getVendorById(vendorId: String): Vendor? {
         return try {
-            db.collection("vendors").document(vendorId)
-                .get(Source.SERVER) // <--- FORCE SERVER FETCH
+            val document = db.collection("vendors").document(vendorId)
+                .get(Source.SERVER)
                 .await()
-                .toObject(Vendor::class.java)
+
+            if (document.exists()) {
+                val data = document.data ?: return null
+
+                // DEBUG: Print all fields
+                println("DEBUG: Vendor $vendorId fields:")
+                data.forEach { (key, value) ->
+                    println("  $key = $value (type: ${value?.javaClass?.simpleName})")
+                }
+
+                // Check both possible field names for freeze status
+                val isFrozen = when {
+                    data.containsKey("isFrozen") -> data["isFrozen"] as? Boolean ?: false
+                    data.containsKey("frozen") -> data["frozen"] as? Boolean ?: false
+                    else -> false
+                }
+
+                println("DEBUG: Vendor $vendorId isFrozen = $isFrozen")
+
+                // Create vendor object with manual field mapping
+                Vendor(
+                    vendorId = vendorId,
+                    vendorName = data["vendorName"] as? String ?: "",
+                    email = data["email"] as? String ?: "",
+                    vendorContact = data["vendorContact"] as? String ?: "",
+                    address = data["address"] as? String ?: "",
+                    category = data["category"] as? String ?: "",
+                    profileImageBase64 = data["profileImageBase64"] as? String ?: "",
+                    isFrozen = isFrozen,  // Use the correct freeze value
+                    lastLogin = data["lastLogin"] as? Timestamp,
+                    loginCount = (data["loginCount"] as? Long)?.toInt() ?: 0,
+                    orderCount = (data["orderCount"] as? Long)?.toInt() ?: 0,
+                    totalRevenue = (data["totalRevenue"] as? Double) ?: 0.0,
+                    rating = (data["rating"] as? Double) ?: 0.0,
+                    reviewCount = (data["reviewCount"] as? Long)?.toInt() ?: 0
+                )
+            } else {
+                null
+            }
         } catch (e: Exception) {
+            println("ERROR getting vendor $vendorId: ${e.message}")
             null
+        }
+    }
+
+    suspend fun testCustomerFreezeStatus(): String {
+        return try {
+            val customer = getCustomerById("C0001")
+            "Customer C0001: isFrozen = ${customer?.isFrozen}, name = ${customer?.name}"
+        } catch (e: Exception) {
+            "Error: ${e.message}"
         }
     }
 
     // Customer Operations
     suspend fun getCustomerById(customerId: String): Customer? {
         return try {
-            db.collection("customers").document(customerId)
-                .get(Source.SERVER) // <--- FORCE SERVER FETCH
+            println("DEBUG getCustomerById: Fetching customer $customerId")
+
+            val document = db.collection("customers").document(customerId)
+                .get(Source.SERVER)
                 .await()
-                .toObject(Customer::class.java)
+
+            if (document.exists()) {
+                val data = document.data ?: return null
+
+                // EXTRA DEBUG: Log the raw data
+                println("DEBUG: Raw Firestore data for $customerId:")
+                data.forEach { (key, value) ->
+                    println("  - $key: $value (${value?.javaClass?.simpleName})")
+                }
+
+                // Check freeze status - prioritize isFrozen over frozen
+                val isFrozen = data["isFrozen"] as? Boolean ?:
+                data["frozen"] as? Boolean ?: false
+
+                println("DEBUG: Determined isFrozen = $isFrozen for $customerId")
+
+                Customer(
+                    customerId = customerId,
+                    name = data["name"] as? String ?: "",
+                    email = data["email"] as? String ?: "",
+                    phoneNumber = data["phoneNumber"] as? String ?: "",
+                    profileImageBase64 = data["profileImageBase64"] as? String ?: "",
+                    createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
+                    updatedAt = data["updatedAt"] as? Timestamp ?: Timestamp.now(),
+                    isFrozen = isFrozen,  // This should be true for C0001
+                    lastLogin = data["lastLogin"] as? Timestamp,
+                    loginCount = (data["loginCount"] as? Long)?.toInt() ?: 0,
+                    orderCount = (data["orderCount"] as? Long)?.toInt() ?: 0,
+                    totalSpent = (data["totalSpent"] as? Double) ?: 0.0
+                )
+            } else {
+                println("DEBUG: Customer $customerId not found")
+                null
+            }
         } catch (e: Exception) {
+            println("ERROR getting customer $customerId: ${e.message}")
+            e.printStackTrace()
             null
         }
     }

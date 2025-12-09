@@ -7,7 +7,6 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.Serializable
 
-// Add to Models.kt (update the Admin model)
 data class Admin(
     val adminId: String = "ADMIN001", // Fixed ID for single admin
     val name: String = "Platform Administrator",
@@ -29,7 +28,6 @@ data class Admin(
     }
 }
 
-// Update Customer model (remove ADMIN_EMAIL constants if they exist)
 data class Customer(
     val customerId: String = "",
     val name: String = "",
@@ -66,7 +64,7 @@ data class Customer(
     }
 }
 
-// Update Vendor model
+
 data class Vendor(
     val vendorId: String = "",
     val vendorName: String = "",

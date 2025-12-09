@@ -116,16 +116,34 @@ fun AdminVendorListScreen(navController: NavController) {
                             coroutineScope.launch {
                                 isLoading = true
                                 try {
+                                    // Force server fetch with Source.SERVER
                                     val allVendors = databaseService.getAllVendors().filter { it.vendorId != "ADMIN001" }
 
                                     vendors = allVendors.map { vendor ->
-                                        val stats = databaseService.calculateVendorActualStats(vendor.vendorId)
-                                        vendor.copy(
-                                            orderCount = stats.first,
-                                            totalRevenue = stats.second,
-                                            rating = stats.third,
-                                            isFrozen = vendor.isFrozen  // Preserve frozen status
-                                        )
+                                        // IMPORTANT: Get fresh vendor data including isFrozen status
+                                        val freshVendor = databaseService.getVendorById(vendor.vendorId)
+
+                                        if (freshVendor != null) {
+                                            val stats = databaseService.calculateVendorActualStats(vendor.vendorId)
+                                            Vendor(
+                                                vendorId = freshVendor.vendorId,
+                                                vendorName = freshVendor.vendorName,
+                                                email = freshVendor.email,
+                                                vendorContact = freshVendor.vendorContact,
+                                                address = freshVendor.address,
+                                                category = freshVendor.category,
+                                                profileImageBase64 = freshVendor.profileImageBase64,
+                                                isFrozen = freshVendor.isFrozen, // Use the fresh value
+                                                lastLogin = freshVendor.lastLogin,
+                                                loginCount = freshVendor.loginCount,
+                                                orderCount = stats.first,
+                                                totalRevenue = stats.second,
+                                                rating = stats.third,
+                                                reviewCount = freshVendor.reviewCount
+                                            )
+                                        } else {
+                                            vendor // fallback
+                                        }
                                     }
                                 } catch (e: Exception) {
                                     // Handle error
@@ -169,18 +187,6 @@ fun AdminVendorListScreen(navController: NavController) {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        "Vendor Management",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFFF5F5F5)
-                )
-            )
 
             // Search Bar
             Card(

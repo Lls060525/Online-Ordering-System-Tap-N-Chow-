@@ -150,19 +150,6 @@ fun AdminFeedbackListScreen(navController: NavController) {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        "Feedback Management",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFFF5F5F5)
-                )
-            )
             // Stats Row
             Row(
                 modifier = Modifier

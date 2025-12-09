@@ -82,7 +82,6 @@ class AuthService {
             Result.failure(Exception("Login failed: ${e.message}"))
         }
     }
-
     // HARDCODED ADMIN LOGIN - SEPARATE FUNCTION
     suspend fun adminLogin(email: String, password: String): Result<String> {
         return try {

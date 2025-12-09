@@ -134,18 +134,7 @@ fun AdminOrderListScreen(navController: NavController) {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        "Order List",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFFF5F5F5)
-                )
-            )
+
             // Stats Cards
             Row(
                 modifier = Modifier
