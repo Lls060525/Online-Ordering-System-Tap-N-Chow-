@@ -43,6 +43,7 @@ fun ForgotPasswordScreen(navController: NavController) {
                         fontSize = 20.sp
                     )
                 },
+
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
