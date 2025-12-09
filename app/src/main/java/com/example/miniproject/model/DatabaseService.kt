@@ -437,15 +437,7 @@ class DatabaseService {
         }
     }
 
-    suspend fun updateProductStock(productId: String, newStock: Int): Result<Boolean> {
-        return try {
-            db.collection("products").document(productId)
-                .update("stock", newStock).await()
-            Result.success(true)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+
 
     // Order Operations
     suspend fun createOrder(order: Order, orderDetails: List<OrderDetail>): Result<String> {
@@ -472,24 +464,39 @@ class DatabaseService {
 
     suspend fun createOrderWithDetails(orderRequest: OrderRequest): Result<String> {
         return try {
+            // FIRST: Validate stock availability
+            for (item in orderRequest.items) {
+                val productDoc = db.collection("products").document(item.productId).get().await()
+                if (!productDoc.exists()) {
+                    return Result.failure(Exception("Product ${item.productId} not found"))
+                }
+
+                val currentStock = productDoc.getLong("stock")?.toInt() ?: 0
+                if (currentStock < item.quantity) {
+                    return Result.failure(
+                        Exception("Insufficient stock for ${item.productName}. Available: $currentStock, Requested: ${item.quantity}")
+                    )
+                }
+            }
+
             // Generate custom order ID (O001 format)
             val orderId = Order.generateOrderId(db)
 
-            // Create order with custom ID - SET INITIAL STATUS AS "pending"
+            // Create order with custom ID
             val order = Order(
                 orderId = orderId,
                 customerId = orderRequest.customerId,
                 totalPrice = orderRequest.totalAmount,
                 shippingAddress = orderRequest.deliveryAddress,
                 paymentMethod = orderRequest.paymentMethod,
-                status = "pending", // Start as pending
+                status = "pending",
                 orderDate = Timestamp.now()
             )
 
-            // Store order using the custom orderId as document ID
+            // Store order
             db.collection("orders").document(orderId).set(order).await()
 
-            // Create order details
+            // Create order details and update stock
             orderRequest.items.forEach { item ->
                 val orderDetail = OrderDetail(
                     orderId = orderId,
@@ -500,6 +507,9 @@ class DatabaseService {
                     subtotal = item.productPrice * item.quantity
                 )
                 db.collection("order_details").add(orderDetail).await()
+
+                // Update product stock
+                updateProductStockForOrder(item.productId, item.quantity)
             }
 
             // Create payment record
@@ -512,16 +522,60 @@ class DatabaseService {
             )
             db.collection("payments").add(payment).await()
 
-            // Update customer order stats
+            // Update stats
             updateCustomerOrderStats(orderRequest.customerId, orderRequest.totalAmount)
 
-            // Update vendor order stats (for each vendor in the order)
             orderRequest.items.groupBy { it.vendorId }.forEach { (vendorId, items) ->
                 val vendorTotal = items.sumOf { it.productPrice * it.quantity }
                 updateVendorOrderStats(vendorId, vendorTotal)
             }
 
             Result.success(orderId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun updateProductStockForOrder(productId: String, orderedQuantity: Int) {
+        try {
+            // Get current product
+            val productDoc = db.collection("products").document(productId).get().await()
+
+            if (productDoc.exists()) {
+                val currentStock = productDoc.getLong("stock")?.toInt() ?: 0
+
+                // Calculate new stock (ensure it doesn't go below 0)
+                val newStock = maxOf(0, currentStock - orderedQuantity)
+
+                // Update the product stock
+                db.collection("products").document(productId)
+                    .update("stock", newStock).await()
+
+                println("DEBUG: Updated product $productId stock from $currentStock to $newStock")
+            } else {
+                println("DEBUG: Product $productId not found when updating stock")
+            }
+        } catch (e: Exception) {
+            println("DEBUG: Error updating product stock: ${e.message}")
+            // Don't rethrow - we still want the order to be created
+        }
+    }
+
+    suspend fun updateProductStock(productId: String, orderedQuantity: Int): Result<Boolean> {
+        return try {
+            val productDoc = db.collection("products").document(productId).get().await()
+
+            if (!productDoc.exists()) {
+                return Result.failure(Exception("Product not found"))
+            }
+
+            val currentStock = productDoc.getLong("stock")?.toInt() ?: 0
+            val newStock = maxOf(0, currentStock - orderedQuantity)
+
+            db.collection("products").document(productId)
+                .update("stock", newStock).await()
+
+            Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)
         }
