@@ -34,6 +34,7 @@ import com.example.miniproject.screens.AdminUserManagementScreen
 import com.example.miniproject.screens.AdminVendorListScreen
 import com.example.miniproject.screens.AdminVendorSalesReportScreen
 import com.example.miniproject.screens.AdminLoginScreen
+import com.example.miniproject.screens.AdminOrderDetailsScreen
 import com.example.miniproject.screens.order.OrderHistoryScreen
 import com.example.miniproject.ui.theme.MiniProjectTheme
 
@@ -180,6 +181,11 @@ class MainActivity : ComponentActivity() {
 
                     composable("salesAnalytics") {
                         SalesAnalyticsScreen(navController = navController)
+                    }
+
+                    composable("adminOrderDetails/{orderId}") { backStackEntry ->
+                        val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+                        AdminOrderDetailsScreen(navController = navController, orderId = orderId)
                     }
 
                 }

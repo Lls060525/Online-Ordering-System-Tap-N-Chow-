@@ -10,7 +10,7 @@ import com.google.firebase.firestore.Source
 import kotlinx.coroutines.tasks.await
 
 class DatabaseService {
-    private val db = FirebaseFirestore.getInstance()
+    val db = FirebaseFirestore.getInstance()
 
 
     private suspend fun createFreezeLog(userId: String, userType: String, reason: String) {
@@ -930,7 +930,59 @@ class DatabaseService {
         }
     }
 
+
+
     // Feedback Operations
+
+    suspend fun getAllFeedbacks(): List<Feedback> {
+        return try {
+            println("DEBUG: Attempting to get all feedbacks from Firestore")
+
+            val result = db.collection("feedbacks")
+                .get()
+                .await()
+
+            println("DEBUG: Retrieved ${result.documents.size} feedback documents")
+
+            val feedbacks = result.documents.mapNotNull { document ->
+                try {
+                    val data = document.data ?: return@mapNotNull null
+
+                    println("DEBUG: Processing feedback document ${document.id}")
+
+                    Feedback(
+                        feedbackId = document.id,
+                        customerId = data["customerId"] as? String ?: "",
+                        customerName = data["customerName"] as? String ?: "",
+                        vendorId = data["vendorId"] as? String ?: "",
+                        vendorName = data["vendorName"] as? String ?: "",
+                        orderId = data["orderId"] as? String ?: "",
+                        productId = data["productId"] as? String ?: "",
+                        productName = data["productName"] as? String ?: "",
+                        rating = (data["rating"] as? Double) ?: (data["rating"] as? Long)?.toDouble() ?: 0.0,
+                        comment = data["comment"] as? String ?: "",
+                        feedbackDate = data["feedbackDate"] as? Timestamp ?: Timestamp.now(),
+                        createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
+                        isVisible = data["isVisible"] as? Boolean ?: true,
+                        vendorReply = data["vendorReply"] as? String ?: "",
+                        vendorReplyDate = data["vendorReplyDate"] as? Timestamp,
+                        isReplied = data["isReplied"] as? Boolean ?: false
+                    )
+                } catch (e: Exception) {
+                    println("DEBUG: Error converting feedback document ${document.id}: ${e.message}")
+                    null
+                }
+            }
+
+            println("DEBUG: Successfully converted ${feedbacks.size} feedbacks")
+            feedbacks
+        } catch (e: Exception) {
+            println("ERROR in getAllFeedbacks: ${e.message}")
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
     suspend fun addFeedback(feedback: Feedback): Result<String> {
         return try {
             println("🟡 DEBUG: Adding feedback to Firestore:")

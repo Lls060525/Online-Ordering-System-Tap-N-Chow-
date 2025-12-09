@@ -67,7 +67,7 @@ fun AdminOrderListScreen(navController: NavController) {
     val totalRevenue = orders.sumOf { it.totalPrice }
     val platformRevenue = totalRevenue * 0.10
     val pendingOrders = orders.count { it.status == "pending" }
-    val completedOrders = orders.count { it.status == "delivered" }
+    val completedOrders = orders.count { it.status == "completed" }
 
     Scaffold(
         topBar = {
@@ -217,7 +217,7 @@ fun AdminOrderListScreen(navController: NavController) {
                             color = Color(0xFFFF9800)
                         )
                         StatusChip(
-                            label = "Delivered",
+                            label = "Completed",
                             selected = filterStatus == "delivered",
                             onClick = { filterStatus = "delivered" },
                             count = completedOrders,
@@ -548,7 +548,7 @@ fun AdminOrderItem(
                         expanded = expanded,
                         onDismissRequest = { expanded = false }
                     ) {
-                        listOf("pending", "confirmed", "preparing", "delivered", "cancelled").forEach { status ->
+                        listOf("pending", "confirmed", "preparing", "completed", "cancelled").forEach { status ->
                             DropdownMenuItem(
                                 text = {
                                     Text(status.replaceFirstChar {
@@ -574,7 +574,7 @@ fun orderStatusBadge(status: String) {
         "pending" -> Color(0xFFFF9800) to Color.White
         "confirmed" -> Color(0xFF2196F3) to Color.White
         "preparing" -> Color(0xFF9C27B0) to Color.White
-        "delivered" -> Color(0xFF4CAF50) to Color.White
+        "completed" -> Color(0xFF4CAF50) to Color.White // Changed from "delivered"
         "cancelled" -> Color(0xFFF44336) to Color.White
         else -> Color(0xFF607D8B) to Color.White
     }
@@ -585,7 +585,10 @@ fun orderStatusBadge(status: String) {
             .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
         Text(
-            status.replaceFirstChar { it.titlecase(Locale.getDefault()) },
+            when (status) {
+                "completed" -> "Completed" // Show "Completed" instead of "Delivered"
+                else -> status.replaceFirstChar { it.titlecase(Locale.getDefault()) }
+            },
             fontSize = 10.sp,
             color = textColor,
             fontWeight = FontWeight.Medium
