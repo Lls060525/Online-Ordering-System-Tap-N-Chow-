@@ -89,6 +89,11 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    // Vendor data state - NEW
+    var vendor by remember { mutableStateOf<com.example.miniproject.model.Vendor?>(null) }
+    var isFetchingVendor by remember { mutableStateOf(false) }
+    var vendorBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
     // Card details state
     var cardBankName by remember { mutableStateOf("") }
     var cardHolderName by remember { mutableStateOf("") }
@@ -97,9 +102,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
     var cardExpiryYear by remember { mutableStateOf("") }
     var cardCVV by remember { mutableStateOf("") }
     var showCardForm by remember { mutableStateOf(false) }
-
-    // Vendor image state
-    var vendorBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     // Parse cart data from JSON
     val cart = remember(cartJson) {
@@ -116,18 +118,37 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
         }
     }
 
-    // Process vendor image when cart is loaded
-    LaunchedEffect(cart) {
-        if (cart != null && !cart.vendorProfileImage.isNullOrEmpty()) {
-            Log.d("PaymentScreen", "Processing vendor profile image")
-            val bitmap = imageConverter.base64ToBitmap(cart.vendorProfileImage)
-            vendorBitmap = bitmap
-            Log.d("PaymentScreen", "Vendor bitmap created: ${bitmap != null}")
-        } else {
-            Log.d("PaymentScreen", "No vendor profile image available")
+    // Fetch vendor data dynamically when vendorId is available - NEW
+    LaunchedEffect(vendorId) {
+        if (!vendorId.isNullOrEmpty()) {
+            isFetchingVendor = true
+            try {
+                Log.d("PaymentScreen", "Fetching vendor data for ID: $vendorId")
+                vendor = databaseService.getVendorById(vendorId)
+
+                // Process vendor image
+                vendor?.let { vendorData ->
+                    Log.d("PaymentScreen", "Fetched vendor: ${vendorData.vendorName}")
+                    Log.d("PaymentScreen", "Vendor has profile image: ${vendorData.profileImageBase64?.isNotEmpty()}")
+
+                    if (!vendorData.profileImageBase64.isNullOrEmpty()) {
+                        val bitmap = imageConverter.base64ToBitmap(vendorData.profileImageBase64)
+                        vendorBitmap = bitmap
+                        Log.d("PaymentScreen", "Vendor bitmap created from database: ${bitmap != null}")
+                    } else {
+                        Log.d("PaymentScreen", "No vendor profile image in database")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("PaymentScreen", "Error fetching vendor: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                isFetchingVendor = false
+            }
         }
     }
 
+    // Fetch customer data
     LaunchedEffect(Unit) {
         val currentCustomer = authService.getCurrentCustomer()
         customer = currentCustomer
@@ -199,7 +220,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                     .padding(paddingValues)
                     .verticalScroll(rememberScrollState())
             ) {
-                // Vendor Information with Profile Picture - FIXED VENDOR IMAGE
+                // Vendor Information with Profile Picture - NOW DYNAMIC
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -211,7 +232,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            // Vendor Profile Picture - IMPROVED IMAGE HANDLING
+                            // Vendor Profile Picture - DYNAMIC FROM DATABASE
                             Box(
                                 modifier = Modifier
                                     .size(80.dp)
@@ -219,25 +240,55 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                     .background(MaterialTheme.colorScheme.surfaceVariant),
                                 contentAlignment = Alignment.Center
                             ) {
-                                // FIX: Use local variable to avoid smart cast issue
-                                val currentVendorBitmap = vendorBitmap
-                                if (currentVendorBitmap != null) {
-                                    Image(
-                                        bitmap = currentVendorBitmap.asImageBitmap(),
-                                        contentDescription = "Vendor Profile",
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
+                                if (isFetchingVendor) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(30.dp),
+                                        strokeWidth = 2.dp
                                     )
                                 } else {
-                                    // Show default vendor image
-                                    Image(
-                                        painter = painterResource(id = R.drawable.logo2),
-                                        contentDescription = "Vendor Logo",
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(12.dp),
-                                        contentScale = ContentScale.Fit
-                                    )
+                                    // Use vendor's actual profile image from database
+                                    val currentVendorBitmap = vendorBitmap
+                                    if (currentVendorBitmap != null) {
+                                        Image(
+                                            bitmap = currentVendorBitmap.asImageBitmap(),
+                                            contentDescription = "Vendor Profile",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        // Fallback to cart image or default
+                                        if (!cart.vendorProfileImage.isNullOrEmpty()) {
+                                            val cartBitmap = imageConverter.base64ToBitmap(cart.vendorProfileImage)
+                                            if (cartBitmap != null) {
+                                                Image(
+                                                    bitmap = cartBitmap.asImageBitmap(),
+                                                    contentDescription = "Vendor Profile",
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                            } else {
+                                                // Show default vendor image
+                                                Image(
+                                                    painter = painterResource(id = R.drawable.logo2),
+                                                    contentDescription = "Vendor Logo",
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .padding(12.dp),
+                                                    contentScale = ContentScale.Fit
+                                                )
+                                            }
+                                        } else {
+                                            // Show default vendor image
+                                            Image(
+                                                painter = painterResource(id = R.drawable.logo2),
+                                                contentDescription = "Vendor Logo",
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(12.dp),
+                                                contentScale = ContentScale.Fit
+                                            )
+                                        }
+                                    }
                                 }
                             }
 
@@ -245,7 +296,8 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    cart.vendorName,
+                                    // Use vendor name from database if available, otherwise from cart
+                                    vendor?.vendorName ?: cart.vendorName,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 20.sp,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -253,7 +305,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                // Location
+                                // Location - Use vendor address from database if available
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         Icons.Default.LocationOn,
@@ -263,7 +315,8 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        cart.vendorAddress,
+                                        // Use vendor address from database if available
+                                        vendor?.address ?: cart.vendorAddress,
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 2
@@ -272,8 +325,9 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
 
                                 Spacer(modifier = Modifier.height(4.dp))
 
-                                // Contact
-                                if (cart.vendorContact.isNotEmpty()) {
+                                // Contact - Use vendor contact from database if available
+                                val vendorContact = vendor?.vendorContact ?: cart.vendorContact
+                                if (vendorContact.isNotEmpty()) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
                                             Icons.Default.Phone,
@@ -283,7 +337,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            "Contact: ${cart.vendorContact}",
+                                            "Contact: $vendorContact",
                                             fontSize = 14.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -291,7 +345,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                     Spacer(modifier = Modifier.height(4.dp))
                                 }
 
-                                // Rating
+                                // Rating - Use vendor rating from database if available
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         Icons.Default.Star,
@@ -301,7 +355,12 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        "4.5 ★ (128 reviews)",
+                                        // Use actual vendor rating from database if available
+                                        if (vendor?.rating ?: 0.0 > 0) {
+                                            "${"%.1f".format(vendor?.rating ?: 0.0)} ★ (${vendor?.reviewCount ?: 0} reviews)"
+                                        } else {
+                                            "4.5 ★ (128 reviews)" // Fallback rating
+                                        },
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -333,7 +392,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                     }
                 }
 
-                // Order Summary
+                // Order Summary (Rest of the code remains the same...)
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -438,7 +497,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                     }
                 }
 
-                // Payment Method
+                // Payment Method (Rest of the code remains the same...)
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -718,9 +777,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
 
                         isLoading = true
                         errorMessage = null
-
-// In the payment completion section of PaymentGatewayScreen.kt
-// Replace the existing payment completion code with this:
 
                         coroutineScope.launch {
                             try {
