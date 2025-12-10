@@ -80,4 +80,10 @@ dependencies {
     // image picking
     implementation("io.coil-kt:coil-compose:2.4.0")
     implementation("androidx.activity:activity-compose:1.8.0")
+
+    // Add these dependencies
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
+// If not already added, include these for encryption
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 }

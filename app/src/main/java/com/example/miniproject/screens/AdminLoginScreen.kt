@@ -1,6 +1,8 @@
 package com.example.miniproject.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -8,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -27,16 +30,41 @@ fun AdminLoginScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    // Scroll state for the screen
+    val scrollState = rememberScrollState()
+
+    fun performAdminLogin(email: String, password: String) {
+        if (email.isBlank() || password.isBlank()) {
+            errorMessage = "Please enter email and password"
+            return
+        }
+
+        isLoading = true
+        errorMessage = null
+
+        coroutineScope.launch {
+            try {
+                val loginResult = authService.adminLogin(email, password)
+
+                if (loginResult.isSuccess) {
+                    navController.navigate("adminDashboard") {
+                        popUpTo("adminLogin") { inclusive = true }
+                    }
+                } else {
+                    errorMessage = loginResult.exceptionOrNull()?.message ?: "Login failed"
+                }
+            } catch (e: Exception) {
+                errorMessage = "Error: ${e.message}"
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        "Admin Login",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                },
+                title = { Text("Admin Login", fontWeight = FontWeight.Bold, fontSize = 20.sp) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -49,9 +77,9 @@ fun AdminLoginScreen(navController: NavController) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(scrollState)
                 .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
         ) {
             // Logo/Title
             Column(
@@ -84,9 +112,7 @@ fun AdminLoginScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.medium
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp)
-                ) {
+                Column(modifier = Modifier.padding(24.dp)) {
                     // Error message
                     errorMessage?.let { message ->
                         Card(
@@ -105,10 +131,7 @@ fun AdminLoginScreen(navController: NavController) {
                                     tint = MaterialTheme.colorScheme.error
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    message,
-                                    color = MaterialTheme.colorScheme.error
-                                )
+                                Text(message, color = MaterialTheme.colorScheme.error)
                             }
                         }
                         Spacer(modifier = Modifier.height(12.dp))
@@ -120,9 +143,7 @@ fun AdminLoginScreen(navController: NavController) {
                         onValueChange = { email = it },
                         label = { Text("Admin Email") },
                         modifier = Modifier.fillMaxWidth(),
-                        leadingIcon = {
-                            Icon(Icons.Default.Email, contentDescription = "Email")
-                        },
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = "Email") },
                         singleLine = true,
                         isError = errorMessage != null
                     )
@@ -135,9 +156,7 @@ fun AdminLoginScreen(navController: NavController) {
                         onValueChange = { password = it },
                         label = { Text("Password") },
                         modifier = Modifier.fillMaxWidth(),
-                        leadingIcon = {
-                            Icon(Icons.Default.Lock, contentDescription = "Password")
-                        },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Password") },
                         visualTransformation = PasswordVisualTransformation(),
                         singleLine = true,
                         isError = errorMessage != null
@@ -145,40 +164,9 @@ fun AdminLoginScreen(navController: NavController) {
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Login button
                     Button(
-                        onClick = {
-                            if (email.isBlank() || password.isBlank()) {
-                                errorMessage = "Please enter email and password"
-                                return@Button
-                            }
-
-                            isLoading = true
-                            errorMessage = null
-
-                            coroutineScope.launch {
-                                try {
-                                    // Use the hardcoded adminLogin function
-                                    val loginResult = authService.adminLogin(email, password)
-
-                                    if (loginResult.isSuccess) {
-                                        // Successfully logged in as admin
-                                        navController.navigate("adminDashboard") {
-                                            popUpTo("adminLogin") { inclusive = true }
-                                        }
-                                    } else {
-                                        errorMessage = loginResult.exceptionOrNull()?.message ?: "Login failed"
-                                    }
-                                } catch (e: Exception) {
-                                    errorMessage = "Error: ${e.message}"
-                                } finally {
-                                    isLoading = false
-                                }
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
+                        onClick = { performAdminLogin(email, password) },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
                         enabled = !isLoading
                     ) {
                         if (isLoading) {
@@ -192,10 +180,9 @@ fun AdminLoginScreen(navController: NavController) {
                         }
                     }
 
-                    // Security note
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        " For authorized personnel only",
+                        "For authorized personnel only",
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -204,10 +191,7 @@ fun AdminLoginScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Link back to main login
-            TextButton(
-                onClick = { navController.navigate("login") }
-            ) {
+            TextButton(onClick = { navController.navigate("login") }) {
                 Text("Back to Main Login")
             }
         }

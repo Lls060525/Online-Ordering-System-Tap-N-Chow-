@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.fragment.app.FragmentActivity
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -39,7 +40,7 @@ import com.example.miniproject.screens.ForgotPasswordScreen
 import com.example.miniproject.screens.order.OrderHistoryScreen
 import com.example.miniproject.ui.theme.MiniProjectTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -52,6 +53,8 @@ class MainActivity : ComponentActivity() {
                     navController = navController,
                     startDestination = "login"
                 ) {
+
+
                     // Add this route to your navigation setup
                     composable("adminVendorSalesReport/{vendorId}") { backStackEntry ->
                         val vendorId = backStackEntry.arguments?.getString("vendorId") ?: ""
