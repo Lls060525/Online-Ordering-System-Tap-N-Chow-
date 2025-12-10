@@ -81,6 +81,7 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.4.0")
     implementation("androidx.activity:activity-compose:1.8.0")
 
+<<<<<<< HEAD
     // PayPal SDK
     implementation("com.paypal.sdk:paypal-android-sdk:2.16.0")
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
@@ -91,6 +92,9 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.5")
 
     //Biometric
+=======
+    // Biometric
+>>>>>>> e75b8ff9b128fcb4ef2f0c143422a348c3aa4378
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("com.google.android.gms:play-services-auth:20.7.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
