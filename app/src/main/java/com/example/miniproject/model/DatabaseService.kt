@@ -1492,7 +1492,6 @@ class DatabaseService {
             null
         }
     }
-<<<<<<< HEAD
 
     // Add this function to your DatabaseService.kt:
     suspend fun updateOrderWithPayPalId(orderId: String, paypalOrderId: String, paypalPayerId: String): Result<Boolean> {
@@ -1512,6 +1511,4 @@ class DatabaseService {
             Result.failure(e)
         }
     }
-=======
->>>>>>> e75b8ff9b128fcb4ef2f0c143422a348c3aa4378
 }

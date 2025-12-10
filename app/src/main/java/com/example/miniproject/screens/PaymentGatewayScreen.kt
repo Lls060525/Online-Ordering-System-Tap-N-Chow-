@@ -124,11 +124,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-<<<<<<< HEAD
     // Vendor data state
-=======
-    // Vendor data state - NEW
->>>>>>> e75b8ff9b128fcb4ef2f0c143422a348c3aa4378
     var vendor by remember { mutableStateOf<com.example.miniproject.model.Vendor?>(null) }
     var isFetchingVendor by remember { mutableStateOf(false) }
     var vendorBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -166,11 +162,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
         }
     }
 
-<<<<<<< HEAD
     // Fetch vendor data dynamically when vendorId is available
-=======
-    // Fetch vendor data dynamically when vendorId is available - NEW
->>>>>>> e75b8ff9b128fcb4ef2f0c143422a348c3aa4378
     LaunchedEffect(vendorId) {
         if (!vendorId.isNullOrEmpty()) {
             isFetchingVendor = true
@@ -289,7 +281,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                 validateExpiryYear(cardExpiryYear) &&
                 validateExpiryDateNotPast(cardExpiryMonth, cardExpiryYear) &&
                 validateCVV(cardCVV)
-<<<<<<< HEAD
     }
 
     // Helper function to handle PayPal payment
@@ -449,8 +440,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                 isLoading = false
             }
         }
-=======
->>>>>>> e75b8ff9b128fcb4ef2f0c143422a348c3aa4378
     }
 
     Scaffold(
@@ -500,11 +489,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                     .padding(paddingValues)
                     .verticalScroll(rememberScrollState())
             ) {
-<<<<<<< HEAD
                 // Vendor Information with Profile Picture
-=======
-                // Vendor Information with Profile Picture - NOW DYNAMIC
->>>>>>> e75b8ff9b128fcb4ef2f0c143422a348c3aa4378
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -516,11 +501,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-<<<<<<< HEAD
                             // Vendor Profile Picture
-=======
-                            // Vendor Profile Picture - DYNAMIC FROM DATABASE
->>>>>>> e75b8ff9b128fcb4ef2f0c143422a348c3aa4378
                             Box(
                                 modifier = Modifier
                                     .size(80.dp)
@@ -680,7 +661,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                     }
                 }
 
-                // Order Summary (Rest of the code remains the same...)
+                // Order Summary
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -785,7 +766,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                     }
                 }
 
-                // Payment Method (Rest of the code remains the same...)
+                // Payment Method
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1179,72 +1160,9 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                 // Complete Order Button
                 Button(
                     onClick = {
-<<<<<<< HEAD
                         when (selectedPaymentMethod) {
                             "paypal" -> handlePayPalPayment()
                             else -> handleRegularPayment()
-=======
-                        if (customer == null) {
-                            errorMessage = "Please log in to complete order"
-                            return@Button
-                        }
-
-                        if (selectedPaymentMethod == "card" && !isCardDetailsValid()) {
-                            errorMessage = "Please fill all card details correctly"
-                            return@Button
-                        }
-
-                        if (selectedPaymentMethod == "wallet" && customerAccount != null) {
-                            if (customerAccount!!.tapNChowCredit < cart.total) {
-                                errorMessage = "Insufficient wallet balance"
-                                return@Button
-                            }
-                        }
-
-                        isLoading = true
-                        errorMessage = null
-
-                        coroutineScope.launch {
-                            try {
-                                val orderRequest = OrderRequest(
-                                    customerId = customer!!.customerId,
-                                    vendorId = cart.vendorId,
-                                    items = cart.items,
-                                    totalAmount = cart.total,
-                                    deliveryAddress = "Store Pickup",
-                                    paymentMethod = selectedPaymentMethod
-                                )
-
-                                val result = databaseService.createOrderWithDetails(orderRequest)
-
-                                if (result.isSuccess) {
-                                    val orderId = result.getOrThrow()
-
-                                    // Update payment status and order status to "confirmed" for vendor to see
-                                    databaseService.updatePaymentStatus(orderId, "completed")
-                                    databaseService.updateOrderStatus(orderId, "confirmed") // Changed from "delivered" to "confirmed"
-
-                                    if (selectedPaymentMethod == "wallet" && customerAccount != null) {
-                                        val newBalance = customerAccount!!.tapNChowCredit - cart.total
-                                        databaseService.updateCustomerCredit(customer!!.customerId, newBalance)
-                                    }
-
-                                    // FIXED NAVIGATION: Clear the back stack and go to order confirmation
-                                    navController.navigate("orderConfirmation/${orderId}") {
-                                        // Clear everything up to and including the payment screen
-                                        popUpTo("home") { inclusive = false }
-                                        // This ensures user can't go back to payment screen
-                                        launchSingleTop = true
-                                    }
-                                } else {
-                                    errorMessage = "Failed to create order: ${result.exceptionOrNull()?.message}"
-                                }
-                            } catch (e: Exception) {
-                                errorMessage = "Error: ${e.message}"
-                            } finally {
-                                isLoading = false
-                            }
->>>>>>> e75b8ff9b128fcb4ef2f0c143422a348c3aa4378
                         }
                     },
                     modifier = Modifier
