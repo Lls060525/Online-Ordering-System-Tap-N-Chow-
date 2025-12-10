@@ -1,3 +1,4 @@
+
 package com.example.miniproject.model
 
 import com.google.firebase.Timestamp
@@ -6,16 +7,40 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.Serializable
 
-// Customer Model (previously User)
+data class Admin(
+    val adminId: String = "ADMIN001", // Fixed ID for single admin
+    val name: String = "Platform Administrator",
+    val email: String = "admin@admin.com.my", // Fixed email
+    val createdAt: Timestamp = Timestamp.now(),
+    val updatedAt: Timestamp = Timestamp.now(),
+    val permissions: List<String> = listOf(
+        "manage_users",
+        "manage_vendors",
+        "view_reports",
+        "freeze_accounts",
+        "view_analytics"
+    )
+) {
+    // No freeze property needed for admin
+    companion object {
+        const val ADMIN_ID = "ADMIN001"
+        const val ADMIN_EMAIL = "admin@admin.com.my"
+    }
+}
+
 data class Customer(
     val customerId: String = "",
     val name: String = "",
-    val phoneNumber: String = "",
     val email: String = "",
-    val password: String = "",
+    val phoneNumber: String = "",
     val profileImageBase64: String = "",
     val createdAt: Timestamp = Timestamp.now(),
-    val updatedAt: Timestamp = Timestamp.now()
+    val updatedAt: Timestamp = Timestamp.now(),
+    val isFrozen: Boolean = false, // ONLY CUSTOMERS CAN BE FROZEN
+    val lastLogin: Timestamp? = null,
+    val loginCount: Int = 0,
+    val orderCount: Int = 0,
+    val totalSpent: Double = 0.0,
 ) {
     fun isValid(): Boolean {
         return customerId.isNotBlank() &&
@@ -27,59 +52,60 @@ data class Customer(
     companion object {
         suspend fun generateCustomerId(db: FirebaseFirestore): String {
             return try {
-                // Get the count of existing customers
                 val count = db.collection("customers")
                     .get()
                     .await()
                     .size()
-
-                // Format as C0001, C0002, etc.
                 "C${(count + 1).toString().padStart(4, '0')}"
             } catch (e: Exception) {
-                // Fallback if counting fails
                 "C${System.currentTimeMillis().toString().takeLast(4).padStart(4, '0')}"
             }
         }
     }
 }
 
-// Vendor Model with category
+
 data class Vendor(
     val vendorId: String = "",
     val vendorName: String = "",
-    val vendorContact: String = "",
     val email: String = "",
+    val vendorContact: String = "",
     val address: String = "",
-    val category: String = "", // New category field: "restaurant", "grocery", etc.
+    val category: String = "",
     val profileImageBase64: String = "",
-    val createdAt: Timestamp = Timestamp.now(),
-    val updatedAt: Timestamp = Timestamp.now()
+    val isFrozen: Boolean = false, // ONLY VENDORS CAN BE FROZEN
+    val lastLogin: Timestamp? = null,
+    val loginCount: Int = 0,
+    val orderCount: Int = 0,
+    val totalRevenue: Double = 0.0,
+    val rating: Double = 0.0,
+    val reviewCount: Int = 0
 ) {
     companion object {
         suspend fun generateVendorId(db: FirebaseFirestore): String {
             return try {
-                // Get the count of existing vendors
                 val count = db.collection("vendors")
                     .get()
                     .await()
                     .size()
 
-                println("DEBUG: Existing vendor count: $count") // Add logging
+                println("DEBUG: Existing vendor count: $count")
 
-                // Format as V0001, V0002, etc.
                 val newId = "V${(count + 1).toString().padStart(4, '0')}"
-                println("DEBUG: Generated new vendor ID: $newId") // Add logging
+                println("DEBUG: Generated new vendor ID: $newId")
                 newId
             } catch (e: Exception) {
-                // Fallback if counting fails
                 val fallbackId =
                     "V${System.currentTimeMillis().toString().takeLast(4).padStart(4, '0')}"
-                println("DEBUG: Using fallback vendor ID: $fallbackId") // Add logging
+                println("DEBUG: Using fallback vendor ID: $fallbackId")
                 fallbackId
             }
         }
     }
 }
+
+// ... rest of the existing models remain the same ...
+
 // Product Model
 data class Product(
     @DocumentId val productId: String = "", // Keep for products as they need auto-generated IDs

@@ -87,6 +87,8 @@ class ImageConverter(private val context: Context) {
         }
     }
 
+
+
     fun base64ToImageBitmap(base64String: String): ImageBitmap? {
         return base64ToBitmap(base64String)?.asImageBitmap()
     }

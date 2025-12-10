@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -264,24 +265,32 @@ fun CustomerAccountContent(
             onClick = onFavourites
         )
 
+        Spacer(modifier = Modifier.height(24.dp)) // Add spacing
+
         // Logout Button
-        Card(
+        Button(
+            onClick = onLogout,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                .padding(horizontal = 16.dp)
+                .height(50.dp),
+            colors = ButtonDefaults.buttonColors(
+                // These colors match the Vendor screenshot exactly
+                containerColor = MaterialTheme.colorScheme.errorContainer, // Light Pink
+                contentColor = MaterialTheme.colorScheme.onErrorContainer  // Dark Red
+            )
         ) {
-            AccountMenuItem(
-                icon = Icons.Default.ExitToApp,
-                title = "LOG OUT",
-                onClick = onLogout,
-                textColor = MaterialTheme.colorScheme.onPrimary
+            Icon(
+                imageVector = Icons.Default.ExitToApp,
+                contentDescription = "Logout",
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "LOG OUT",
+                fontWeight = FontWeight.Bold
             )
         }
-
         // Customer Details Section
         CustomerDetailsSection(customer = customer)
     }

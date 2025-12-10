@@ -1,5 +1,6 @@
 package com.example.miniproject
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,6 +17,7 @@ import com.example.miniproject.screens.OrderConfirmationScreen
 import com.example.miniproject.screens.PaymentGatewayScreen
 import com.example.miniproject.screens.RateOrderScreen
 import com.example.miniproject.screens.RegisterScreen
+import com.example.miniproject.screens.SalesAnalyticsScreen
 import com.example.miniproject.screens.UserHomeScreen
 import com.example.miniproject.screens.VendorAnalyticsContent
 import com.example.miniproject.screens.VendorFeedbackAnalyticsScreen
@@ -25,22 +27,97 @@ import com.example.miniproject.screens.VendorLoginScreen
 import com.example.miniproject.screens.VendorProductsContent
 import com.example.miniproject.screens.VendorRegisterScreen
 import com.example.miniproject.screens.VendorReviewsScreen
+import com.example.miniproject.screens.AdminAnalyticsScreen
+import com.example.miniproject.screens.AdminDashboardScreen
+import com.example.miniproject.screens.AdminFeedbackListScreen
+import com.example.miniproject.screens.AdminOrderListScreen
+import com.example.miniproject.screens.AdminUserManagementScreen
+import com.example.miniproject.screens.AdminVendorListScreen
+import com.example.miniproject.screens.AdminVendorSalesReportScreen
+import com.example.miniproject.screens.AdminLoginScreen
+import com.example.miniproject.screens.AdminOrderDetailsScreen
+import com.example.miniproject.screens.ForgotPasswordScreen
 import com.example.miniproject.screens.order.OrderHistoryScreen
 import com.example.miniproject.ui.theme.MiniProjectTheme
+import androidx.compose.runtime.LaunchedEffect
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Check for PayPal return with order ID
+        val orderId = intent?.getStringExtra("ORDER_ID")
+        val paymentSuccess = intent?.getBooleanExtra("PAYMENT_SUCCESS", false)
+
+        // Handle deep link from PayPal
+        intent?.data?.let { uri ->
+            if (uri.scheme == "com.example.miniproject.paypeltest" && uri.host == "demoapp") {
+                // This is a PayPal return
+                val intent = Intent(this, PayPalResultActivity::class.java)
+                intent.data = uri
+                startActivity(intent)
+                finish()
+                return
+            }
+        }
+
         setContent {
             MiniProjectTheme {
                 // Navigation setup
                 val navController = rememberNavController()
 
+                // If we have a successful PayPal payment with order ID, navigate to confirmation
+                if (paymentSuccess == true && !orderId.isNullOrEmpty()) {
+                    LaunchedEffect(Unit) {
+                        navController.navigate("orderConfirmation/$orderId") {
+                            popUpTo(0) // Clear back stack
+                        }
+                    }
+                }
+
                 NavHost(
                     navController = navController,
                     startDestination = "login"
                 ) {
+                    // Add this route to your navigation setup
+                    composable("adminVendorSalesReport/{vendorId}") { backStackEntry ->
+                        val vendorId = backStackEntry.arguments?.getString("vendorId") ?: ""
+                        AdminVendorSalesReportScreen(navController, vendorId)
+                    }
+                    // Admin routes
+                    composable("adminLogin") {
+                        AdminLoginScreen(navController)
+                    }
+                    composable("adminDashboard") {
+                        AdminDashboardScreen(navController)
+                    }
+                    composable("adminVendors") {
+                        AdminVendorListScreen(navController)
+                    }
+
+                    composable("forgotPassword") {
+                        ForgotPasswordScreen(navController = navController)
+                    }
+
+                    composable("adminUserManagement") {
+                        AdminUserManagementScreen(navController)
+                    }
+                    composable("adminOrders") {
+                        AdminOrderListScreen(navController)
+                    }
+                    composable("adminFeedback") {
+                        AdminFeedbackListScreen(navController)
+                    }
+                    composable("adminAnalytics") {
+                        AdminAnalyticsScreen(navController)
+                    }
+                    composable("adminVendorDetails/{vendorId}") { backStackEntry ->
+                        // You can create a detailed vendor view screen
+                    }
+                    composable("adminOrderDetails/{orderId}") { backStackEntry ->
+                        // You can create a detailed order view screen
+                    }
                     composable("login") {
                         LoginScreen(navController = navController)
                     }
@@ -132,12 +209,19 @@ class MainActivity : ComponentActivity() {
                     composable("vendorAnalytics") {
                         VendorAnalyticsContent(navController = navController)
                     }
-<<<<<<< HEAD
                     composable("vendorFeedbackStatistics") {
                         VendorFeedbackStatisticsScreen(navController = navController)
                     }
-=======
->>>>>>> 275ebdebd779d5386869ac036fbecc732657ada7
+
+                    composable("salesAnalytics") {
+                        SalesAnalyticsScreen(navController = navController)
+                    }
+
+                    composable("adminOrderDetails/{orderId}") { backStackEntry ->
+                        val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+                        AdminOrderDetailsScreen(navController = navController, orderId = orderId)
+                    }
+
                 }
             }
         }

@@ -3,12 +3,362 @@ package com.example.miniproject.service
 import android.net.Uri
 import com.example.miniproject.model.*
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.Source
 import kotlinx.coroutines.tasks.await
 
 class DatabaseService {
-    private val db = FirebaseFirestore.getInstance()
+    val db = FirebaseFirestore.getInstance()
+
+
+    private suspend fun createFreezeLog(userId: String, userType: String, reason: String) {
+        try {
+            val log = mapOf(
+                "userId" to userId,
+                "userType" to userType,
+                "reason" to reason,
+                "actionDate" to Timestamp.now(),
+                "adminAction" to true,
+                "createdAt" to Timestamp.now()
+            )
+            db.collection("freeze_logs").add(log).await()
+        } catch (e: Exception) {
+            // Silently fail - logging is not critical
+        }
+    }
+
+    suspend fun getAdmin(): Admin? {
+        return try {
+            db.collection("admins").document("ADMIN001")
+                .get(Source.SERVER)
+                .await()
+                .toObject(Admin::class.java)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+// Add to DatabaseService class
+
+    suspend fun adminExists(): Boolean {
+        return try {
+            val adminDoc = db.collection("admins").document("ADMIN001").get().await()
+            adminDoc.exists()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // Create admin (one-time setup)
+    suspend fun createAdmin(): Result<Boolean> {
+        return try {
+            val adminExists = adminExists()
+            if (!adminExists) {
+                val admin = Admin(
+                    adminId = "ADMIN001",
+                    name = "Platform Administrator",
+                    email = "admin@admin.com.my",
+                    createdAt = Timestamp.now(),
+                    updatedAt = Timestamp.now()
+                )
+                db.collection("admins").document("ADMIN001").set(admin).await()
+                Result.success(true)
+            } else {
+                Result.success(false) // Already exists
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Calculate actual vendor statistics
+    suspend fun calculateVendorActualStats(vendorId: String): Triple<Int, Double, Double> {
+        var orderCount = 0
+        var totalRevenue = 0.0
+        var rating = 0.0
+
+        try {
+            // Get all orders and calculate vendor's portion
+            val allOrders = getAllOrders()
+
+            for (order in allOrders) {
+                val orderDetails = getOrderDetails(order.orderId)
+                var vendorOrderTotal = 0.0
+
+                for (detail in orderDetails) {
+                    val product = getProductById(detail.productId)
+                    if (product?.vendorId == vendorId) {
+                        val subtotal = detail.subtotal
+                        val tax = subtotal * 0.06 // 6% tax
+                        vendorOrderTotal += subtotal + tax
+                        orderCount++
+                    }
+                }
+                totalRevenue += vendorOrderTotal
+            }
+
+            // Get vendor rating from feedback
+            val feedbacks = getFeedbackByVendor(vendorId)
+            if (feedbacks.isNotEmpty()) {
+                rating = feedbacks.map { it.rating }.average()
+            }
+        } catch (e: Exception) {
+            // Handle error
+        }
+
+        return Triple(orderCount, totalRevenue, rating)
+    }
+
+    // Calculate customer statistics
+    suspend fun calculateCustomerActualStats(customerId: String): Pair<Int, Double> {
+        var orderCount = 0
+        var totalSpent = 0.0
+
+        try {
+            val customerOrders = getCustomerOrders(customerId)
+            orderCount = customerOrders.size
+            totalSpent = customerOrders.sumOf { it.totalPrice }
+        } catch (e: Exception) {
+            // Handle error
+        }
+
+        return Pair(orderCount, totalSpent)
+    }
+// DatabaseService.kt
+
+// ... inside DatabaseService class ...
+
+    // REPLACEMENT: Robust Freeze/Unfreeze functions
+    // In DatabaseService.kt, update the freeze functions:
+
+    suspend fun freezeVendorAccount(vendorId: String): Result<Boolean> {
+        return try {
+            println("DEBUG: Freezing vendor account $vendorId")
+            val updates = mapOf(
+                "isFrozen" to true,  // Use consistent field name
+                "updatedAt" to Timestamp.now()
+            )
+            db.collection("vendors").document(vendorId).update(updates).await()
+            println("DEBUG: Vendor account $vendorId frozen successfully")
+            Result.success(true)
+        } catch (e: Exception) {
+            println("DEBUG: Error freezing vendor account $vendorId: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+
+    suspend fun unfreezeVendorAccount(vendorId: String): Result<Boolean> {
+        return try {
+            println("DEBUG: Unfreezing vendor account $vendorId")
+            val updates = mapOf(
+                "isFrozen" to false,  // Use consistent field name
+                "updatedAt" to Timestamp.now()
+            )
+            db.collection("vendors").document(vendorId).update(updates).await()
+            println("DEBUG: Vendor account $vendorId unfrozen successfully")
+            Result.success(true)
+        } catch (e: Exception) {
+            println("DEBUG: Error unfreezing vendor account $vendorId: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+
+    suspend fun freezeCustomerAccount(customerId: String): Result<Boolean> {
+        return try {
+            val updates = mapOf(
+                "isFrozen" to true,
+                "updatedAt" to Timestamp.now()
+            )
+            db.collection("customers").document(customerId).update(updates).await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    suspend fun unfreezeCustomerAccount(customerId: String): Result<Boolean> {
+        return try {
+            val updates = mapOf(
+                "isFrozen" to false,
+                "updatedAt" to Timestamp.now()
+            )
+            db.collection("customers").document(customerId).update(updates).await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateCustomerFrozenStatus(customerId: String, isFrozen: Boolean): Result<Unit> {
+        return try {
+            db.collection("customers").document(customerId)
+                .update(mapOf(
+                    "isFrozen" to isFrozen,
+                    "updatedAt" to Timestamp.now()
+                )).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteCustomer(customerId: String): Result<Unit> {
+        return try {
+            // Get customer first to find Firebase UID
+            val customer = db.collection("customers").document(customerId).get().await()
+                .toObject(Customer::class.java)
+
+            if (customer != null) {
+                // Find the mapping to get Firebase UID
+                val mappings = db.collection("user_mappings")
+                    .whereEqualTo("customerId", customerId)
+                    .get().await()
+
+                // Delete customer document
+                db.collection("customers").document(customerId).delete().await()
+
+                // Delete user mapping
+                mappings.documents.forEach { doc ->
+                    db.collection("user_mappings").document(doc.id).delete().await()
+                }
+
+                // Optionally delete auth user (requires admin privileges)
+                // This would need Firebase Admin SDK on a server
+            }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateVendorFrozenStatus(vendorId: String, isFrozen: Boolean): Result<Unit> {
+        return try {
+            db.collection("vendors").document(vendorId)
+                .update(mapOf(
+                    "isFrozen" to isFrozen,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteVendor(vendorId: String): Result<Unit> {
+        return try {
+            // Get vendor first
+            val vendor = db.collection("vendors").document(vendorId).get().await()
+                .toObject(Vendor::class.java)
+
+            if (vendor != null) {
+                // Find the mapping to get Firebase UID
+                val mappings = db.collection("user_mappings")
+                    .whereEqualTo("vendorId", vendorId)
+                    .get().await()
+
+                // Delete vendor document
+                db.collection("vendors").document(vendorId).delete().await()
+
+                // Delete user mapping
+                mappings.documents.forEach { doc ->
+                    db.collection("user_mappings").document(doc.id).delete().await()
+                }
+
+                // Delete vendor's products, orders, etc. (optional)
+                db.collection("products")
+                    .whereEqualTo("vendorId", vendorId)
+                    .get().await()
+                    .documents.forEach { doc ->
+                        db.collection("products").document(doc.id).delete().await()
+                    }
+            }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Update user activity on login
+    suspend fun updateCustomerLoginActivity(customerId: String): Result<Unit> {
+        return try {
+            db.collection("customers").document(customerId)
+                .update(
+                    mapOf(
+                        "lastLogin" to Timestamp.now(),
+                        "loginCount" to FieldValue.increment(1)
+                    )
+                ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateVendorLoginActivity(vendorId: String): Result<Unit> {
+        return try {
+            db.collection("vendors").document(vendorId)
+                .update(
+                    mapOf(
+                        "lastLogin" to Timestamp.now(),
+                        "loginCount" to FieldValue.increment(1)
+                    )
+                ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Update customer order stats when order is placed
+    suspend fun updateCustomerOrderStats(customerId: String, orderAmount: Double): Result<Unit> {
+        return try {
+            val customerDoc = db.collection("customers").document(customerId)
+
+            // Get current values first
+            val currentDoc = customerDoc.get().await()
+            val currentOrderCount = currentDoc.getLong("orderCount")?.toInt() ?: 0
+            val currentTotalSpent = currentDoc.getDouble("totalSpent") ?: 0.0
+
+            customerDoc.update(
+                mapOf(
+                    "orderCount" to (currentOrderCount + 1),
+                    "totalSpent" to (currentTotalSpent + orderAmount),
+                    "updatedAt" to Timestamp.now()
+                )
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Update vendor order stats when order is placed
+    suspend fun updateVendorOrderStats(vendorId: String, orderAmount: Double): Result<Unit> {
+        return try {
+            val vendorDoc = db.collection("vendors").document(vendorId)
+
+            // Get current values first
+            val currentDoc = vendorDoc.get().await()
+            val currentOrderCount = currentDoc.getLong("orderCount")?.toInt() ?: 0
+            val currentTotalRevenue = currentDoc.getDouble("totalRevenue") ?: 0.0
+
+            vendorDoc.update(
+                mapOf(
+                    "orderCount" to (currentOrderCount + 1),
+                    "totalRevenue" to (currentTotalRevenue + orderAmount),
+                    "updatedAt" to Timestamp.now()
+                )
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     // Product Operations
     suspend fun addProduct(product: Product): Result<String> {
@@ -40,7 +390,7 @@ class DatabaseService {
                         "stock" to product.stock,
                         "imageUrl" to product.imageUrl,
                         "category" to product.category,
-                        "updatedAt" to com.google.firebase.Timestamp.now()
+                        "updatedAt" to Timestamp.now()
                     )
                 ).await()
             Result.success(true)
@@ -81,15 +431,7 @@ class DatabaseService {
         }
     }
 
-    suspend fun updateProductStock(productId: String, newStock: Int): Result<Boolean> {
-        return try {
-            db.collection("products").document(productId)
-                .update("stock", newStock).await()
-            Result.success(true)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+
 
     // Order Operations
     suspend fun createOrder(order: Order, orderDetails: List<OrderDetail>): Result<String> {
@@ -116,24 +458,39 @@ class DatabaseService {
 
     suspend fun createOrderWithDetails(orderRequest: OrderRequest): Result<String> {
         return try {
+            // FIRST: Validate stock availability
+            for (item in orderRequest.items) {
+                val productDoc = db.collection("products").document(item.productId).get().await()
+                if (!productDoc.exists()) {
+                    return Result.failure(Exception("Product ${item.productId} not found"))
+                }
+
+                val currentStock = productDoc.getLong("stock")?.toInt() ?: 0
+                if (currentStock < item.quantity) {
+                    return Result.failure(
+                        Exception("Insufficient stock for ${item.productName}. Available: $currentStock, Requested: ${item.quantity}")
+                    )
+                }
+            }
+
             // Generate custom order ID (O001 format)
             val orderId = Order.generateOrderId(db)
 
-            // Create order with custom ID - SET INITIAL STATUS AS "pending"
+            // Create order with custom ID
             val order = Order(
                 orderId = orderId,
                 customerId = orderRequest.customerId,
                 totalPrice = orderRequest.totalAmount,
                 shippingAddress = orderRequest.deliveryAddress,
                 paymentMethod = orderRequest.paymentMethod,
-                status = "pending", // Start as pending
+                status = "pending",
                 orderDate = Timestamp.now()
             )
 
-            // Store order using the custom orderId as document ID
+            // Store order
             db.collection("orders").document(orderId).set(order).await()
 
-            // Create order details
+            // Create order details and update stock
             orderRequest.items.forEach { item ->
                 val orderDetail = OrderDetail(
                     orderId = orderId,
@@ -144,6 +501,9 @@ class DatabaseService {
                     subtotal = item.productPrice * item.quantity
                 )
                 db.collection("order_details").add(orderDetail).await()
+
+                // Update product stock
+                updateProductStockForOrder(item.productId, item.quantity)
             }
 
             // Create payment record
@@ -156,11 +516,65 @@ class DatabaseService {
             )
             db.collection("payments").add(payment).await()
 
+            // Update stats
+            updateCustomerOrderStats(orderRequest.customerId, orderRequest.totalAmount)
+
+            orderRequest.items.groupBy { it.vendorId }.forEach { (vendorId, items) ->
+                val vendorTotal = items.sumOf { it.productPrice * it.quantity }
+                updateVendorOrderStats(vendorId, vendorTotal)
+            }
+
             Result.success(orderId)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
+
+    private suspend fun updateProductStockForOrder(productId: String, orderedQuantity: Int) {
+        try {
+            // Get current product
+            val productDoc = db.collection("products").document(productId).get().await()
+
+            if (productDoc.exists()) {
+                val currentStock = productDoc.getLong("stock")?.toInt() ?: 0
+
+                // Calculate new stock (ensure it doesn't go below 0)
+                val newStock = maxOf(0, currentStock - orderedQuantity)
+
+                // Update the product stock
+                db.collection("products").document(productId)
+                    .update("stock", newStock).await()
+
+                println("DEBUG: Updated product $productId stock from $currentStock to $newStock")
+            } else {
+                println("DEBUG: Product $productId not found when updating stock")
+            }
+        } catch (e: Exception) {
+            println("DEBUG: Error updating product stock: ${e.message}")
+            // Don't rethrow - we still want the order to be created
+        }
+    }
+
+    suspend fun updateProductStock(productId: String, orderedQuantity: Int): Result<Boolean> {
+        return try {
+            val productDoc = db.collection("products").document(productId).get().await()
+
+            if (!productDoc.exists()) {
+                return Result.failure(Exception("Product not found"))
+            }
+
+            val currentStock = productDoc.getLong("stock")?.toInt() ?: 0
+            val newStock = maxOf(0, currentStock - orderedQuantity)
+
+            db.collection("products").document(productId)
+                .update("stock", newStock).await()
+
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun markOrderAsDelivered(orderId: String): Result<Boolean> {
         return try {
             db.collection("orders").document(orderId)
@@ -175,6 +589,7 @@ class DatabaseService {
             Result.failure(e)
         }
     }
+
     suspend fun updatePaymentStatus(orderId: String, status: String): Result<Boolean> {
         return try {
             // Update payment status
@@ -246,6 +661,7 @@ class DatabaseService {
             emptyList()
         }
     }
+
     suspend fun getOrderDetails(orderId: String): List<OrderDetail> {
         return try {
             println("DEBUG: Getting order details for orderId: $orderId")
@@ -314,18 +730,109 @@ class DatabaseService {
         }
     }
 
+// Add import at the top
 
+
+    // Update getAllVendors function
     suspend fun getAllVendors(): List<Vendor> {
         return try {
-            db.collection("vendors")
-                .get()
+            val result = db.collection("vendors")
+                .get(Source.SERVER)
                 .await()
-                .toObjects(Vendor::class.java)
+
+            println("DEBUG getAllVendors: Got ${result.documents.size} vendors")
+
+            // MANUAL CONVERSION to ensure isFrozen is correctly mapped
+            val vendors = mutableListOf<Vendor>()
+
+            result.documents.forEach { document ->
+                val data = document.data ?: return@forEach
+
+                // DEBUG: Print raw data
+                println("DEBUG Vendor ${document.id}:")
+                data.forEach { (key, value) ->
+                    println("  $key = $value (type: ${value?.javaClass?.simpleName})")
+                }
+
+                val vendor = Vendor(
+                    vendorId = document.id,
+                    vendorName = data["vendorName"] as? String ?: "",
+                    email = data["email"] as? String ?: "",
+                    vendorContact = data["vendorContact"] as? String ?: "",
+                    address = data["address"] as? String ?: "",
+                    category = data["category"] as? String ?: "",
+                    profileImageBase64 = data["profileImageBase64"] as? String ?: "",
+                    // IMPORTANT: Check isFrozen field manually
+                    isFrozen = data["isFrozen"] as? Boolean ?: false,
+                    lastLogin = data["lastLogin"] as? Timestamp,
+                    loginCount = (data["loginCount"] as? Long)?.toInt() ?: 0,
+                    orderCount = (data["orderCount"] as? Long)?.toInt() ?: 0,
+                    totalRevenue = (data["totalRevenue"] as? Double) ?: 0.0,
+                    rating = (data["rating"] as? Double) ?: 0.0,
+                    reviewCount = (data["reviewCount"] as? Long)?.toInt() ?: 0
+                )
+
+                println("DEBUG Mapped vendor ${document.id}: isFrozen = ${vendor.isFrozen}")
+                vendors.add(vendor)
+            }
+
+            vendors
         } catch (e: Exception) {
+            println("ERROR in getAllVendors: ${e.message}")
             emptyList()
         }
     }
+    // Update getAllCustomers function
+    suspend fun getAllCustomers(): List<Customer> {
+        return try {
+            val result = db.collection("customers")
+                .get(Source.SERVER)  // Force server fetch
+                .await()
 
+            println("DEBUG: getAllCustomers - Document count: ${result.documents.size}")
+
+            val customers = mutableListOf<Customer>()
+
+            result.documents.forEach { document ->
+                val data = document.data ?: return@forEach
+
+                // MANUAL FIELD MAPPING
+                val customer = Customer(
+                    customerId = document.id,
+                    name = data["name"] as? String ?: "",
+                    email = data["email"] as? String ?: "",
+                    phoneNumber = data["phoneNumber"] as? String ?: "",
+                    profileImageBase64 = data["profileImageBase64"] as? String ?: "",
+                    createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
+                    updatedAt = data["updatedAt"] as? Timestamp ?: Timestamp.now(),
+                    // IMPORTANT: Manually check isFrozen field
+                    isFrozen = data["isFrozen"] as? Boolean ?: false, // Default to false if not found
+                    lastLogin = data["lastLogin"] as? Timestamp,
+                    loginCount = (data["loginCount"] as? Long)?.toInt() ?: 0,
+                    orderCount = (data["orderCount"] as? Long)?.toInt() ?: 0,
+                    totalSpent = (data["totalSpent"] as? Double) ?: 0.0
+                )
+
+                // DEBUG: Print C0001 specifically
+                if (document.id == "C0001") {
+                    println("DEBUG C0001:")
+                    println("  - Document ID: ${document.id}")
+                    println("  - Raw isFrozen value: ${data["isFrozen"]}")
+                    println("  - Type of isFrozen: ${data["isFrozen"]?.javaClass?.simpleName}")
+                    println("  - Mapped isFrozen: ${customer.isFrozen}")
+                    println("  - All fields: ${data.keys}")
+                }
+
+                customers.add(customer)
+            }
+
+            customers
+        } catch (e: Exception) {
+            println("ERROR getting all customers: ${e.message}")
+            e.printStackTrace()
+            emptyList()
+        }
+    }
     suspend fun updateVendorProfileImageBase64(vendorId: String, base64Image: String): Result<Boolean> {
         return try {
             db.collection("vendors").document(vendorId)
@@ -336,7 +843,6 @@ class DatabaseService {
         }
     }
 
-
     suspend fun updateVendorProfile(vendor: Vendor): Result<Boolean> {
         return try {
             db.collection("vendors").document(vendor.vendorId)
@@ -346,7 +852,7 @@ class DatabaseService {
                         "email" to vendor.email,
                         "vendorContact" to vendor.vendorContact,
                         "address" to vendor.address,
-                        "updatedAt" to com.google.firebase.Timestamp.now()
+                        "updatedAt" to Timestamp.now()
                     )
                 ).await()
             Result.success(true)
@@ -354,7 +860,6 @@ class DatabaseService {
             Result.failure(e)
         }
     }
-
 
     suspend fun getCustomerAccount(customerId: String): CustomerAccount? {
         return try {
@@ -367,8 +872,6 @@ class DatabaseService {
             null
         }
     }
-
-
 
     suspend fun updateCustomerProfile(customer: Customer): Result<Boolean> {
         return try {
@@ -404,7 +907,6 @@ class DatabaseService {
         }
     }
 
-    // Replace the upload function with this Base64 version
     suspend fun updateCustomerProfileImageBase64(customerId: String, base64Image: String): Result<Boolean> {
         return try {
             db.collection("customers").document(customerId)
@@ -414,7 +916,6 @@ class DatabaseService {
             Result.failure(e)
         }
     }
-
 
     suspend fun getPaymentByOrder(orderId: String): Payment? {
         return try {
@@ -429,10 +930,59 @@ class DatabaseService {
         }
     }
 
-    // Add these functions to your DatabaseService class
+
 
     // Feedback Operations
-// In DatabaseService.kt - Add to addFeedback function
+
+    suspend fun getAllFeedbacks(): List<Feedback> {
+        return try {
+            println("DEBUG: Attempting to get all feedbacks from Firestore")
+
+            val result = db.collection("feedbacks")
+                .get()
+                .await()
+
+            println("DEBUG: Retrieved ${result.documents.size} feedback documents")
+
+            val feedbacks = result.documents.mapNotNull { document ->
+                try {
+                    val data = document.data ?: return@mapNotNull null
+
+                    println("DEBUG: Processing feedback document ${document.id}")
+
+                    Feedback(
+                        feedbackId = document.id,
+                        customerId = data["customerId"] as? String ?: "",
+                        customerName = data["customerName"] as? String ?: "",
+                        vendorId = data["vendorId"] as? String ?: "",
+                        vendorName = data["vendorName"] as? String ?: "",
+                        orderId = data["orderId"] as? String ?: "",
+                        productId = data["productId"] as? String ?: "",
+                        productName = data["productName"] as? String ?: "",
+                        rating = (data["rating"] as? Double) ?: (data["rating"] as? Long)?.toDouble() ?: 0.0,
+                        comment = data["comment"] as? String ?: "",
+                        feedbackDate = data["feedbackDate"] as? Timestamp ?: Timestamp.now(),
+                        createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
+                        isVisible = data["isVisible"] as? Boolean ?: true,
+                        vendorReply = data["vendorReply"] as? String ?: "",
+                        vendorReplyDate = data["vendorReplyDate"] as? Timestamp,
+                        isReplied = data["isReplied"] as? Boolean ?: false
+                    )
+                } catch (e: Exception) {
+                    println("DEBUG: Error converting feedback document ${document.id}: ${e.message}")
+                    null
+                }
+            }
+
+            println("DEBUG: Successfully converted ${feedbacks.size} feedbacks")
+            feedbacks
+        } catch (e: Exception) {
+            println("ERROR in getAllFeedbacks: ${e.message}")
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
     suspend fun addFeedback(feedback: Feedback): Result<String> {
         return try {
             println("🟡 DEBUG: Adding feedback to Firestore:")
@@ -494,8 +1044,6 @@ class DatabaseService {
             // Handle error silently
         }
     }
-
-    // Add to DatabaseService.kt
 
     // Feedback reply functions
     suspend fun addVendorReply(feedbackId: String, reply: String): Result<Boolean> {
@@ -618,8 +1166,6 @@ class DatabaseService {
         }
     }
 
-    // Get feedback with replies for vendor
-// In DatabaseService.kt - Add more debugging
     suspend fun getFeedbackWithReplies(vendorId: String): List<Feedback> {
         return try {
             println("DEBUG: Querying feedbacks for vendor: $vendorId")
@@ -652,11 +1198,11 @@ class DatabaseService {
                         productName = data["productName"] as? String ?: "",
                         rating = (data["rating"] as? Double) ?: (data["rating"] as? Long)?.toDouble() ?: 0.0,
                         comment = data["comment"] as? String ?: "",
-                        feedbackDate = data["feedbackDate"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
-                        createdAt = data["createdAt"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
+                        feedbackDate = data["feedbackDate"] as? Timestamp ?: Timestamp.now(),
+                        createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
                         isVisible = data["isVisible"] as? Boolean ?: true,
                         vendorReply = data["vendorReply"] as? String ?: "",
-                        vendorReplyDate = data["vendorReplyDate"] as? com.google.firebase.Timestamp,
+                        vendorReplyDate = data["vendorReplyDate"] as? Timestamp,
                         isReplied = data["isReplied"] as? Boolean ?: (data["replied"] as? Boolean) ?: false
                     )
                 } catch (e: Exception) {
@@ -681,8 +1227,6 @@ class DatabaseService {
             emptyList()
         }
     }
-
-
 
     private suspend fun updateVendorRating(vendorId: String, newRating: Double) {
         try {
@@ -754,11 +1298,11 @@ class DatabaseService {
                         productName = data["productName"] as? String ?: "",
                         rating = (data["rating"] as? Double) ?: (data["rating"] as? Long)?.toDouble() ?: 0.0,
                         comment = data["comment"] as? String ?: "",
-                        feedbackDate = data["feedbackDate"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
-                        createdAt = data["createdAt"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
+                        feedbackDate = data["feedbackDate"] as? Timestamp ?: Timestamp.now(),
+                        createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
                         isVisible = data["isVisible"] as? Boolean ?: true,
                         vendorReply = data["vendorReply"] as? String ?: "",
-                        vendorReplyDate = data["vendorReplyDate"] as? com.google.firebase.Timestamp,
+                        vendorReplyDate = data["vendorReplyDate"] as? Timestamp,
                         isReplied = data["isReplied"] as? Boolean ?: (data["replied"] as? Boolean) ?: false
                     )
                 } catch (e: Exception) {
@@ -768,17 +1312,6 @@ class DatabaseService {
             }
 
             println("DEBUG: Successfully converted to ${feedbacks.size} Feedback objects")
-
-            // Print each feedback details for debugging
-            feedbacks.forEachIndexed { index, feedback ->
-                println("DEBUG: Feedback $index - " +
-                        "CustomerID: ${feedback.customerId}, " +
-                        "Vendor: ${feedback.vendorName}, " +
-                        "Rating: ${feedback.rating}, " +
-                        "Has Reply: ${feedback.isReplied}, " +
-                        "Reply: ${feedback.vendorReply}, " +
-                        "OrderID: ${feedback.orderId}")
-            }
 
             // Sort by date, newest first
             val sortedFeedbacks = feedbacks.sortedByDescending { it.feedbackDate?.seconds ?: 0 }
@@ -841,19 +1374,108 @@ class DatabaseService {
     // Vendor Operations
     suspend fun getVendorById(vendorId: String): Vendor? {
         return try {
-            db.collection("vendors").document(vendorId).get().await()
-                .toObject(Vendor::class.java)
+            val document = db.collection("vendors").document(vendorId)
+                .get(Source.SERVER)
+                .await()
+
+            if (document.exists()) {
+                val data = document.data ?: return null
+
+                // DEBUG: Print all fields
+                println("DEBUG: Vendor $vendorId fields:")
+                data.forEach { (key, value) ->
+                    println("  $key = $value (type: ${value?.javaClass?.simpleName})")
+                }
+
+                // Check both possible field names for freeze status
+                val isFrozen = when {
+                    data.containsKey("isFrozen") -> data["isFrozen"] as? Boolean ?: false
+                    data.containsKey("frozen") -> data["frozen"] as? Boolean ?: false
+                    else -> false
+                }
+
+                println("DEBUG: Vendor $vendorId isFrozen = $isFrozen")
+
+                // Create vendor object with manual field mapping
+                Vendor(
+                    vendorId = vendorId,
+                    vendorName = data["vendorName"] as? String ?: "",
+                    email = data["email"] as? String ?: "",
+                    vendorContact = data["vendorContact"] as? String ?: "",
+                    address = data["address"] as? String ?: "",
+                    category = data["category"] as? String ?: "",
+                    profileImageBase64 = data["profileImageBase64"] as? String ?: "",
+                    isFrozen = isFrozen,  // Use the correct freeze value
+                    lastLogin = data["lastLogin"] as? Timestamp,
+                    loginCount = (data["loginCount"] as? Long)?.toInt() ?: 0,
+                    orderCount = (data["orderCount"] as? Long)?.toInt() ?: 0,
+                    totalRevenue = (data["totalRevenue"] as? Double) ?: 0.0,
+                    rating = (data["rating"] as? Double) ?: 0.0,
+                    reviewCount = (data["reviewCount"] as? Long)?.toInt() ?: 0
+                )
+            } else {
+                null
+            }
         } catch (e: Exception) {
+            println("ERROR getting vendor $vendorId: ${e.message}")
             null
+        }
+    }
+
+    suspend fun testCustomerFreezeStatus(): String {
+        return try {
+            val customer = getCustomerById("C0001")
+            "Customer C0001: isFrozen = ${customer?.isFrozen}, name = ${customer?.name}"
+        } catch (e: Exception) {
+            "Error: ${e.message}"
         }
     }
 
     // Customer Operations
     suspend fun getCustomerById(customerId: String): Customer? {
         return try {
-            db.collection("customers").document(customerId).get().await()
-                .toObject(Customer::class.java)
+            println("DEBUG getCustomerById: Fetching customer $customerId")
+
+            val document = db.collection("customers").document(customerId)
+                .get(Source.SERVER)
+                .await()
+
+            if (document.exists()) {
+                val data = document.data ?: return null
+
+                // EXTRA DEBUG: Log the raw data
+                println("DEBUG: Raw Firestore data for $customerId:")
+                data.forEach { (key, value) ->
+                    println("  - $key: $value (${value?.javaClass?.simpleName})")
+                }
+
+                // Check freeze status - prioritize isFrozen over frozen
+                val isFrozen = data["isFrozen"] as? Boolean ?:
+                data["frozen"] as? Boolean ?: false
+
+                println("DEBUG: Determined isFrozen = $isFrozen for $customerId")
+
+                Customer(
+                    customerId = customerId,
+                    name = data["name"] as? String ?: "",
+                    email = data["email"] as? String ?: "",
+                    phoneNumber = data["phoneNumber"] as? String ?: "",
+                    profileImageBase64 = data["profileImageBase64"] as? String ?: "",
+                    createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
+                    updatedAt = data["updatedAt"] as? Timestamp ?: Timestamp.now(),
+                    isFrozen = isFrozen,  // This should be true for C0001
+                    lastLogin = data["lastLogin"] as? Timestamp,
+                    loginCount = (data["loginCount"] as? Long)?.toInt() ?: 0,
+                    orderCount = (data["orderCount"] as? Long)?.toInt() ?: 0,
+                    totalSpent = (data["totalSpent"] as? Double) ?: 0.0
+                )
+            } else {
+                println("DEBUG: Customer $customerId not found")
+                null
+            }
         } catch (e: Exception) {
+            println("ERROR getting customer $customerId: ${e.message}")
+            e.printStackTrace()
             null
         }
     }
@@ -871,5 +1493,22 @@ class DatabaseService {
         }
     }
 
+    // Add this function to your DatabaseService.kt:
+    suspend fun updateOrderWithPayPalId(orderId: String, paypalOrderId: String, paypalPayerId: String): Result<Boolean> {
+        return try {
+            val updates = mapOf(
+                "paypalOrderId" to paypalOrderId,
+                "paypalPayerId" to paypalPayerId,
+                "paymentMethod" to "paypal",
+                "updatedAt" to Timestamp.now()
+            )
 
+            db.collection("orders").document(orderId)
+                .update(updates).await()
+
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
