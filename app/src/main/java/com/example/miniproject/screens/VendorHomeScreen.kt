@@ -65,9 +65,13 @@ import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.utils.ImageConverter
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.ui.graphics.Color
 
@@ -84,7 +88,7 @@ sealed class VendorScreen(val title: String, val icon: ImageVector) {
 fun VendorHomeScreen(navController: NavController) {
     var currentScreen by remember { mutableStateOf<VendorScreen>(VendorScreen.Dashboard) }
 
-    Scaffold(        topBar = {
+    Scaffold(topBar = {
         // Orange background with status bar padding
         Box(
             modifier = Modifier
@@ -142,7 +146,7 @@ fun VendorHomeScreen(navController: NavController) {
         ) {
             when (currentScreen) {
                 is VendorScreen.Dashboard -> VendorDashboardContent(navController)
-                is VendorScreen.Products -> VendorProductsContent(navController) // Use your existing screen
+                is VendorScreen.Products -> VendorProductsContent(navController)
                 is VendorScreen.Orders -> VendorOrdersContent()
                 is VendorScreen.Analytics -> VendorAnalyticsContent(navController)
                 is VendorScreen.Account -> VendorAccountScreen(navController)
@@ -151,6 +155,7 @@ fun VendorHomeScreen(navController: NavController) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VendorDashboardContent(navController: NavController) {
     val authService = AuthService()
@@ -159,6 +164,30 @@ fun VendorDashboardContent(navController: NavController) {
     var vendor by remember { mutableStateOf<Vendor?>(null) }
     var products by remember { mutableStateOf<List<Product>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+
+    // --- Filter Logic ---
+    var selectedCategory by remember { mutableStateOf("All") }
+
+    // Calculate unique categories dynamically
+    val categories = remember(products) {
+        val uniqueCategories = products
+            .map { it.category }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+
+        listOf("All") + uniqueCategories
+    }
+
+    // Filter products
+    val filteredProducts = remember(products, selectedCategory) {
+        if (selectedCategory == "All") {
+            products
+        } else {
+            products.filter { it.category == selectedCategory }
+        }
+    }
+    // --------------------
 
     LaunchedEffect(Unit) {
         val currentVendor = authService.getCurrentVendor()
@@ -210,7 +239,7 @@ fun VendorDashboardContent(navController: NavController) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "${products.size} items",
+                            "${filteredProducts.size} items",
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -226,42 +255,70 @@ fun VendorDashboardContent(navController: NavController) {
                         }
                     }
                 }
+
+                // --- Category Filter Chips Row ---
+                if (categories.size > 1) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(categories) { category ->
+                            val isSelected = selectedCategory == category
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedCategory = category },
+                                label = { Text(category) },
+                                leadingIcon = if (isSelected) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                } else null,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            if (products.isEmpty()) {
+            // Logic to display filtered products
+            if (filteredProducts.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp),
+                            .height(150.dp), // Slightly smaller height for dashboard
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
                                 Icons.Default.Inventory,
                                 contentDescription = "No products",
-                                modifier = Modifier.size(48.dp),
+                                modifier = Modifier.size(32.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "No products added yet",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "Go to Products tab to add your first product",
-                                fontSize = 14.sp,
+                                text = if (selectedCategory == "All") "No products added yet" else "No products in '$selectedCategory'",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
             } else {
-                // Show only first 3 products on dashboard
-                val displayProducts = if (products.size > 3) products.take(3) else products
+                // Show only first 3 products from the FILTERED list on dashboard
+                val displayProducts = if (filteredProducts.size > 3) filteredProducts.take(3) else filteredProducts
 
                 items(displayProducts) { product ->
                     ProductDashboardItem(product = product)
@@ -269,7 +326,7 @@ fun VendorDashboardContent(navController: NavController) {
                 }
 
                 // Show "View All" if there are more products
-                if (products.size > 3) {
+                if (filteredProducts.size > 3) {
                     item {
                         Card(
                             modifier = Modifier
@@ -285,7 +342,7 @@ fun VendorDashboardContent(navController: NavController) {
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "View All ${products.size} Products",
+                                    text = "View All ${filteredProducts.size} Products",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.primary
@@ -298,165 +355,6 @@ fun VendorDashboardContent(navController: NavController) {
         }
     }
 }
-
-// Update in VendorHomeScreen.kt - VendorAnalyticsContent composable
-@Composable
-fun VendorAnalyticsContent(navController: NavController) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(4.dp)
-            .statusBarsPadding(),
-    ) {
-        Text(
-            "Analytics & Feedback",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
-
-        // Analytics Sales Card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp)
-                .clickable {
-                    navController.navigate("salesAnalytics") // Updated navigation
-                },
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.BarChart,
-                    contentDescription = "Sales Analytics",
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        "Sales Analytics",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        "View your sales performance and revenue",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                Icon(
-                    Icons.Default.ArrowForward,
-                    contentDescription = "Go to Sales Analytics",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Feedback Management Card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp)
-                .clickable {
-                    navController.navigate("vendorFeedbackAnalytics")
-                },
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.Chat,
-                    contentDescription = "Feedback Management",
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        "Customer Feedback",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        "View and reply to customer reviews",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                Icon(
-                    Icons.Default.ArrowForward,
-                    contentDescription = "Go to Feedback Management",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        // ADD THIS NEW CARD FOR FEEDBACK STATISTICS
-// Feedback Statistics Card
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp)
-                .clickable {
-                    navController.navigate("vendorFeedbackStatistics")
-                },
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.Analytics, // Changed to Analytics icon
-                    contentDescription = "Feedback Statistics",
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        "Feedback Statistics",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        "View ratings and review statistics over time",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                Icon(
-                    Icons.Default.ArrowForward,
-                    contentDescription = "Go to Feedback Statistics",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
 
 @Composable
 fun VendorInfoCard(vendor: Vendor?) {

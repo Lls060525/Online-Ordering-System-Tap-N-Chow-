@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -153,9 +154,8 @@ fun CustomerAccountScreen(navController: NavController) {
 
                     navController.navigate("orderHistory")
                 },
-                onFavourites = {
-                    // Navigate to favourites
-                    // navController.navigate("favourites")
+                onMyVouchers = { // <--- Renamed and implemented
+                    navController.navigate("customer_vouchers")
                 },
                 onLogout = {
                     coroutineScope.launch {
@@ -179,7 +179,7 @@ fun CustomerAccountContent(
     onEditProfilePicture: () -> Unit,
     onViewProfile: () -> Unit,
     onOrderHistory: () -> Unit,
-    onFavourites: () -> Unit,
+    onMyVouchers: () -> Unit,
     onLogout: () -> Unit
 ) {
     Column(
@@ -260,9 +260,9 @@ fun CustomerAccountContent(
         )
 
         AccountMenuItem(
-            icon = Icons.Default.Favorite,
-            title = "Favourites",
-            onClick = onFavourites
+            icon = Icons.Default.LocalOffer,
+            title = "My Vouchers",
+            onClick = onMyVouchers
         )
 
         Spacer(modifier = Modifier.height(24.dp)) // Add spacing

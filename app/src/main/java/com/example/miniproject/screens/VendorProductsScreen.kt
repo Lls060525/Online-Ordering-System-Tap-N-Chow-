@@ -2,9 +2,11 @@ package com.example.miniproject.screens
 
 import android.net.Uri
 import android.util.Log
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,11 +18,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -31,6 +36,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +60,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -69,16 +77,47 @@ import kotlinx.coroutines.launch
 fun VendorProductsContent(navController: NavController) {
     val authService = AuthService()
     val databaseService = DatabaseService()
+    val coroutineScope = rememberCoroutineScope()
 
     var vendorId by remember { mutableStateOf<String?>(null) }
     var products by remember { mutableStateOf<List<Product>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+
+    // Dialog States
     var showAddProductDialog by remember { mutableStateOf(false) }
     var editingProduct by remember { mutableStateOf<Product?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var productToDelete by remember { mutableStateOf<Product?>(null) }
 
-    // Get current vendor and load products - ADD THIS BACK!
+    // Restock State
+    var showRestockDialog by remember { mutableStateOf(false) }
+    var productToRestock by remember { mutableStateOf<Product?>(null) }
+
+    // --- Filter State ---
+    var selectedCategory by remember { mutableStateOf("All") }
+
+    // Calculate unique categories dynamically from the loaded products
+    val categories = remember(products) {
+        val uniqueCategories = products
+            .map { it.category }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+
+        listOf("All") + uniqueCategories
+    }
+
+    // Filter products based on selection
+    val filteredProducts = remember(products, selectedCategory) {
+        if (selectedCategory == "All") {
+            products
+        } else {
+            products.filter { it.category == selectedCategory }
+        }
+    }
+    // -------------------------------
+
+    // Get current vendor and load products
     LaunchedEffect(Unit) {
         val vendor = authService.getCurrentVendor()
         vendor?.let {
@@ -87,27 +126,14 @@ fun VendorProductsContent(navController: NavController) {
             products = vendorProducts
             isLoading = false
         } ?: run {
-            // If no vendor found, still stop loading
             isLoading = false
-        }
-    }
-
-    // Debug products - KEEP THIS BUT FIX THE KEY
-    LaunchedEffect(products) {
-        if (products.isNotEmpty()) {
-            products.forEach { product ->
-                Log.d("ProductDebug", "Product: ${product.productName}")
-                Log.d("ProductDebug", "Image URL length: ${product.imageUrl.length}")
-                Log.d("ProductDebug", "Image URL starts with: ${product.imageUrl.take(50)}...")
-            }
         }
     }
 
     Scaffold(
         topBar = {
+            // REMOVED modifier = Modifier.padding(12.dp) to eliminate empty space
             CenterAlignedTopAppBar(
-
-                modifier = Modifier.padding(12.dp),
                 title = {
                     Text(
                         "My Products",
@@ -166,24 +192,92 @@ fun VendorProductsContent(navController: NavController) {
                         )
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp)
+                    Column(
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        items(products) { product ->
-                            ProductItem(
-                                product = product,
-                                onEditClick = {
-                                    editingProduct = product
-                                    showAddProductDialog = true
-                                },
-                                onDeleteClick = {
-                                    productToDelete = product
-                                    showDeleteDialog = true
+                        // --- Auto Filter Chips ---
+                        if (categories.size > 1) {
+                            LazyRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(categories) { category ->
+                                    val isSelected = selectedCategory == category
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedCategory = category },
+                                        label = { Text(category) },
+                                        leadingIcon = if (isSelected) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = "Selected",
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        } else null,
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    )
                                 }
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            }
+                        }
+
+                        // Product List
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp)
+                                .padding(bottom = 16.dp)
+                        ) {
+                            // Instructional Hint
+                            item {
+                                Text(
+                                    text = "Tip: Long press a product to restock",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                            }
+
+                            if (filteredProducts.isEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 32.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "No products found in '$selectedCategory'",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+
+                            items(filteredProducts) { product ->
+                                ProductItem(
+                                    product = product,
+                                    onEditClick = {
+                                        editingProduct = product
+                                        showAddProductDialog = true
+                                    },
+                                    onDeleteClick = {
+                                        productToDelete = product
+                                        showDeleteDialog = true
+                                    },
+                                    onRestockClick = {
+                                        productToRestock = product
+                                        showRestockDialog = true
+                                    }
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
                         }
                     }
                 }
@@ -202,16 +296,43 @@ fun VendorProductsContent(navController: NavController) {
             },
             onSave = { savedProduct ->
                 if (editingProduct != null) {
-                    // Update existing product in the list
                     products = products.map {
                         if (it.productId == savedProduct.productId) savedProduct else it
                     }
                 } else {
-                    // Add new product to the list
                     products = products + savedProduct
                 }
                 showAddProductDialog = false
                 editingProduct = null
+            }
+        )
+    }
+
+    // Restock Dialog
+    if (showRestockDialog) {
+        RestockProductDialog(
+            product = productToRestock,
+            onDismiss = {
+                showRestockDialog = false
+                productToRestock = null
+            },
+            onConfirm = { product, addedQuantity ->
+                coroutineScope.launch {
+                    val newStock = product.stock + addedQuantity
+                    val updatedProduct = product.copy(
+                        stock = newStock,
+                        updatedAt = Timestamp.now()
+                    )
+
+                    databaseService.updateProduct(updatedProduct).onSuccess {
+                        // Update local list
+                        products = products.map {
+                            if (it.productId == product.productId) updatedProduct else it
+                        }
+                        showRestockDialog = false
+                        productToRestock = null
+                    }
+                }
             }
         )
     }
@@ -225,7 +346,6 @@ fun VendorProductsContent(navController: NavController) {
                 productToDelete = null
             },
             onConfirm = { product ->
-                // Remove from local list AND delete from Firebase
                 products = products.filter { it.productId != product.productId }
                 showDeleteDialog = false
                 productToDelete = null
@@ -234,16 +354,22 @@ fun VendorProductsContent(navController: NavController) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ProductItem(
     product: Product,
     onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    onRestockClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { },
+            .clip(RoundedCornerShape(12.dp))
+            .combinedClickable(
+                onClick = { /* Standard click (optional: show details) */ },
+                onLongClick = onRestockClick
+            ),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -251,7 +377,6 @@ fun ProductItem(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // Product Image - Using better image loading
             ProductImage(
                 imageUrl = product.imageUrl,
                 modifier = Modifier.size(80.dp)
@@ -259,7 +384,6 @@ fun ProductItem(
 
             Spacer(modifier = Modifier.size(16.dp))
 
-            // Product Details
             Column(
                 modifier = Modifier.weight(1f)
             ) {
@@ -297,7 +421,9 @@ fun ProductItem(
             }
 
             // Action Buttons
-            Column {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 IconButton(
                     onClick = onEditClick,
                     modifier = Modifier.size(24.dp)
@@ -308,6 +434,8 @@ fun ProductItem(
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 IconButton(
                     onClick = onDeleteClick,
@@ -325,6 +453,77 @@ fun ProductItem(
 }
 
 @Composable
+fun RestockProductDialog(
+    product: Product?,
+    onDismiss: () -> Unit,
+    onConfirm: (Product, Int) -> Unit
+) {
+    var quantityToAdd by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Restock Product", fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column {
+                Text("Current Stock: ${product?.stock ?: 0}")
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = quantityToAdd,
+                    onValueChange = {
+                        if (it.isEmpty() || it.all { char -> char.isDigit() }) {
+                            quantityToAdd = it
+                        }
+                    },
+                    label = { Text("Quantity to Add") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = errorMessage != null
+                )
+
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val qty = quantityToAdd.toIntOrNull()
+                    if (qty == null || qty <= 0) {
+                        errorMessage = "Please enter a valid quantity greater than 0"
+                    } else {
+                        product?.let { onConfirm(it, qty) }
+                    }
+                }
+            ) {
+                Text("Confirm")
+            }
+        },
+        dismissButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
 fun ProductImage(
     imageUrl: String,
     modifier: Modifier = Modifier
@@ -334,12 +533,9 @@ fun ProductImage(
 
     val productBitmap = remember(imageUrl, imageConverter) {
         if (imageUrl.isNotEmpty()) {
-            Log.d("VendorProductImage", "Processing product image, length: ${imageUrl.length}")
             val bitmap = imageConverter.base64ToBitmap(imageUrl)
-            Log.d("VendorProductImage", "Bitmap created: ${bitmap != null}")
             bitmap
         } else {
-            Log.d("VendorProductImage", "Empty image URL")
             null
         }
     }
@@ -360,7 +556,6 @@ fun ProductImage(
                 )
             }
             else -> {
-                // No image - show placeholder
                 Icon(
                     Icons.Default.ShoppingCart,
                     contentDescription = "No Image",
@@ -384,7 +579,6 @@ fun AddEditProductDialog(
     val context = LocalContext.current
     val imageConverter = remember { ImageConverter(context) }
 
-    // Declare all state variables FIRST
     var productName by remember { mutableStateOf(product?.productName ?: "") }
     var productPrice by remember { mutableStateOf(product?.productPrice?.toString() ?: "") }
     var description by remember { mutableStateOf(product?.description ?: "") }
@@ -394,14 +588,11 @@ fun AddEditProductDialog(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // State for image picking
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var isImageLoading by remember { mutableStateOf(false) }
 
-    // Image picker
     val imagePicker = rememberImagePicker { uri ->
         selectedImageUri = uri
-        // Convert the selected image to base64 when image is picked
         if (uri != null) {
             isImageLoading = true
             coroutineScope.launch {
@@ -434,7 +625,6 @@ fun AddEditProductDialog(
                     )
                 }
 
-                // Image Preview and Picker
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -497,14 +687,6 @@ fun AddEditProductDialog(
                                 Text("Remove Image")
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = if (imageUrl.isEmpty()) "No image selected" else "Image selected",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
 
@@ -529,6 +711,7 @@ fun AddEditProductDialog(
                     label = { Text("Price (RM) *") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     isError = productPrice.isBlank() || productPrice.toDoubleOrNull() == null
                 )
 
@@ -544,6 +727,7 @@ fun AddEditProductDialog(
                     label = { Text("Stock Quantity *") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = stock.isBlank() || stock.toIntOrNull() == null
                 )
 
@@ -552,9 +736,10 @@ fun AddEditProductDialog(
                 OutlinedTextField(
                     value = category,
                     onValueChange = { category = it },
-                    label = { Text("Category") },
+                    label = { Text("Category (e.g., Food, Drink)") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    placeholder = { Text("Optional category for filtering") }
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -572,17 +757,14 @@ fun AddEditProductDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    // Validation
                     if (productName.isBlank()) {
                         errorMessage = "Product name is required"
                         return@Button
                     }
-
                     if (productPrice.isBlank() || productPrice.toDoubleOrNull() == null) {
                         errorMessage = "Valid price is required"
                         return@Button
                     }
-
                     if (stock.isBlank() || stock.toIntOrNull() == null) {
                         errorMessage = "Valid stock quantity is required"
                         return@Button
@@ -599,16 +781,13 @@ fun AddEditProductDialog(
                         description = description,
                         stock = stock.toInt(),
                         imageUrl = imageUrl,
-                        category = category,
+                        category = category.trim(),
                         createdAt = product?.createdAt ?: Timestamp.now(),
                         updatedAt = Timestamp.now()
                     )
 
-                    // Use coroutine scope to call suspend functions
                     coroutineScope.launch {
-                        // Save to Firebase
                         if (product == null) {
-                            // Add new product
                             databaseService.addProduct(newProduct).onSuccess { productId ->
                                 val productWithId = newProduct.copy(productId = productId)
                                 onSave(productWithId)
@@ -618,7 +797,6 @@ fun AddEditProductDialog(
                                 isLoading = false
                             }
                         } else {
-                            // Update existing product
                             databaseService.updateProduct(newProduct).onSuccess {
                                 onSave(newProduct)
                                 isLoading = false
@@ -680,17 +858,12 @@ fun DeleteProductDialog(
                 onClick = {
                     if (product != null) {
                         isLoading = true
-                        // Use coroutine scope to call suspend functions
                         coroutineScope.launch {
-                            // FIXED: Actually delete from Firebase
                             databaseService.deleteProduct(product.productId).onSuccess {
-                                // Only call onConfirm if Firebase deletion is successful
                                 onConfirm(product)
                                 isLoading = false
                             }.onFailure {
-                                // Handle deletion error
                                 isLoading = false
-                                // You might want to show an error message here
                             }
                         }
                     }

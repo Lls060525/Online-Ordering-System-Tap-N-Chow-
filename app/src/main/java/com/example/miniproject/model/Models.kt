@@ -79,7 +79,9 @@ data class Vendor(
     val orderCount: Int = 0,
     val totalRevenue: Double = 0.0,
     val rating: Double = 0.0,
-    val reviewCount: Int = 0
+    val reviewCount: Int = 0,
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0
 ) {
     companion object {
         suspend fun generateVendorId(db: FirebaseFirestore): String {
@@ -104,7 +106,22 @@ data class Vendor(
     }
 }
 
-// ... rest of the existing models remain the same ...
+data class Voucher(
+    @DocumentId val voucherId: String = "",
+    val vendorId: String = "",
+    val vendorName: String = "",
+    val vendorProfileImage: String = "", // Stores Base64 string
+    val code: String = "",
+    val description: String = "",
+    val discountType: String = "percentage",
+    val discountValue: Double = 0.0,
+    val minSpend: Double = 0.0,
+    val expiryDate: Timestamp = Timestamp.now(),
+    val isActive: Boolean = true,
+    val usageLimit: Int = 100,
+    val usedCount: Int = 0,
+    val createdAt: Timestamp = Timestamp.now()
+)
 
 // Product Model
 data class Product(
@@ -272,7 +289,10 @@ data class OrderRequest(
     val items: List<CartItem> = emptyList(),
     val totalAmount: Double = 0.0,
     val deliveryAddress: String = "",
-    val paymentMethod: String = ""
+    val paymentMethod: String = "",
+    // ADD THESE TWO FIELDS:
+    val discountAmount: Double = 0.0,
+    val voucherCode: String? = null
 )
 
 data class CustomerAccount(

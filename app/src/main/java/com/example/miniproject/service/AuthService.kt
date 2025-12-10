@@ -343,7 +343,9 @@ class AuthService {
         vendorContact: String,
         address: String,
         category: String,
-        password: String
+        password: String,
+        latitude: Double = 0.0,
+        longitude: Double = 0.0
     ): Result<String> {
         return try {
             val authResult = auth.createUserWithEmailAndPassword(email, password).await()
@@ -357,7 +359,9 @@ class AuthService {
                 email = email,
                 vendorContact = vendorContact,
                 address = address,
-                category = category
+                category = category,
+                latitude = latitude,
+                longitude = longitude
             )
 
             db.collection("vendors").document(vendorId).set(vendor).await()

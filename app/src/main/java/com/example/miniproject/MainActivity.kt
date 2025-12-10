@@ -40,8 +40,12 @@ import com.example.miniproject.screens.ForgotPasswordScreen
 import com.example.miniproject.screens.order.OrderHistoryScreen
 import com.example.miniproject.ui.theme.MiniProjectTheme
 import androidx.compose.runtime.LaunchedEffect
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import com.example.miniproject.screens.CustomerVoucherScreen
+import com.example.miniproject.screens.VendorVoucherScreen
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -94,6 +98,14 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("adminVendors") {
                         AdminVendorListScreen(navController)
+                    }
+
+                    composable("customer_vouchers") {
+                        CustomerVoucherScreen(navController)
+                    }
+
+                    composable("vendorVouchers") {
+                        VendorVoucherScreen(navController)
                     }
 
                     composable("forgotPassword") {

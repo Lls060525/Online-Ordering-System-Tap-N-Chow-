@@ -54,10 +54,30 @@ import com.example.miniproject.service.AuthService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material3.*
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import com.example.miniproject.util.GeocodingHelper
+import com.example.miniproject.util.LocationHelper
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.*
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VendorRegisterScreen(navController: NavController) {
+    // --- Form State ---
     var vendorName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var vendorContact by remember { mutableStateOf("") }
@@ -69,7 +89,12 @@ fun VendorRegisterScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Individual field errors
+    // --- Location State ---
+    var latitude by remember { mutableStateOf(0.0) }
+    var longitude by remember { mutableStateOf(0.0) }
+    var isLocationLoading by remember { mutableStateOf(false) }
+
+    // --- Error States ---
     var vendorNameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
     var contactError by remember { mutableStateOf<String?>(null) }
@@ -78,97 +103,63 @@ fun VendorRegisterScreen(navController: NavController) {
     var passwordError by remember { mutableStateOf<String?>(null) }
     var confirmPasswordError by remember { mutableStateOf<String?>(null) }
 
-    // Scroll state
+    val context = LocalContext.current
+    val locationHelper = remember { LocationHelper(context) }
     val scrollState = rememberScrollState()
 
-    // Clear errors when user starts typing
-    LaunchedEffect(vendorName) { if (vendorName.isNotEmpty()) vendorNameError = null }
-    LaunchedEffect(email) { if (email.isNotEmpty()) emailError = null }
-    LaunchedEffect(vendorContact) { if (vendorContact.isNotEmpty()) contactError = null }
-    LaunchedEffect(address) { if (address.isNotEmpty()) addressError = null }
-    LaunchedEffect(category) { if (category.isNotEmpty()) categoryError = null }
-    LaunchedEffect(password) { if (password.isNotEmpty()) passwordError = null }
-    LaunchedEffect(confirmPassword) { if (confirmPassword.isNotEmpty()) confirmPasswordError = null }
+    // --- Permission Launcher ---
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val isGranted = permissions.values.all { it }
+        if (isGranted) {
+            isLocationLoading = true
+            locationHelper.getCurrentLocation { loc ->
+                latitude = loc.latitude
+                longitude = loc.longitude
 
+                // Convert GPS to Address Address
+                CoroutineScope(Dispatchers.Main).launch {
+                    val addressString = GeocodingHelper.getAddressFromCoordinates(
+                        context,
+                        loc.latitude,
+                        loc.longitude
+                    )
+                    address = addressString
+                    isLocationLoading = false
+                }
+            }
+        } else {
+            errorMessage = "Location permission is needed to detect your shop"
+        }
+    }
+
+    // --- Validation Logic ---
     fun validateForm(): Boolean {
         var isValid = true
 
-        // Vendor name validation
-        if (vendorName.isEmpty()) {
-            vendorNameError = "Vendor name is required"
-            isValid = false
-        } else if (vendorName.length < 2) {
-            vendorNameError = "Vendor name must be at least 2 characters"
-            isValid = false
-        } else {
-            vendorNameError = null
-        }
+        if (vendorName.isEmpty()) { vendorNameError = "Required"; isValid = false }
+        else if (vendorName.length < 2) { vendorNameError = "Min 2 chars"; isValid = false }
+        else vendorNameError = null
 
-        // Email validation
-        if (email.isEmpty()) {
-            emailError = "Email is required"
-            isValid = false
-        } else if (!isValidEmail(email)) {
-            emailError = "Please enter a valid email address"
-            isValid = false
-        } else {
-            emailError = null
-        }
+        if (email.isEmpty()) { emailError = "Required"; isValid = false }
+        else if (!isValidEmail(email)) { emailError = "Invalid email"; isValid = false }
+        else emailError = null
 
-        // Contact validation
-        if (vendorContact.isEmpty()) {
-            contactError = "Contact number is required"
-            isValid = false
-        } else if (!isValidPhoneNumber(vendorContact)) {
-            contactError = "Please enter a valid phone number"
-            isValid = false
-        } else {
-            contactError = null
-        }
+        if (vendorContact.isEmpty()) { contactError = "Required"; isValid = false }
+        else contactError = null
 
-        // Address validation
-        if (address.isEmpty()) {
-            addressError = "Address is required"
-            isValid = false
-        } else if (address.length < 10) {
-            addressError = "Please enter a complete address"
-            isValid = false
-        } else {
-            addressError = null
-        }
+        if (address.isEmpty()) { addressError = "Required"; isValid = false }
+        else addressError = null
 
-        // Category validation
-        if (category.isEmpty()) {
-            categoryError = "Please select a business category"
-            isValid = false
-        } else {
-            categoryError = null
-        }
+        if (password.isEmpty()) { passwordError = "Required"; isValid = false }
+        else if (password.length < 6) { passwordError = "Min 6 chars"; isValid = false }
+        else if (!containsLetterAndDigit(password)) { passwordError = "Must contain letters & numbers"; isValid = false }
+        else passwordError = null
 
-        // Password validation
-        if (password.isEmpty()) {
-            passwordError = "Password is required"
-            isValid = false
-        } else if (password.length < 6) {
-            passwordError = "Password must be at least 6 characters"
-            isValid = false
-        } else if (!containsLetterAndDigit(password)) {
-            passwordError = "Password must contain both letters and numbers"
-            isValid = false
-        } else {
-            passwordError = null
-        }
-
-        // Confirm password validation
-        if (confirmPassword.isEmpty()) {
-            confirmPasswordError = "Please confirm your password"
-            isValid = false
-        } else if (password != confirmPassword) {
-            confirmPasswordError = "Passwords do not match"
-            isValid = false
-        } else {
-            confirmPasswordError = null
-        }
+        if (confirmPassword.isEmpty()) { confirmPasswordError = "Required"; isValid = false }
+        else if (password != confirmPassword) { confirmPasswordError = "Passwords do not match"; isValid = false }
+        else confirmPasswordError = null
 
         return isValid
     }
@@ -176,188 +167,179 @@ fun VendorRegisterScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        text = "Vendor Registration",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                },
+                title = { Text("Vendor Registration") },
                 navigationIcon = {
-                    IconButton(
-                        onClick = { navController.popBackStack() }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back"
-                        )
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, "Back")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                )
+                }
             )
         }
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
-            contentAlignment = Alignment.Center
+                .padding(paddingValues)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scrollState)
-                    .padding(32.dp),
+                    .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Top
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Logo Section
+                // --- Logo ---
                 Image(
                     painter = painterResource(id = R.drawable.logo2),
-                    contentDescription = "App Logo",
-                    modifier = Modifier
-                        .size(100.dp)
-                        .padding(bottom = 8.dp)
+                    contentDescription = "Logo",
+                    modifier = Modifier.size(80.dp)
                 )
 
                 Text(
-                    text = "TAP N CHOW",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    "Create Vendor Account",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                // --- Form Fields ---
+                CustomTextField(
+                    value = vendorName,
+                    onValueChange = { vendorName = it; vendorNameError = null },
+                    label = "Vendor Name",
+                    placeholder = "Business name",
+                    isError = vendorNameError != null,
+                    supportingText = vendorNameError
+                )
 
+                CustomTextField(
+                    value = email,
+                    onValueChange = { email = it; emailError = null },
+                    label = "Email",
+                    placeholder = "Business email",
+                    isError = emailError != null,
+                    supportingText = emailError
+                )
+
+                CustomTextField(
+                    value = vendorContact,
+                    onValueChange = { vendorContact = it; contactError = null },
+                    label = "Contact Number",
+                    placeholder = "Phone number",
+                    isError = contactError != null,
+                    supportingText = contactError
+                )
+
+                // --- Address & Location Section ---
                 Text(
-                    text = "Vendor Registration",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    "Shop Location",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.align(Alignment.Start)
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                // Address Field with Detect Button (NO MAP VISUAL)
+                CustomTextField(
+                    value = address,
+                    onValueChange = { address = it },
+                    label = "Address",
+                    placeholder = "Enter address or click detect",
+                    isError = addressError != null,
+                    supportingText = addressError,
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                                isLocationLoading = true
+                                locationHelper.getCurrentLocation { loc ->
+                                    latitude = loc.latitude
+                                    longitude = loc.longitude
 
-                // Form Section
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    CustomTextField(
-                        value = vendorName,
-                        onValueChange = { vendorName = it },
-                        label = "Vendor Name",
-                        placeholder = "Enter your business name",
-                        isError = vendorNameError != null,
-                        supportingText = vendorNameError
-                    )
-
-                    CustomTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        label = "Email",
-                        placeholder = "Enter your business email",
-                        isError = emailError != null,
-                        supportingText = emailError
-                    )
-
-                    CustomTextField(
-                        value = vendorContact,
-                        onValueChange = { vendorContact = it },
-                        label = "Contact Number",
-                        placeholder = "Enter your contact number",
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone,
-                        isError = contactError != null,
-                        supportingText = contactError
-                    )
-
-                    CustomTextField(
-                        value = address,
-                        onValueChange = { address = it },
-                        label = "Business Address",
-                        placeholder = "Enter your complete business address",
-                        isError = addressError != null,
-                        supportingText = addressError
-                    )
-
-                    // Category Dropdown
-                    ExposedDropdownMenuBox(
-                        expanded = isCategoryExpanded,
-                        onExpandedChange = { isCategoryExpanded = !isCategoryExpanded },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        OutlinedTextField(
-                            value = VendorCategory.getDisplayName(category),
-                            onValueChange = { },
-                            readOnly = true,
-                            label = { Text("Business Category") },
-                            placeholder = { Text("Select your business category") },
-                            trailingIcon = {
-                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryExpanded)
-                            },
-                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(),
-                            isError = categoryError != null,
-                            supportingText = {
-                                if (categoryError != null) {
-                                    Text(text = categoryError!!)
-                                }
-                            }
-                        )
-
-                        ExposedDropdownMenu(
-                            expanded = isCategoryExpanded,
-                            onDismissRequest = { isCategoryExpanded = false }
-                        ) {
-                            VendorCategory.getAllCategories().forEach { categoryOption ->
-                                DropdownMenuItem(
-                                    text = { Text(VendorCategory.getDisplayName(categoryOption)) },
-                                    onClick = {
-                                        category = categoryOption
-                                        isCategoryExpanded = false
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = when (categoryOption) {
-                                                VendorCategory.RESTAURANT -> Icons.Default.Business
-                                                VendorCategory.GROCERY -> Icons.Default.Store
-                                                else -> Icons.Default.Business
-                                            },
-                                            contentDescription = null
+                                    CoroutineScope(Dispatchers.Main).launch {
+                                        val addressString = GeocodingHelper.getAddressFromCoordinates(
+                                            context,
+                                            loc.latitude,
+                                            loc.longitude
                                         )
+                                        address = addressString
+                                        isLocationLoading = false
                                     }
-                                )
+                                }
+                            } else {
+                                locationPermissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION))
+                            }
+                        }) {
+                            if (isLocationLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            } else {
+                                Icon(Icons.Default.MyLocation, "Detect Location", tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
+                )
 
-                    CustomTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = "Password",
-                        placeholder = "Enter password (min. 6 characters)",
-                        visualTransformation = PasswordVisualTransformation(),
-                        isError = passwordError != null,
-                        supportingText = passwordError
-                    )
-
-                    CustomTextField(
-                        value = confirmPassword,
-                        onValueChange = { confirmPassword = it },
-                        label = "Confirm Password",
-                        placeholder = "Confirm your password",
-                        visualTransformation = PasswordVisualTransformation(),
-                        isError = confirmPasswordError != null,
-                        supportingText = confirmPasswordError
+                if (latitude != 0.0) {
+                    Text(
+                        text = "Location Captured: $latitude, $longitude",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.Start)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                // --- Category ---
+                ExposedDropdownMenuBox(
+                    expanded = isCategoryExpanded,
+                    onExpandedChange = { isCategoryExpanded = !isCategoryExpanded },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = VendorCategory.getDisplayName(category),
+                        onValueChange = { },
+                        readOnly = true,
+                        label = { Text("Category") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        isError = categoryError != null,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = isCategoryExpanded,
+                        onDismissRequest = { isCategoryExpanded = false }
+                    ) {
+                        VendorCategory.getAllCategories().forEach { cat ->
+                            DropdownMenuItem(
+                                text = { Text(VendorCategory.getDisplayName(cat)) },
+                                onClick = { category = cat; isCategoryExpanded = false }
+                            )
+                        }
+                    }
+                }
 
+                // --- Passwords ---
+                CustomTextField(
+                    value = password,
+                    onValueChange = { password = it; passwordError = null },
+                    label = "Password",
+                    placeholder = "Min 6 characters",
+                    visualTransformation = PasswordVisualTransformation(),
+                    isError = passwordError != null,
+                    supportingText = passwordError
+                )
+
+                CustomTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it; confirmPasswordError = null },
+                    label = "Confirm Password",
+                    placeholder = "Re-enter password",
+                    visualTransformation = PasswordVisualTransformation(),
+                    isError = confirmPasswordError != null,
+                    supportingText = confirmPasswordError
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // --- Register Button ---
                 Button(
                     onClick = {
                         if (validateForm()) {
@@ -370,7 +352,9 @@ fun VendorRegisterScreen(navController: NavController) {
                                     vendorContact = vendorContact.trim(),
                                     address = address.trim(),
                                     category = category,
-                                    password = password
+                                    password = password,
+                                    latitude = latitude,
+                                    longitude = longitude
                                 )
                                 isLoading = false
                                 if (result.isSuccess) {
@@ -378,68 +362,28 @@ fun VendorRegisterScreen(navController: NavController) {
                                         popUpTo("login") { inclusive = true }
                                     }
                                 } else {
-                                    errorMessage = when {
-                                        result.exceptionOrNull()?.message?.contains("email-already-in-use") == true ->
-                                            "An account with this email already exists"
-                                        result.exceptionOrNull()?.message?.contains("invalid-email") == true ->
-                                            "Invalid email format"
-                                        result.exceptionOrNull()?.message?.contains("weak-password") == true ->
-                                            "Password is too weak. Please use a stronger password"
-                                        else -> "Registration failed. Please try again"
-                                    }
+                                    errorMessage = result.exceptionOrNull()?.message ?: "Registration failed"
                                 }
                             }
                         }
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
                     enabled = !isLoading
                 ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else {
-                        Text("Register as Vendor")
-                    }
+                    if (isLoading) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    else Text("Register Shop")
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Already have a vendor account?",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    TextButton(
-                        onClick = { navController.navigate("vendorLogin") }
-                    ) {
-                        Text("Vendor Login")
-                    }
+                errorMessage?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
                 }
 
-                errorMessage?.let { message ->
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-
-                // Add extra space at the bottom for better scrolling
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }
 }
 
-// Reuse validation functions from RegisterScreen
 private fun isValidEmail(email: String): Boolean {
     val emailRegex = "^[A-Za-z](.*)([@]{1})(.{1,})(\\.)(.{1,})".toRegex()
     return emailRegex.matches(email)

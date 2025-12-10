@@ -43,6 +43,9 @@ fun LoginScreen(navController: NavController) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
+    // Create AuthService instance once
+    val authService = remember { AuthService() }
+
     // Reset click count after 3 seconds of inactivity
     LaunchedEffect(logoClickCount) {
         if (logoClickCount > 0) {
@@ -76,7 +79,8 @@ fun LoginScreen(navController: NavController) {
                 TopAppBar(
                     title = { Text("Tap N Chow") }
                 )
-            }
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) }
         ) { paddingValues ->
             Box(
                 modifier = Modifier
@@ -205,7 +209,7 @@ fun LoginScreen(navController: NavController) {
                     Spacer(modifier = Modifier.height(8.dp))
 
                     TextButton(
-                        onClick = { navController.navigate("forgotPassword") } // Updated
+                        onClick = { navController.navigate("forgotPassword") }
                     ) {
                         Text("Forgot password?")
                     }
@@ -217,14 +221,31 @@ fun LoginScreen(navController: NavController) {
                             if (email.isNotEmpty() && password.isNotEmpty()) {
                                 isLoading = true
                                 CoroutineScope(Dispatchers.Main).launch {
-                                    val result = AuthService().login(email, password)
-                                    isLoading = false
+                                    val result = authService.login(email, password)
+
                                     if (result.isSuccess) {
-                                        // Navigate to home screen
-                                        navController.navigate("home") {
-                                            popUpTo("login") { inclusive = true }
+                                        // LOGIN SUCCESSFUL - Now check Role
+                                        val role = authService.getCurrentUserRole()
+
+                                        if (role == "vendor") {
+                                            // BLOCKED: Vendor trying to log in as Customer
+                                            authService.logout()
+                                            isLoading = false
+                                            errorMessage = "Invalid account type. Please use Vendor Login."
+                                        } else if (role == "admin") {
+                                            // BLOCKED: Admin trying to log in as Customer
+                                            authService.logout()
+                                            isLoading = false
+                                            errorMessage = "Invalid account type. Please use Admin Login."
+                                        } else {
+                                            // SUCCESS: Customer allowed
+                                            isLoading = false
+                                            navController.navigate("home") {
+                                                popUpTo("login") { inclusive = true }
+                                            }
                                         }
                                     } else {
+                                        isLoading = false
                                         val errorMsg = result.exceptionOrNull()?.message ?: "Login failed"
                                         errorMessage = errorMsg
 

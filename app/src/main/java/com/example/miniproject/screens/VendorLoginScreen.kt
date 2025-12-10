@@ -26,7 +26,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,6 +55,10 @@ fun VendorLoginScreen(navController: NavController) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    // Create AuthService instance once
+    val authService = remember { AuthService() }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -120,7 +123,7 @@ fun VendorLoginScreen(navController: NavController) {
                     Spacer(modifier = Modifier.height(8.dp))
 
                     TextButton(
-                        onClick = { /* Handle vendor forgot password */ }
+                        onClick = { navController.navigate("forgotPassword") }
                     ) {
                         Text("Forgot password?")
                     }
@@ -132,15 +135,35 @@ fun VendorLoginScreen(navController: NavController) {
                             if (email.isNotEmpty() && password.isNotEmpty()) {
                                 isLoading = true
                                 CoroutineScope(Dispatchers.Main).launch {
-                                    val result = AuthService().login(email, password)
-                                    isLoading = false
+                                    val result = authService.login(email, password)
+
                                     if (result.isSuccess) {
-                                        // Navigate to vendor home screen
-                                        navController.navigate("vendorHome") {
-                                            popUpTo("vendorLogin") { inclusive = true }
+                                        // LOGIN SUCCESSFUL - Check Role
+                                        val role = authService.getCurrentUserRole()
+
+                                        if (role == "customer") {
+                                            // BLOCKED: Customer trying to log in as Vendor
+                                            authService.logout()
+                                            isLoading = false
+                                            errorMessage = "Invalid account type. Please use Customer Login."
+                                        } else if (role == "admin") {
+                                            // BLOCKED: Admin trying to log in as Vendor
+                                            authService.logout()
+                                            isLoading = false
+                                            errorMessage = "Invalid account type. Please use Admin Login."
+                                        } else {
+                                            // SUCCESS: Vendor allowed
+                                            isLoading = false
+                                            navController.navigate("vendorHome") {
+                                                popUpTo("vendorLogin") { inclusive = true }
+                                            }
                                         }
                                     } else {
+                                        isLoading = false
                                         val errorMsg = result.exceptionOrNull()?.message ?: "Login failed"
+                                        errorMessage = errorMsg // Show general error first
+
+                                        // Show specific snackbar if frozen
                                         if (errorMsg.contains("frozen", ignoreCase = true)) {
                                             scope.launch {
                                                 snackbarHostState.showSnackbar(

@@ -769,7 +769,9 @@ class DatabaseService {
                     orderCount = (data["orderCount"] as? Long)?.toInt() ?: 0,
                     totalRevenue = (data["totalRevenue"] as? Double) ?: 0.0,
                     rating = (data["rating"] as? Double) ?: 0.0,
-                    reviewCount = (data["reviewCount"] as? Long)?.toInt() ?: 0
+                    reviewCount = (data["reviewCount"] as? Long)?.toInt() ?: 0,
+                    latitude = (data["latitude"] as? Double) ?: 0.0,
+                    longitude = (data["longitude"] as? Double) ?: 0.0
                 )
 
                 println("DEBUG Mapped vendor ${document.id}: isFrozen = ${vendor.isFrozen}")
@@ -1511,4 +1513,120 @@ class DatabaseService {
             Result.failure(e)
         }
     }
+
+    // --- Voucher Operations ---
+    suspend fun createVoucher(voucher: Voucher): Result<String> {
+        return try {
+            val ref = db.collection("vouchers").add(voucher).await()
+            Result.success(ref.id)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun toggleVoucherStatus(voucherId: String, isActive: Boolean): Result<Boolean> {
+        return try {
+            db.collection("vouchers").document(voucherId)
+                .update("isActive", isActive)
+                .await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteVoucher(voucherId: String): Result<Boolean> {
+        return try {
+            db.collection("vouchers").document(voucherId).delete().await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getVouchersByVendor(vendorId: String): List<Voucher> {
+        return try {
+            val result = db.collection("vouchers")
+                .whereEqualTo("vendorId", vendorId)
+                // .orderBy("createdAt", Query.Direction.DESCENDING) <--- REMOVE THIS LINE
+                .get()
+                .await()
+
+            val vouchers = result.toObjects(Voucher::class.java)
+
+            // Sort the list here in the code instead
+            vouchers.sortedByDescending { it.createdAt }
+
+        } catch (e: Exception) {
+            println("Error fetching vouchers: ${e.message}") // Add logging to help debug
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    suspend fun getAllActiveVouchers(): List<Voucher> {
+        return try {
+            println("DEBUG: Fetching vouchers...") // Log 1
+
+            val result = db.collection("vouchers")
+                .whereEqualTo("isActive", true)
+                .get()
+                .await()
+
+            println("DEBUG: Found ${result.documents.size} active vouchers in Firestore") // Log 2
+
+            val vouchers = result.toObjects(Voucher::class.java)
+
+            // Filter by date
+            val now = Timestamp.now().seconds
+            val validVouchers = vouchers.filter { it.expiryDate.seconds > now }
+                .sortedByDescending { it.createdAt }
+
+            println("DEBUG: Returning ${validVouchers.size} valid vouchers after date filter") // Log 3
+            validVouchers
+
+        } catch (e: Exception) {
+            println("DEBUG: Error fetching vouchers: ${e.message}") // Log Error
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    suspend fun getCustomerUsedVoucherIds(customerId: String): List<String> {
+        return try {
+            val result = db.collection("voucher_usage")
+                .whereEqualTo("customerId", customerId)
+                .get()
+                .await()
+            result.documents.mapNotNull { it.getString("voucherId") }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+
+    suspend fun trackVoucherUsage(customerId: String, voucherId: String): Result<Boolean> {
+        return try {
+            // Create a unique ID combining customer and voucher to prevent duplicates
+            val usageId = "${customerId}_${voucherId}"
+
+            val usageRecord = mapOf(
+                "customerId" to customerId,
+                "voucherId" to voucherId,
+                "usedAt" to Timestamp.now()
+            )
+
+            // Save usage record
+            db.collection("voucher_usage").document(usageId).set(usageRecord).await()
+
+            // Increment the global 'usedCount' on the actual voucher
+            db.collection("vouchers").document(voucherId)
+                .update("usedCount", FieldValue.increment(1))
+
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
 }

@@ -50,32 +50,11 @@ class BiometricAuthService(private val context: Context) {
         return null
     }
 
-    suspend fun forceSaveTestCredentials(): Boolean {
-        return try {
-            val email = "admin@admin.com.my"
-            val password = "administrator"
-            val credentials = "$email:$password"
-            val encodedData = Base64.encodeToString(credentials.toByteArray(), Base64.DEFAULT)
-
-            val prefs = context.getSharedPreferences(SHARED_PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit()
-                .putString(ENCRYPTED_ADMIN_CREDENTIALS_KEY, encodedData)
-                .putString("iv", "test_iv")
-                .apply()
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    fun debugSharedPrefs() {
-        val prefs = context.getSharedPreferences(SHARED_PREFS_NAME, Context.MODE_PRIVATE)
-        println("DEBUG: Shared Prefs Contents: ${prefs.all}")
-    }
+    // ... (Keep your existing admin functions: forceSaveTestCredentials, saveAdminCredentials, etc.) ...
 
     fun checkBiometricAvailability(): BiometricStatus {
         val biometricManager = BiometricManager.from(context)
-        return when (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)) {
+        return when (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK)) {
             BiometricManager.BIOMETRIC_SUCCESS -> BiometricStatus.AVAILABLE
             BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> BiometricStatus.NO_HARDWARE
             BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> BiometricStatus.UNAVAILABLE
@@ -84,88 +63,51 @@ class BiometricAuthService(private val context: Context) {
         }
     }
 
-    fun hasSavedAdminCredentials(): Boolean {
-        val prefs = context.getSharedPreferences(SHARED_PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.contains(ENCRYPTED_ADMIN_CREDENTIALS_KEY)
-    }
-
-    fun clearSavedAdminCredentials() {
-        val prefs = context.getSharedPreferences(SHARED_PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().clear().apply()
-    }
-
-    // Save admin credentials
-    suspend fun saveAdminCredentials(email: String, password: String): Boolean {
-        // 1. Find the activity internally
+    // --- NEW FUNCTION: Generic Payment Authorization ---
+    suspend fun authorizePayment(amount: Double): Boolean {
         val activity = findFragmentActivity()
-        if (activity == null) {
-            println("DEBUG: Could not find FragmentActivity from context")
-            return false
-        }
+        if (activity == null) return false
 
-        // 2. Switch to Main Thread for UI operations
         return withContext(Dispatchers.Main) {
             suspendCancellableCoroutine { continuation ->
                 try {
-                    val secretKey = getOrCreateSecretKey()
-                    val cipher = getCipher()
-                    cipher.init(Cipher.ENCRYPT_MODE, secretKey)
-
-                    val cryptoObject = BiometricPrompt.CryptoObject(cipher)
-
                     val biometricPrompt = BiometricPrompt(
                         activity,
                         ContextCompat.getMainExecutor(context),
                         object : BiometricPrompt.AuthenticationCallback() {
                             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                                 super.onAuthenticationSucceeded(result)
-                                try {
-                                    val resultCipher = result.cryptoObject?.cipher
-                                    if (resultCipher == null) {
-                                        continuation.resume(false)
-                                        return
-                                    }
-
-                                    val credentials = "$email:$password"
-                                    val encryptedData = resultCipher.doFinal(credentials.toByteArray(StandardCharsets.UTF_8))
-                                    val iv = resultCipher.iv
-
-                                    val prefs = context.getSharedPreferences(SHARED_PREFS_NAME, Context.MODE_PRIVATE)
-                                    val encodedData = Base64.encodeToString(encryptedData, Base64.DEFAULT)
-                                    val encodedIv = Base64.encodeToString(iv, Base64.DEFAULT)
-
-                                    prefs.edit()
-                                        .putString(ENCRYPTED_ADMIN_CREDENTIALS_KEY, encodedData)
-                                        .putString("iv", encodedIv)
-                                        .apply()
-
-                                    continuation.resume(true)
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                    continuation.resume(false)
-                                }
+                                // User authenticated successfully
+                                continuation.resume(true)
                             }
 
                             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                                 super.onAuthenticationError(errorCode, errString)
-                                if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
-                                    errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON
-                                ) {
+                                // Prevent crashing on cancel/back button
+                                if (errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                                    errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
                                     continuation.resume(false)
                                 } else {
-                                    continuation.cancel()
+                                    continuation.resume(false)
                                 }
+                            }
+
+                            override fun onAuthenticationFailed() {
+                                super.onAuthenticationFailed()
+                                // Fingerprint didn't match, let them try again (don't resume yet)
                             }
                         }
                     )
 
                     val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                        .setTitle("Save Admin Credentials")
-                        .setSubtitle("Touch the sensor to save securely")
+                        .setTitle("Confirm Payment")
+                        .setSubtitle("Touch sensor to pay RM ${String.format("%.2f", amount)}")
                         .setNegativeButtonText("Cancel")
                         .build()
 
-                    biometricPrompt.authenticate(promptInfo, cryptoObject)
+                    // We don't need a CryptoObject for simple verification,
+                    // just checking if the user is present is enough for this level of security.
+                    biometricPrompt.authenticate(promptInfo)
 
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -175,84 +117,7 @@ class BiometricAuthService(private val context: Context) {
         }
     }
 
-    // Authenticate admin
-    suspend fun authenticateWithFingerprint(): Pair<String, String>? {
-        val activity = findFragmentActivity()
-        if (activity == null) return null
-
-        return withContext(Dispatchers.Main) {
-            suspendCancellableCoroutine { continuation ->
-                try {
-                    val prefs = context.getSharedPreferences(SHARED_PREFS_NAME, Context.MODE_PRIVATE)
-                    val encryptedData = prefs.getString(ENCRYPTED_ADMIN_CREDENTIALS_KEY, null)
-                    val ivString = prefs.getString("iv", null)
-
-                    if (encryptedData == null || ivString == null) {
-                        continuation.resume(null)
-                        return@suspendCancellableCoroutine
-                    }
-
-                    val secretKey = getOrCreateSecretKey()
-                    val cipher = getCipher()
-                    val iv = Base64.decode(ivString, Base64.DEFAULT)
-                    val gcmSpec = GCMParameterSpec(128, iv)
-                    cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec)
-
-                    val cryptoObject = BiometricPrompt.CryptoObject(cipher)
-
-                    val biometricPrompt = BiometricPrompt(
-                        activity,
-                        ContextCompat.getMainExecutor(context),
-                        object : BiometricPrompt.AuthenticationCallback() {
-                            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                                try {
-                                    val resultCipher = result.cryptoObject?.cipher
-                                    val encryptedBytes = Base64.decode(encryptedData, Base64.DEFAULT)
-                                    val decryptedBytes = resultCipher?.doFinal(encryptedBytes)
-
-                                    if (decryptedBytes != null) {
-                                        val credentials = String(decryptedBytes, StandardCharsets.UTF_8)
-                                        val parts = credentials.split(":")
-                                        if (parts.size == 2) {
-                                            continuation.resume(Pair(parts[0], parts[1]))
-                                        } else {
-                                            continuation.resume(null)
-                                        }
-                                    } else {
-                                        continuation.resume(null)
-                                    }
-                                } catch (e: Exception) {
-                                    continuation.resumeWithException(e)
-                                }
-                            }
-
-                            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                                if (errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
-                                    errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON
-                                ) {
-                                    continuation.cancel()
-                                } else {
-                                    continuation.resume(null)
-                                }
-                            }
-                        }
-                    )
-
-                    val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                        .setTitle("Admin Login")
-                        .setSubtitle("Touch sensor to login")
-                        .setNegativeButtonText("Use Password")
-                        .build()
-
-                    biometricPrompt.authenticate(promptInfo, cryptoObject)
-
-                } catch (e: Exception) {
-                    continuation.resumeWithException(e)
-                }
-            }
-        }
-    }
-
+    // ... (Keep getOrCreateSecretKey, createSecretKey, getCipher private functions) ...
     private fun getOrCreateSecretKey(): SecretKey {
         val keyStore = KeyStore.getInstance(KEYSTORE_NAME)
         keyStore.load(null)

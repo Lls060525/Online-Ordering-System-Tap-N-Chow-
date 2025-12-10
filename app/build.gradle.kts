@@ -94,4 +94,9 @@ dependencies {
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("com.google.android.gms:play-services-auth:20.7.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    //Real-Time Location
+    implementation("com.google.maps.android:maps-compose:4.3.3")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
 }
