@@ -1,4 +1,3 @@
-
 package com.example.miniproject.model
 
 import com.google.firebase.Timestamp
