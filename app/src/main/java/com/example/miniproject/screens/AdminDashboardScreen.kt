@@ -1,10 +1,12 @@
 
 package com.example.miniproject.screens
 
+import android.net.http.SslCertificate.saveState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -12,11 +14,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.miniproject.service.DatabaseService
 import kotlinx.coroutines.launch
 import java.text.DecimalFormat
@@ -522,39 +528,101 @@ fun PlatformEarningsBreakdown(
     }
 }
 
+// Data class for navigation items (add this ABOVE the AdminBottomNavigation function)
+data class NavItem(
+    val route: String,
+    val icon: ImageVector,
+    val label: String
+)
+
 @Composable
 fun AdminBottomNavigation(navController: NavController) {
-    NavigationBar {
-        NavigationBarItem(
-            selected = true,
-            onClick = { navController.navigate("adminDashboard") },
-            icon = { Icon(Icons.Default.Dashboard, contentDescription = "Dashboard") },
-            label = { Text("Dashboard") }
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = { navController.navigate("adminVendors") },
-            icon = { Icon(Icons.Default.Store, contentDescription = "Vendors") },
-            label = { Text("Vendors") }
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = { navController.navigate("adminUserManagement") },
-            icon = { Icon(Icons.Default.People, contentDescription = "Users") },
-            label = { Text("Users") }
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = { navController.navigate("adminOrders") },
-            icon = { Icon(Icons.Default.Receipt, contentDescription = "Orders") },
-            label = { Text("Orders") }
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = { navController.navigate("adminFeedback") },
-            icon = { Icon(Icons.Default.Reviews, contentDescription = "Feedback") },
-            label = { Text("Feedback") }
-        )
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentDestination = navBackStackEntry?.destination
 
+    val navItems = listOf(
+        NavItem("adminDashboard", Icons.Default.Dashboard, "Dashboard"),
+        NavItem("adminVendors", Icons.Default.Store, "Vendors"),
+        NavItem("adminUserManagement", Icons.Default.People, "Users"),
+        NavItem("adminOrders", Icons.Default.Receipt, "Orders"),
+        NavItem("adminFeedback", Icons.Default.Reviews, "Feedback"),
+        NavItem("adminAnalytics", Icons.Default.Analytics, "Analytics")
+    )
+
+    NavigationBar(
+        tonalElevation = 8.dp,
+        containerColor = MaterialTheme.colorScheme.surface,
+        modifier = Modifier
+            .shadow(
+                elevation = 8.dp,
+                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                clip = true
+            )
+    ) {
+        navItems.forEach { item ->
+            val isSelected = currentDestination?.route == item.route
+
+            NavigationBarItem(
+                selected = isSelected,
+                onClick = {
+                    // FIXED: Only navigate if not already on this screen
+                    if (!isSelected) {
+                        navController.navigate(item.route) {
+                            // FIXED: Don't pop up to start destination
+                            // Instead, pop up to current route to prevent back stack buildup
+                            popUpTo(currentDestination?.route ?: "adminDashboard") {
+                                saveState = true
+                                inclusive = false
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                },
+                icon = {
+                    Box(
+                        modifier = if (isSelected) {
+                            Modifier
+                                .shadow(
+                                    elevation = 4.dp,
+                                    shape = CircleShape,
+                                    spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                )
+                                .background(
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    shape = CircleShape
+                                )
+                                .padding(8.dp)
+                        } else {
+                            Modifier.padding(8.dp)
+                        }
+                    ) {
+                        Icon(
+                            item.icon,
+                            contentDescription = item.label,
+                            tint = if (isSelected)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
+                label = {
+                    Text(
+                        item.label,
+                        fontSize = 12.sp,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                    )
+                },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                )
+            )
+        }
     }
 }
