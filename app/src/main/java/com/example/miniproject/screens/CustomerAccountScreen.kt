@@ -50,6 +50,7 @@ fun CustomerAccountScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
     var showImagePickerDialog by remember { mutableStateOf(false) }
 
+
     val imagePicker = rememberImagePicker { uri ->
         if (uri != null) {
             coroutineScope.launch {
