@@ -132,11 +132,6 @@ fun VendorAnalyticsContent(navController: NavController) {
                     )
                 }
                 Spacer(modifier = Modifier.weight(1f))
-                Icon(
-                    Icons.Default.ArrowForward,
-                    contentDescription = "Go to Feedback Management",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
 

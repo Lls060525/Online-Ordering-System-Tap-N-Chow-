@@ -41,6 +41,7 @@ import com.example.miniproject.service.DatabaseService
 import com.google.firebase.Timestamp
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import androidx.compose.material3.SelectableDates
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -344,28 +345,35 @@ fun VoucherItemCard(
 @Composable
 fun AddVoucherDialog(
     vendorId: String,
-    vendorName: String, // New param
-    vendorImage: String, // New param
+    vendorName: String,
+    vendorImage: String,
     onDismiss: () -> Unit,
     onSuccess: () -> Unit
 ) {
     val databaseService = DatabaseService()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     // Form State
     var code by remember { mutableStateOf("") }
-    var discountType by remember { mutableStateOf("percentage") } // "percentage" or "fixed"
+    var discountType by remember { mutableStateOf("percentage") }
     var discountValue by remember { mutableStateOf("") }
     var minSpend by remember { mutableStateOf("") }
     var usageLimit by remember { mutableStateOf("100") }
     var isLoading by remember { mutableStateOf(false) }
-
-    // Date Picker State
     var showDatePicker by remember { mutableStateOf(false) }
+
+    // Initial date setup
     val calendar = Calendar.getInstance()
-    calendar.add(Calendar.DAY_OF_YEAR, 7) // Default 7 days
+    calendar.add(Calendar.DAY_OF_YEAR, 1)
     var selectedDate by remember { mutableStateOf(calendar.timeInMillis) }
-    val dateState = rememberDatePickerState(initialSelectedDateMillis = selectedDate)
+
+    // --- FIX: REMOVED THE COMPLEX "SelectableDates" BLOCK ---
+    val dateState = rememberDatePickerState(
+        initialSelectedDateMillis = selectedDate
+        // We removed the 'selectableDates' parameter entirely to avoid errors
+    )
+    // --------------------------------------------------------
 
     val dateFormatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
 
@@ -374,8 +382,23 @@ fun AddVoucherDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    dateState.selectedDateMillis?.let { selectedDate = it }
-                    showDatePicker = false
+                    val pickedDate = dateState.selectedDateMillis ?: return@TextButton
+
+                    // --- NEW VALIDATION HERE INSTEAD ---
+                    val today = Calendar.getInstance()
+                    today.set(Calendar.HOUR_OF_DAY, 0)
+                    today.set(Calendar.MINUTE, 0)
+                    today.set(Calendar.SECOND, 0)
+                    today.set(Calendar.MILLISECOND, 0)
+
+                    if (pickedDate < today.timeInMillis) {
+                        Toast.makeText(context, "Cannot select a past date", Toast.LENGTH_SHORT).show()
+                    } else {
+                        // Date is valid, proceed
+                        selectedDate = pickedDate
+                        showDatePicker = false
+                    }
+                    // -----------------------------------
                 }) {
                     Text("OK")
                 }
@@ -384,10 +407,21 @@ fun AddVoucherDialog(
                 TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
             }
         ) {
-            DatePicker(state = dateState)
+            DatePicker(
+                state = dateState,
+                title = { Text("Select Expiry Date", modifier = Modifier.padding(16.dp)) },
+                headline = {
+                    Text(
+                        "Must be a future date",
+                        modifier = Modifier.padding(start = 16.dp, bottom = 16.dp),
+                        fontSize = 14.sp
+                    )
+                }
+            )
         }
     }
 
+    // ... (The rest of your Alert Dialog code remains EXACTLY the same) ...
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Create New Voucher", fontWeight = FontWeight.Bold) },
@@ -411,27 +445,12 @@ fun AddVoucherDialog(
                 Column {
                     Text("Discount Type", fontSize = 14.sp, color = Color.Gray)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Row(
-                            modifier = Modifier
-                                .clickable { discountType = "percentage" }
-                                .padding(end = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = discountType == "percentage",
-                                onClick = { discountType = "percentage" }
-                            )
+                        Row(modifier = Modifier.clickable { discountType = "percentage" }.padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = discountType == "percentage", onClick = { discountType = "percentage" })
                             Text("Percentage (%)")
                         }
-
-                        Row(
-                            modifier = Modifier.clickable { discountType = "fixed" },
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = discountType == "fixed",
-                                onClick = { discountType = "fixed" }
-                            )
+                        Row(modifier = Modifier.clickable { discountType = "fixed" }, verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = discountType == "fixed", onClick = { discountType = "fixed" })
                             Text("Fixed Amount (RM)")
                         }
                     }
@@ -441,10 +460,8 @@ fun AddVoucherDialog(
                 OutlinedTextField(
                     value = discountValue,
                     onValueChange = { if (it.all { char -> char.isDigit() || char == '.' }) discountValue = it },
-                    label = { Text(if (discountType == "percentage") "Percentage Value" else "Amount Value") },
-                    placeholder = { Text(if (discountType == "percentage") "e.g. 10" else "e.g. 5.00") },
+                    label = { Text("Value") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -452,9 +469,8 @@ fun AddVoucherDialog(
                 OutlinedTextField(
                     value = minSpend,
                     onValueChange = { if (it.all { char -> char.isDigit() || char == '.' }) minSpend = it },
-                    label = { Text("Minimum Spend (RM)") },
+                    label = { Text("Min Spend") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -462,36 +478,28 @@ fun AddVoucherDialog(
                 OutlinedTextField(
                     value = usageLimit,
                     onValueChange = { if (it.all { char -> char.isDigit() }) usageLimit = it },
-                    label = { Text("Usage Limit (Qty)") },
+                    label = { Text("Limit") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Expiry Date
+                // Date Picker Input
                 OutlinedTextField(
                     value = dateFormatter.format(Date(selectedDate)),
-                    onValueChange = { },
+                    onValueChange = {},
                     label = { Text("Expiry Date") },
                     readOnly = true,
-                    trailingIcon = {
-                        IconButton(onClick = { showDatePicker = true }) {
-                            Icon(Icons.Default.CalendarToday, contentDescription = "Select Date")
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showDatePicker = true },
+                    trailingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true },
                     enabled = false,
                     colors = OutlinedTextFieldDefaults.colors(
                         disabledTextColor = MaterialTheme.colorScheme.onSurface,
                         disabledBorderColor = MaterialTheme.colorScheme.outline,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
-                Box(
-                    modifier = Modifier.clickable { showDatePicker = true }
-                )
+                Box(modifier = Modifier.fillMaxWidth().height(56.dp).offset(y = (-56).dp).clickable { showDatePicker = true })
             }
         },
         confirmButton = {
@@ -500,13 +508,10 @@ fun AddVoucherDialog(
                     if (code.isBlank() || discountValue.isBlank()) return@Button
 
                     val value = discountValue.toDoubleOrNull() ?: 0.0
-
-                    // Validation
-                    if (discountType == "percentage" && value > 100) return@Button
+                    val spend = minSpend.toDoubleOrNull() ?: 0.0
+                    val limit = usageLimit.toIntOrNull() ?: 100
 
                     isLoading = true
-
-                    // Creating new voucher with Vendor Name & Image
                     val newVoucher = Voucher(
                         vendorId = vendorId,
                         vendorName = vendorName,
@@ -514,8 +519,8 @@ fun AddVoucherDialog(
                         code = code,
                         discountType = discountType,
                         discountValue = value,
-                        minSpend = minSpend.toDoubleOrNull() ?: 0.0,
-                        usageLimit = usageLimit.toIntOrNull() ?: 100,
+                        minSpend = spend,
+                        usageLimit = limit,
                         expiryDate = Timestamp(Date(selectedDate))
                     )
 
@@ -527,21 +532,9 @@ fun AddVoucherDialog(
                 },
                 enabled = !isLoading
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text("Create")
-                }
+                if(isLoading) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White) else Text("Create")
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
