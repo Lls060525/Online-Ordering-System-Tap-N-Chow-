@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -58,6 +59,9 @@ fun RegisterScreen(navController: NavController) {
     var confirmPassword by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // NEW: State for showing success dialog
+    var showSuccessDialog by remember { mutableStateOf(false) }
 
     // Individual field errors
     var nameError by remember { mutableStateOf<String?>(null) }
@@ -166,6 +170,33 @@ fun RegisterScreen(navController: NavController) {
             )
         }
     ) { paddingValues ->
+
+        // NEW: Success Dialog Implementation
+        if (showSuccessDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    // Optional: decide if clicking outside dismisses it.
+                    // Usually better to force them to click the button.
+                },
+                title = { Text("Verification Sent") },
+                text = {
+                    Text("Account created successfully! We have sent a verification email to $email. Please verify your email before logging in.")
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showSuccessDialog = false
+                            navController.navigate("login") {
+                                popUpTo("login") { inclusive = true }
+                            }
+                        }
+                    ) {
+                        Text("Go to Login")
+                    }
+                }
+            )
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -175,14 +206,14 @@ fun RegisterScreen(navController: NavController) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(scrollState) // Make it scrollable
+                    .verticalScroll(scrollState)
                     .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
             ) {
                 // Logo Section
                 Image(
-                    painter = painterResource(id = R.drawable.logo), // Replace with your logo resource
+                    painter = painterResource(id = R.drawable.logo),
                     contentDescription = "App Logo",
                     modifier = Modifier
                         .size(100.dp)
@@ -269,7 +300,6 @@ fun RegisterScreen(navController: NavController) {
                             isLoading = true
                             errorMessage = null
 
-                            // Use try-catch to handle any unexpected crashes
                             try {
                                 CoroutineScope(Dispatchers.Main).launch {
                                     val result = AuthService().registerCustomer(
@@ -280,9 +310,8 @@ fun RegisterScreen(navController: NavController) {
                                     )
                                     isLoading = false
                                     if (result.isSuccess) {
-                                        navController.navigate("home") {
-                                            popUpTo("login") { inclusive = true }
-                                        }
+                                        // MODIFIED: Show dialog instead of direct navigation
+                                        showSuccessDialog = true
                                     } else {
                                         val exception = result.exceptionOrNull()
                                         errorMessage = exception?.message ?: "Registration failed. Please try again"
@@ -344,7 +373,6 @@ fun RegisterScreen(navController: NavController) {
 }
 
 // Validation functions
-
 private fun isValidEmail(email: String): Boolean {
     val emailRegex = "^[A-Za-z](.*)([@]{1})(.{1,})(\\.)(.{1,})".toRegex()
     return emailRegex.matches(email)

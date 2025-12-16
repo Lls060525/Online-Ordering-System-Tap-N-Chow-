@@ -160,7 +160,17 @@ class AuthService {
             val result = auth.signInWithEmailAndPassword(email, password).await()
 
             if (result.user != null) {
-                val uid = result.user!!.uid
+                val user = result.user!!
+                val uid = user.uid
+
+                // --- NEW: CHECK EMAIL VERIFICATION ---
+                // Reload user data to get the latest verification status
+                user.reload().await()
+                if (!user.isEmailVerified) {
+                    auth.signOut()
+                    return Result.failure(Exception("Please verify your email address. Check your inbox."))
+                }
+                // -------------------------------------
 
                 // 2. Get user mapping to identify if Customer, Vendor, or Admin
                 val mapping = db.collection("user_mappings").document(uid).get().await()
@@ -181,7 +191,6 @@ class AuthService {
                             return Result.failure(Exception("User profile not found."))
                         }
                         if (customer.isFrozen) {
-                            // CRITICAL: LOG OUT IMMEDIATELY
                             auth.signOut()
                             return Result.failure(Exception("Your account has been frozen. Please contact support."))
                         }
@@ -195,15 +204,12 @@ class AuthService {
                             return Result.failure(Exception("Vendor profile not found."))
                         }
                         if (vendor.isFrozen) {
-                            // CRITICAL: LOG OUT IMMEDIATELY
                             auth.signOut()
                             return Result.failure(Exception("Your vendor account has been frozen. Please contact support."))
                         }
                         databaseService.updateVendorLoginActivity(vendorId)
 
                     } else if (isAdmin) {
-                        // It's an Admin - NO FREEZE CHECK NEEDED
-                        // Update admin login activity if you have that function
                         println("Admin logged in successfully")
                     }
                 }
@@ -213,7 +219,6 @@ class AuthService {
                 Result.failure(Exception("Login failed - no user returned"))
             }
         } catch (e: Exception) {
-            // Ensure signed out if exception occurs during checks
             auth.signOut()
             Result.failure(Exception("Login failed: ${e.message}"))
         }
@@ -302,14 +307,24 @@ class AuthService {
             }
 
             val authResult = auth.createUserWithEmailAndPassword(email, password).await()
-            val firebaseUserId = authResult.user?.uid ?: throw Exception("Customer creation failed")
+            val user = authResult.user ?: throw Exception("Customer creation failed")
+            val firebaseUserId = user.uid
+
+            // --- NEW: SEND VERIFICATION EMAIL ---
+            try {
+                user.sendEmailVerification().await()
+            } catch (e: Exception) {
+                // Log error but continue with registration logic so data isn't lost
+                println("Failed to send verification email: ${e.message}")
+            }
+            // ------------------------------------
 
             val customerId = Customer.generateCustomerId(db)
 
             val profileUpdates = UserProfileChangeRequest.Builder()
                 .setDisplayName(name)
                 .build()
-            authResult.user?.updateProfile(profileUpdates)?.await()
+            user.updateProfile(profileUpdates).await()
 
             val customer = Customer(
                 customerId = customerId,
@@ -329,11 +344,37 @@ class AuthService {
                 )
             ).await()
 
+            // --- NEW: SIGN OUT IMMEDIATELY ---
+            // Force them to login again after verifying
+            auth.signOut()
+
             Result.success(customerId)
 
         } catch (e: Exception) {
+            // If registration fails halfway, try to clean up the auth user
             auth.currentUser?.delete()?.await()
             Result.failure(Exception("Registration failed: ${e.message}"))
+        }
+    }
+
+    suspend fun resendVerificationEmail(email: String, password: String): Result<Boolean> {
+        return try {
+            // We must sign in to send the verification email
+            val result = auth.signInWithEmailAndPassword(email, password).await()
+            val user = result.user
+
+            if (user != null) {
+                if (user.isEmailVerified) {
+                    return Result.failure(Exception("Email is already verified."))
+                }
+                user.sendEmailVerification().await()
+                auth.signOut() // Sign out again
+                Result.success(true)
+            } else {
+                Result.failure(Exception("User not found"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
