@@ -26,12 +26,12 @@ import com.example.miniproject.screens.VendorLoginScreen
 import com.example.miniproject.screens.VendorProductsContent
 import com.example.miniproject.screens.VendorRegisterScreen
 import com.example.miniproject.screens.VendorReviewsScreen
-import com.example.miniproject.screens.admin.AdminAnalyticsScreen
+import com.example.miniproject.screens.AdminAnalyticsScreen
 import com.example.miniproject.screens.AdminDashboardScreen
 import com.example.miniproject.screens.AdminFeedbackListScreen
 import com.example.miniproject.screens.AdminOrderListScreen
 import com.example.miniproject.screens.AdminUserManagementScreen
-import com.example.miniproject.screens.admin.AdminVendorListScreen
+import com.example.miniproject.screens.AdminVendorListScreen
 import com.example.miniproject.screens.AdminVendorSalesReportScreen
 import com.example.miniproject.screens.AdminLoginScreen
 import com.example.miniproject.screens.AdminOrderDetailsScreen

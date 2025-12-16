@@ -1,5 +1,4 @@
-// Fixed package directive to match file location
-package com.example.miniproject.screens.admin
+package com.example.miniproject.screens
 
 import android.graphics.Paint
 import androidx.compose.foundation.Canvas

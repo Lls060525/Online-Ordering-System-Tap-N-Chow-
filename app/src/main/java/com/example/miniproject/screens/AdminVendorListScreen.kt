@@ -1,4 +1,4 @@
-package com.example.miniproject.screens.admin
+package com.example.miniproject.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.miniproject.model.Vendor
 import com.example.miniproject.service.DatabaseService
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.DecimalFormat
 
@@ -483,7 +482,7 @@ fun AdminVendorListScreen(navController: NavController) {
     // Snackbar
     if (showSnackbar) {
         LaunchedEffect(showSnackbar) {
-            delay(3000)
+            kotlinx.coroutines.delay(3000)
             showSnackbar = false
         }
 

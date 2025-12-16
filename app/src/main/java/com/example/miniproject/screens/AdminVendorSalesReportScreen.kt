@@ -1,4 +1,4 @@
-package com.example.miniproject.screens.admin
+package com.example.miniproject.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
