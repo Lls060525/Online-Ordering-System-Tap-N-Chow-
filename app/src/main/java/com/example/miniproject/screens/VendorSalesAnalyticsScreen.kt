@@ -1,5 +1,9 @@
+// [file]: com/example/miniproject/screens/VendorSalesAnalyticsScreen.kt
 package com.example.miniproject.screens
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -8,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.*
@@ -18,16 +23,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.miniproject.model.Order
-import com.example.miniproject.model.OrderDetail
+import com.example.miniproject.model.Vendor
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.util.OrderStatusHelper
+import com.example.miniproject.utils.PdfGenerator
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -35,35 +42,56 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SalesAnalyticsScreen(navController: NavController) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Sales Analytics") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        SalesAnalyticsContent(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        )
-    }
-}
-
-@Composable
-fun SalesAnalyticsContent(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     val authService = AuthService()
     val databaseService = DatabaseService()
     val coroutineScope = rememberCoroutineScope()
 
+    // State for Data
     var salesData by remember { mutableStateOf<SalesData?>(null) }
+    var currentVendor by remember { mutableStateOf<Vendor?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // --- PDF SAVING LOGIC (Storage Access Framework) ---
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                coroutineScope.launch(Dispatchers.IO) {
+                    try {
+                        val outputStream = context.contentResolver.openOutputStream(uri)
+                        if (outputStream != null && salesData != null && currentVendor != null) {
+                            PdfGenerator.generateSalesReport(
+                                context,
+                                outputStream,
+                                currentVendor!!,
+                                salesData!!
+                            )
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+        }
+    }
+
+    fun initiatePdfDownload() {
+        if (salesData == null || currentVendor == null) return
+
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
+        val fileName = "Sales_Report_$timeStamp.pdf"
+
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_TITLE, fileName)
+        }
+        createDocumentLauncher.launch(intent)
+    }
+    // ------------------------
 
     // Function to load sales data
     fun loadSalesData() {
@@ -72,14 +100,15 @@ fun SalesAnalyticsContent(modifier: Modifier = Modifier) {
                 isLoading = true
                 errorMessage = null
 
-                val currentVendor = authService.getCurrentVendor()
-                if (currentVendor == null) {
+                val vendor = authService.getCurrentVendor()
+                if (vendor == null) {
                     errorMessage = "Vendor not found"
                     return@launch
                 }
+                currentVendor = vendor // Save vendor to state
 
                 val allOrders = databaseService.getAllOrders()
-                val vendorSalesData = calculateVendorSalesData(currentVendor.vendorId, allOrders, databaseService)
+                val vendorSalesData = calculateVendorSalesData(vendor.vendorId, allOrders, databaseService)
                 salesData = vendorSalesData
             } catch (e: Exception) {
                 errorMessage = "Failed to load sales data: ${e.message}"
@@ -94,114 +123,158 @@ fun SalesAnalyticsContent(modifier: Modifier = Modifier) {
         loadSalesData()
     }
 
-    if (isLoading) {
-        Box(
-            modifier = modifier,
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator()
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Sales Analytics") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    // Only show download button if data is loaded
+                    if (!isLoading && salesData != null) {
+                        IconButton(onClick = { initiatePdfDownload() }) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "Download Report",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            )
         }
-    } else if (errorMessage != null) {
-        Box(
-            modifier = modifier,
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) { paddingValues ->
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "Error Loading Data",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = colorScheme.error
-                )
-                Text(
-                    text = errorMessage ?: "Unknown error",
-                    fontSize = 14.sp,
-                    color = colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-                Button(onClick = { loadSalesData() }) {
-                    Text("Retry")
-                }
+                CircularProgressIndicator()
             }
-        }
-    } else {
-        LazyColumn(
-            modifier = modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item {
-                Text(
-                    "Sales Overview",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colorScheme.onSurface
-                )
-            }
-
-            // Key Metrics Cards
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+        } else if (errorMessage != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Total Revenue Card
-                    MetricCard(
-                        title = "Total Revenue",
-                        value = "RM${"%.2f".format(salesData?.totalRevenueWithTax ?: 0.0)}",
-                        subtitle = "RM${"%.2f".format(salesData?.totalRevenue ?: 0.0)} + RM${"%.2f".format(salesData?.totalTax ?: 0.0)} tax",
-                        icon = Icons.Default.MonetizationOn,
-                        color = colorScheme.primary,
-                        modifier = Modifier.weight(1f)
+                    Text(
+                        text = "Error Loading Data",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colorScheme.error
                     )
-
-                    // Total Orders Card
-                    MetricCard(
-                        title = "Total Orders",
-                        value = "${salesData?.totalOrders ?: 0}",
-                        icon = Icons.Default.Receipt,
-                        color = colorScheme.secondary,
-                        modifier = Modifier.weight(1f)
+                    Text(
+                        text = errorMessage ?: "Unknown error",
+                        fontSize = 14.sp,
+                        color = colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
+                    Button(onClick = { loadSalesData() }) {
+                        Text("Retry")
+                    }
                 }
             }
-
-            // Average Order Value
-            item {
-                MetricCard(
-                    title = "Average Order Value",
-                    value = "RM${"%.2f".format(salesData?.averageOrderValueWithTax ?: 0.0)}",
-                    subtitle = "RM${"%.2f".format(salesData?.averageOrderValue ?: 0.0)} + RM${"%.2f".format(salesData?.averageTax ?: 0.0)} tax",
-                    icon = Icons.Default.BarChart,
-                    color = colorScheme.tertiary,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            // Sales Trend Graph
-            item {
-                SalesTrendGraph(salesData = salesData)
-            }
-
-            // Order Status Breakdown
-            item {
-                OrderStatusBreakdownCard(salesData = salesData)
-            }
-
-            // Recent Orders
-            item {
-                RecentOrdersCard(salesData = salesData)
-            }
-
-            // Monthly Revenue (if available)
-            item {
-                MonthlyRevenueCard(salesData = salesData)
-            }
+        } else {
+            SalesAnalyticsContent(
+                salesData = salesData,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            )
         }
     }
 }
+
+@Composable
+fun SalesAnalyticsContent(
+    salesData: SalesData?,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Text(
+                "Sales Overview",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = colorScheme.onSurface
+            )
+        }
+
+        // Key Metrics Cards
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Total Revenue Card
+                MetricCard(
+                    title = "Total Revenue",
+                    value = "RM${"%.2f".format(salesData?.totalRevenueWithTax ?: 0.0)}",
+                    subtitle = "RM${"%.2f".format(salesData?.totalRevenue ?: 0.0)} + RM${"%.2f".format(salesData?.totalTax ?: 0.0)} tax",
+                    icon = Icons.Default.MonetizationOn,
+                    color = colorScheme.primary,
+                    modifier = Modifier.weight(1f)
+                )
+
+                // Total Orders Card
+                MetricCard(
+                    title = "Total Orders",
+                    value = "${salesData?.totalOrders ?: 0}",
+                    icon = Icons.Default.Receipt,
+                    color = colorScheme.secondary,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        // Average Order Value
+        item {
+            MetricCard(
+                title = "Average Order Value",
+                value = "RM${"%.2f".format(salesData?.averageOrderValueWithTax ?: 0.0)}",
+                subtitle = "RM${"%.2f".format(salesData?.averageOrderValue ?: 0.0)} + RM${"%.2f".format(salesData?.averageTax ?: 0.0)} tax",
+                icon = Icons.Default.BarChart,
+                color = colorScheme.tertiary,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // Sales Trend Graph
+        item {
+            SalesTrendGraph(salesData = salesData)
+        }
+
+        // Order Status Breakdown
+        item {
+            OrderStatusBreakdownCard(salesData = salesData)
+        }
+
+        // Recent Orders
+        item {
+            RecentOrdersCard(salesData = salesData)
+        }
+
+        // Monthly Revenue (if available)
+        item {
+            MonthlyRevenueCard(salesData = salesData)
+        }
+    }
+}
+
+// --- Helper Composables & Data Logic ---
 
 @Composable
 fun MetricCard(
@@ -426,7 +499,7 @@ fun LineChart(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                values.forEachIndexed { index, value ->
+                values.forEachIndexed { _, value ->
                     Text(
                         text = "RM${"%.0f".format(value)}",
                         fontSize = 10.sp,
@@ -522,7 +595,6 @@ fun OrderStatusItem(status: String, count: Int, percentage: Double, color: Color
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Status color indicator
             Box(
                 modifier = Modifier
                     .size(12.dp)
@@ -719,7 +791,7 @@ fun MonthlyRevenueItem(month: String, revenue: Double) {
     }
 }
 
-// Updated Data classes for sales analytics with tax
+// Data class for sales analytics
 data class SalesData(
     val totalRevenue: Double,
     val totalTax: Double,
@@ -735,15 +807,19 @@ data class SalesData(
     val dailyRevenueWithTax: Map<String, Double>
 )
 
-// Updated function to calculate vendor-specific sales data with tax
+// Helper function to calculate vendor sales data
 private suspend fun calculateVendorSalesData(
     vendorId: String,
     allOrders: List<Order>,
     databaseService: DatabaseService
 ): SalesData {
     val vendorOrders = mutableListOf<Order>()
+
+    // Variables for financial totals (Only non-cancelled)
     var totalRevenue = 0.0
     var totalTax = 0.0
+    var validOrdersCount = 0
+
     val orderStatusCounts = mutableMapOf<String, Int>()
     val monthlyRevenue = mutableMapOf<String, Double>()
     val monthlyRevenueWithTax = mutableMapOf<String, Double>()
@@ -763,81 +839,77 @@ private suspend fun calculateVendorSalesData(
         dailyRevenue[dateKey] = 0.0
     }
 
-    // Filter orders that contain products from this vendor
     for (order in allOrders) {
         val orderDetails = databaseService.getOrderDetails(order.orderId)
         var vendorOrderTotal = 0.0
         var vendorOrderTax = 0.0
 
-        // Calculate vendor's portion of the order with tax
+        // Calculate vendor's portion
         for (detail in orderDetails) {
             val product = databaseService.getProductById(detail.productId)
             if (product?.vendorId == vendorId) {
                 val subtotal = detail.subtotal
-                // Assuming 6% tax rate - you can modify this based on your actual tax calculation
-                val tax = subtotal * 0.06
+                val tax = subtotal * 0.06 // 6% tax
                 vendorOrderTotal += subtotal
                 vendorOrderTax += tax
             }
         }
 
-        // If vendor has products in this order, include it
         if (vendorOrderTotal > 0) {
             val vendorOrderWithTax = vendorOrderTotal + vendorOrderTax
 
-            // Create a modified order with vendor-specific total including tax
+            // Add to list for "Recent Orders" table (we want to see Cancelled orders in history)
             val vendorOrder = order.copy(totalPrice = vendorOrderWithTax)
             vendorOrders.add(vendorOrder)
 
-            totalRevenue += vendorOrderTotal
-            totalTax += vendorOrderTax
-
-            // Update status counts
+            // Update status counts (Includes cancelled)
             orderStatusCounts[order.status] = orderStatusCounts.getOrDefault(order.status, 0) + 1
 
-            // Update monthly revenue
-            val monthYear = monthFormat.format(order.orderDate.toDate())
-            monthlyRevenue[monthYear] = monthlyRevenue.getOrDefault(monthYear, 0.0) + vendorOrderTotal
-            monthlyRevenueWithTax[monthYear] = monthlyRevenueWithTax.getOrDefault(monthYear, 0.0) + vendorOrderWithTax
+            // --- FILTERING LOGIC ---
+            // Only add to Revenue totals if NOT cancelled
+            // If you want STRICTLY "completed" status only, change check to: order.status.equals("completed", ignoreCase = true)
+            if (!order.status.equals("cancelled", ignoreCase = true)) {
 
-            // Update daily revenue for last 7 days
-            val orderDate = dateFormat.format(order.orderDate.toDate())
-            val today = dateFormat.format(Date())
-            val calendarOrder = Calendar.getInstance().apply {
-                time = order.orderDate.toDate()
-            }
-            val calendarToday = Calendar.getInstance().apply {
-                time = Date()
-            }
+                totalRevenue += vendorOrderTotal
+                totalTax += vendorOrderTax
+                validOrdersCount++
 
-            // Check if order is within last 7 days
-            calendarToday.add(Calendar.DAY_OF_YEAR, -6) // 7 days ago
-            if (!order.orderDate.toDate().before(calendarToday.time)) {
-                val dayKey = shortDateFormat.format(order.orderDate.toDate())
-                dailyRevenue[dayKey] = dailyRevenue.getOrDefault(dayKey, 0.0) + vendorOrderWithTax
+                // Update monthly revenue
+                val monthYear = monthFormat.format(order.orderDate.toDate())
+                monthlyRevenue[monthYear] = monthlyRevenue.getOrDefault(monthYear, 0.0) + vendorOrderTotal
+                monthlyRevenueWithTax[monthYear] = monthlyRevenueWithTax.getOrDefault(monthYear, 0.0) + vendorOrderWithTax
+
+                // Update daily revenue
+                val calendarToday = Calendar.getInstance().apply { time = Date() }
+                calendarToday.add(Calendar.DAY_OF_YEAR, -6)
+                if (!order.orderDate.toDate().before(calendarToday.time)) {
+                    val dayKey = shortDateFormat.format(order.orderDate.toDate())
+                    dailyRevenue[dayKey] = dailyRevenue.getOrDefault(dayKey, 0.0) + vendorOrderWithTax
+                }
             }
         }
     }
 
-    val totalOrders = vendorOrders.size
     val totalRevenueWithTax = totalRevenue + totalTax
-    val averageOrderValue = if (totalOrders > 0) totalRevenue / totalOrders else 0.0
-    val averageTax = if (totalOrders > 0) totalTax / totalOrders else 0.0
-    val averageOrderValueWithTax = if (totalOrders > 0) totalRevenueWithTax / totalOrders else 0.0
 
-    // Sort recent orders by date (newest first)
+    // Averages should be based on valid orders count
+    val averageOrderValue = if (validOrdersCount > 0) totalRevenue / validOrdersCount else 0.0
+    val averageTax = if (validOrdersCount > 0) totalTax / validOrdersCount else 0.0
+    val averageOrderValueWithTax = if (validOrdersCount > 0) totalRevenueWithTax / validOrdersCount else 0.0
+
+    // Recent orders sorted newest first
     val recentOrders = vendorOrders.sortedByDescending { it.orderDate.seconds }
 
     return SalesData(
         totalRevenue = totalRevenue,
         totalTax = totalTax,
         totalRevenueWithTax = totalRevenueWithTax,
-        totalOrders = totalOrders,
+        totalOrders = validOrdersCount, // Use the valid count here
         averageOrderValue = averageOrderValue,
         averageTax = averageTax,
         averageOrderValueWithTax = averageOrderValueWithTax,
         orderStatusCounts = orderStatusCounts,
-        recentOrders = recentOrders,
+        recentOrders = recentOrders, // Contains all orders including cancelled
         monthlyRevenue = monthlyRevenue,
         monthlyRevenueWithTax = monthlyRevenueWithTax,
         dailyRevenueWithTax = dailyRevenue
