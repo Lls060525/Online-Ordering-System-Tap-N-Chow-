@@ -1,5 +1,10 @@
 package com.example.miniproject.screens.order
 
+import android.Manifest
+import android.os.Build
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -38,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,6 +54,7 @@ import com.example.miniproject.model.OrderDetail
 import com.example.miniproject.model.Payment
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
+import com.example.miniproject.util.NotificationHelper
 import com.example.miniproject.util.OrderStatusHelper.formatOrderDate
 import com.example.miniproject.util.OrderStatusHelper.getStatusColor
 import com.example.miniproject.util.OrderStatusHelper.getStatusDisplayText
@@ -55,38 +63,122 @@ import java.util.Locale
 
 @Composable
 fun OrderScreen(navController: NavController) {
+    val context = LocalContext.current
     val authService = AuthService()
     val databaseService = DatabaseService()
     val coroutineScope = rememberCoroutineScope()
 
+    // initialize Notification Helper
+    val notificationHelper = remember { NotificationHelper(context) }
+
+    // Existing States
     var orders by remember { mutableStateOf<List<Order>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var selectedOrder by remember { mutableStateOf<Order?>(null) }
     var orderDetails by remember { mutableStateOf<List<OrderDetail>>(emptyList()) }
     var showOrderDetails by remember { mutableStateOf(false) }
 
+    // NEW: Alert Dialog States
+    var showPickupDialog by remember { mutableStateOf(false) }
+    var pickupOrderId by remember { mutableStateOf("") }
+
+    // Permission Launcher (For Android 13+)
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                Log.d("OrderScreen", "Notification permission granted")
+            }
+        }
+    )
+
     LaunchedEffect(Unit) {
+        // 1. Ask for permission immediately
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         coroutineScope.launch {
             try {
-                // Get current customer
                 val customer = authService.getCurrentCustomer()
-
                 if (customer == null) {
                     isLoading = false
                     return@launch
                 }
 
-                // Get customer-specific orders
+                // 2. Initial Load of Orders
                 val customerOrders = databaseService.getCustomerOrders(customer.customerId)
                 orders = customerOrders
                 isLoading = false
 
+                // 3. IMMEDIATE CHECK: Check if any order is ALREADY "ready"
+                // This handles the case where the status changed while the app was closed
+                val alreadyReadyOrder = customerOrders.find { it.status.equals("ready", ignoreCase = true) }
+                if (alreadyReadyOrder != null) {
+                    pickupOrderId = alreadyReadyOrder.getDisplayOrderId()
+                    showPickupDialog = true
+                    // Also trigger notification just in case they missed it
+                    notificationHelper.showOrderReadyNotification(pickupOrderId)
+                }
+
+                // 4. REAL-TIME LISTENER: Listen for status changes while on this screen
+                // Ensure 'listenToOrderUpdates' exists in your DatabaseService!
+                databaseService.listenToOrderUpdates(customer.customerId) { readyOrder ->
+                    // A. Trigger System Notification (Status Bar)
+                    notificationHelper.showOrderReadyNotification(readyOrder.getDisplayOrderId())
+
+                    // B. Trigger In-App Alert Dialog (Pop-up)
+                    pickupOrderId = readyOrder.getDisplayOrderId()
+                    showPickupDialog = true
+
+                    // C. Refresh the list to update the status color UI
+                    coroutineScope.launch {
+                        orders = databaseService.getCustomerOrders(customer.customerId)
+                    }
+                }
+
             } catch (e: Exception) {
                 isLoading = false
+                Log.e("OrderScreen", "Error loading orders: ${e.message}")
             }
         }
     }
 
+    // --- ALERT DIALOG (Visible Pop-up) ---
+    if (showPickupDialog) {
+        AlertDialog(
+            onDismissRequest = { showPickupDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Restaurant,
+                    contentDescription = "Food Ready",
+                    modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Order Ready for Pickup!",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Order #$pickupOrderId is ready! Please collect your food at the counter.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showPickupDialog = false }
+                ) {
+                    Text("OK, I'm Coming")
+                }
+            }
+        )
+    }
+
+    // --- ORDER DETAILS DIALOG ---
     if (showOrderDetails && selectedOrder != null) {
         OrderDetailDialog(
             order = selectedOrder!!,
@@ -98,6 +190,7 @@ fun OrderScreen(navController: NavController) {
             }
         )
     } else {
+        // --- MAIN SCREEN CONTENT ---
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -147,6 +240,8 @@ fun OrderScreen(navController: NavController) {
         }
     }
 }
+
+// --- HELPER COMPOSABLES ---
 
 @Composable
 fun OrderCard(

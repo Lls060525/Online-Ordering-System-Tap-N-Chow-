@@ -3,8 +3,10 @@ package com.example.miniproject.service
 import android.net.Uri
 import com.example.miniproject.model.*
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.Source
 import kotlinx.coroutines.tasks.await
@@ -1607,6 +1609,30 @@ class DatabaseService {
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    fun listenToOrderUpdates(customerId: String, onOrderReady: (Order) -> Unit): ListenerRegistration {
+        return db.collection("orders")
+            .whereEqualTo("customerId", customerId)
+            .addSnapshotListener { snapshots, e ->
+                if (e != null) {
+                    return@addSnapshotListener
+                }
+
+                for (dc in snapshots!!.documentChanges) {
+                    // We only care if an existing order was MODIFIED
+                    if (dc.type == DocumentChange.Type.MODIFIED) {
+                        val order = dc.document.toObject(Order::class.java)
+
+                        // Check if the NEW status is "ready"
+                        // You might want to check if the old status was NOT ready to avoid duplicates,
+                        // but usually checking the current state is enough for a simple alert.
+                        if (order.status.equals("ready", ignoreCase = true)) {
+                            onOrderReady(order)
+                        }
+                    }
+                }
+            }
     }
 
     suspend fun getVouchersByVendor(vendorId: String): List<Voucher> {
