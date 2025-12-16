@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Restaurant
@@ -28,6 +30,10 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
+import androidx.compose.material3.ElevatedFilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -61,6 +67,7 @@ import com.example.miniproject.util.OrderStatusHelper.getStatusDisplayText
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrderScreen(navController: NavController) {
     val context = LocalContext.current
@@ -81,6 +88,31 @@ fun OrderScreen(navController: NavController) {
     // NEW: Alert Dialog States
     var showPickupDialog by remember { mutableStateOf(false) }
     var pickupOrderId by remember { mutableStateOf("") }
+
+    // --- NEW: Filter State and Logic ---
+    var selectedFilter by remember { mutableStateOf("All") }
+
+    // Define status categories
+    // Note: Ensure these match the raw strings stored in your Firestore
+    val activeStatuses = listOf("pending", "confirmed", "preparing", "ready", "delivered")
+    val completedStatuses = listOf("completed")
+    val cancelledStatuses = listOf("cancelled")
+
+    // Calculate Counts dynamically based on the full orders list
+    val allCount = orders.size
+    val activeCount = orders.count { it.status.lowercase() in activeStatuses }
+    val completedCount = orders.count { it.status.lowercase() in completedStatuses }
+    val cancelledCount = orders.count { it.status.lowercase() in cancelledStatuses }
+
+    // Create the filtered list to display
+    val filteredOrders = remember(orders, selectedFilter) {
+        when (selectedFilter) {
+            "Active" -> orders.filter { it.status.lowercase() in activeStatuses }
+            "Completed" -> orders.filter { it.status.lowercase() in completedStatuses }
+            "Cancelled" -> orders.filter { it.status.lowercase() in cancelledStatuses }
+            else -> orders // "All"
+        }
+    }
 
     // Permission Launcher (For Android 13+)
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -108,32 +140,28 @@ fun OrderScreen(navController: NavController) {
 
                 // 2. Initial Load of Orders
                 val customerOrders = databaseService.getCustomerOrders(customer.customerId)
-                orders = customerOrders
+                // Sort by date descending (newest first)
+                orders = customerOrders.sortedByDescending { it.orderDate }
                 isLoading = false
 
                 // 3. IMMEDIATE CHECK: Check if any order is ALREADY "ready"
-                // This handles the case where the status changed while the app was closed
                 val alreadyReadyOrder = customerOrders.find { it.status.equals("ready", ignoreCase = true) }
                 if (alreadyReadyOrder != null) {
                     pickupOrderId = alreadyReadyOrder.getDisplayOrderId()
                     showPickupDialog = true
-                    // Also trigger notification just in case they missed it
                     notificationHelper.showOrderReadyNotification(pickupOrderId)
                 }
 
-                // 4. REAL-TIME LISTENER: Listen for status changes while on this screen
-                // Ensure 'listenToOrderUpdates' exists in your DatabaseService!
+                // 4. REAL-TIME LISTENER
                 databaseService.listenToOrderUpdates(customer.customerId) { readyOrder ->
-                    // A. Trigger System Notification (Status Bar)
                     notificationHelper.showOrderReadyNotification(readyOrder.getDisplayOrderId())
-
-                    // B. Trigger In-App Alert Dialog (Pop-up)
                     pickupOrderId = readyOrder.getDisplayOrderId()
                     showPickupDialog = true
 
-                    // C. Refresh the list to update the status color UI
+                    // Refresh list
                     coroutineScope.launch {
-                        orders = databaseService.getCustomerOrders(customer.customerId)
+                        val updatedOrders = databaseService.getCustomerOrders(customer.customerId)
+                        orders = updatedOrders.sortedByDescending { it.orderDate }
                     }
                 }
 
@@ -200,8 +228,42 @@ fun OrderScreen(navController: NavController) {
                 text = "My Orders",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.padding(bottom = 8.dp)
             )
+
+            // --- NEW: Filter Chips Row ---
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChipItem(
+                    label = "All",
+                    count = allCount,
+                    selected = selectedFilter == "All",
+                    onClick = { selectedFilter = "All" }
+                )
+                FilterChipItem(
+                    label = "Active",
+                    count = activeCount,
+                    selected = selectedFilter == "Active",
+                    onClick = { selectedFilter = "Active" }
+                )
+                FilterChipItem(
+                    label = "Completed",
+                    count = completedCount,
+                    selected = selectedFilter == "Completed",
+                    onClick = { selectedFilter = "Completed" }
+                )
+                FilterChipItem(
+                    label = "Cancelled",
+                    count = cancelledCount,
+                    selected = selectedFilter == "Cancelled",
+                    onClick = { selectedFilter = "Cancelled" }
+                )
+            }
 
             if (isLoading) {
                 Box(
@@ -219,11 +281,14 @@ fun OrderScreen(navController: NavController) {
                         )
                     }
                 }
-            } else if (orders.isEmpty()) {
-                EmptyOrderState()
+            } else if (filteredOrders.isEmpty()) {
+                // Modified empty state to reflect current filter
+                val emptyMessage = if (orders.isNotEmpty()) "No $selectedFilter orders found" else "No orders yet"
+                EmptyOrderState(subtitle = emptyMessage)
             } else {
                 LazyColumn {
-                    items(orders) { order ->
+                    // Iterate over filteredOrders instead of all orders
+                    items(filteredOrders) { order ->
                         OrderCard(
                             order = order,
                             onClick = {
@@ -241,7 +306,31 @@ fun OrderScreen(navController: NavController) {
     }
 }
 
-// --- HELPER COMPOSABLES ---
+// --- NEW: Helper Composable for Filter Chips ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FilterChipItem(
+    label: String,
+    count: Int,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    ElevatedFilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Text(
+                text = "$label ($count)",
+                style = MaterialTheme.typography.labelLarge
+            )
+        },
+        enabled = true, // Required
+        colors = FilterChipDefaults.elevatedFilterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    )
+}
 
 @Composable
 fun OrderCard(

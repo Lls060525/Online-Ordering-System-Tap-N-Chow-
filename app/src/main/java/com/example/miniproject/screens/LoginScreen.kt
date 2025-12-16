@@ -192,7 +192,7 @@ fun LoginScreen(navController: NavController) {
                     CustomTextField(
                         value = email,
                         onValueChange = { email = it },
-                        label = "User ID/Email",
+                        label = "User Email",
                         placeholder = "Type here"
                     )
 
