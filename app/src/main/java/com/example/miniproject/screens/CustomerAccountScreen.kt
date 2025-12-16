@@ -183,6 +183,38 @@ fun CustomerAccountContent(
     onMyVouchers: () -> Unit,
     onLogout: () -> Unit
 ) {
+    // 1. Add State for Logout Dialog
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
+    // 2. The Logout Confirmation Dialog
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text(text = "Log Out") },
+            text = { Text("Are you sure you want to log out?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLogoutDialog = false
+                        onLogout() // Call the actual logout function
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Log Out")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showLogoutDialog = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -270,13 +302,13 @@ fun CustomerAccountContent(
 
         // Logout Button
         Button(
-            onClick = onLogout,
+            // 3. Update onClick to show dialog instead of logging out immediately
+            onClick = { showLogoutDialog = true },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .height(50.dp),
             colors = ButtonDefaults.buttonColors(
-                // These colors match the Vendor screenshot exactly
                 containerColor = MaterialTheme.colorScheme.errorContainer, // Light Pink
                 contentColor = MaterialTheme.colorScheme.onErrorContainer  // Dark Red
             )
@@ -292,11 +324,11 @@ fun CustomerAccountContent(
                 fontWeight = FontWeight.Bold
             )
         }
+
         // Customer Details Section
         CustomerDetailsSection(customer = customer)
     }
 }
-
 @Composable
 fun ProfileAvatarSection(
     customer: Customer?,
