@@ -163,18 +163,8 @@ class AuthService {
                 val user = result.user!!
                 val uid = user.uid
 
-                // --- NEW: CHECK EMAIL VERIFICATION ---
-                // Reload user data to get the latest verification status
-                user.reload().await()
-                if (!user.isEmailVerified) {
-                    auth.signOut()
-                    return Result.failure(Exception("Please verify your email address. Check your inbox."))
-                }
-                // -------------------------------------
-
                 // 2. Get user mapping to identify if Customer, Vendor, or Admin
                 val mapping = db.collection("user_mappings").document(uid).get().await()
-
                 val databaseService = DatabaseService()
 
                 if (mapping.exists()) {
@@ -182,9 +172,18 @@ class AuthService {
                     val customerId = mapping.getString("customerId")
                     val vendorId = mapping.getString("vendorId")
 
-                    // 3. CHECK FREEZE STATUS (only for customers and vendors, NOT admin)
+                    // 3. ROLE SPECIFIC CHECKS
                     if (!customerId.isNullOrEmpty()) {
-                        // It's a Customer - check if frozen
+                        // --- CUSTOMER LOGIC ---
+
+                        // A. Check Email Verification (ONLY FOR CUSTOMERS)
+                        user.reload().await()
+                        if (!user.isEmailVerified) {
+                            auth.signOut()
+                            return Result.failure(Exception("Please verify your email address. Check your inbox."))
+                        }
+
+                        // B. Check Freeze Status
                         val customer = databaseService.getCustomerById(customerId)
                         if (customer == null) {
                             auth.signOut()
@@ -197,7 +196,10 @@ class AuthService {
                         databaseService.updateCustomerLoginActivity(customerId)
 
                     } else if (!vendorId.isNullOrEmpty()) {
-                        // It's a Vendor - check if frozen
+                        // --- VENDOR LOGIC ---
+                        // Note: Email verification check is SKIPPED here
+
+                        // Check if frozen
                         val vendor = databaseService.getVendorById(vendorId)
                         if (vendor == null) {
                             auth.signOut()
