@@ -1,4 +1,4 @@
-package com.example.miniproject.screens
+package com.example.miniproject.screens.admin
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,6 +22,7 @@ import androidx.navigation.NavController
 import com.example.miniproject.model.Feedback
 import com.example.miniproject.model.Vendor
 import com.example.miniproject.service.DatabaseService
+import com.google.firebase.Timestamp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
@@ -76,13 +78,13 @@ fun AdminFeedbackListScreen(navController: NavController) {
                             productName = data["productName"] as? String ?: "",
                             rating = (data["rating"] as? Double) ?: (data["rating"] as? Long)?.toDouble() ?: 0.0,
                             comment = data["comment"] as? String ?: "",
-                            feedbackDate = data["feedbackDate"] as? com.google.firebase.Timestamp
-                                ?: data["createdAt"] as? com.google.firebase.Timestamp
-                                ?: com.google.firebase.Timestamp.now(),
-                            createdAt = data["createdAt"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
+                            feedbackDate = data["feedbackDate"] as? Timestamp
+                                ?: data["createdAt"] as? Timestamp
+                                ?: Timestamp.now(),
+                            createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
                             isVisible = data["isVisible"] as? Boolean ?: true,
                             vendorReply = data["vendorReply"] as? String ?: "",
-                            vendorReplyDate = data["vendorReplyDate"] as? com.google.firebase.Timestamp,
+                            vendorReplyDate = data["vendorReplyDate"] as? Timestamp,
                             isReplied = data["isReplied"] as? Boolean ?: false
                         )
 
@@ -518,7 +520,7 @@ fun AdminFeedbackListScreen(navController: NavController) {
 fun AdminFeedbackStatCard(
     title: String,
     value: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     color: Color,
     modifier: Modifier = Modifier
 ) {

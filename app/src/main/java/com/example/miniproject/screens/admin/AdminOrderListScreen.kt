@@ -1,5 +1,4 @@
-
-package com.example.miniproject.screens
+package com.example.miniproject.screens.admin
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

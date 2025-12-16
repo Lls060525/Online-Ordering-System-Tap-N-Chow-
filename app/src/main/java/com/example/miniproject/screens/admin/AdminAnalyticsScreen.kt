@@ -1,6 +1,7 @@
 // Fixed package directive to match file location
-package com.example.miniproject.screens
+package com.example.miniproject.screens.admin
 
+import android.graphics.Paint
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -17,6 +18,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,7 +28,6 @@ import com.example.miniproject.model.Vendor
 import com.example.miniproject.service.DatabaseService
 import kotlinx.coroutines.launch
 import java.text.DecimalFormat
-import java.text.SimpleDateFormat
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -395,10 +396,10 @@ fun BarChartCanvas(data: List<Double>) {
                     "RM${String.format(Locale.getDefault(), "%.0f", value)}",
                     x + barWidth / 2,
                     y - 8.dp.toPx(),
-                    android.graphics.Paint().apply {
+                    Paint().apply {
                         color = android.graphics.Color.BLACK
                         textSize = 10.sp.toPx()
-                        textAlign = android.graphics.Paint.Align.CENTER
+                        textAlign = Paint.Align.CENTER
                         isAntiAlias = true
                     }
                 )
@@ -411,7 +412,7 @@ fun BarChartCanvas(data: List<Double>) {
 fun AdminMetricCard(
     title: String,
     value: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     color: Color,
     modifier: Modifier = Modifier
 ) {

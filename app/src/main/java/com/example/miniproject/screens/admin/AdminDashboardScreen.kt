@@ -1,5 +1,4 @@
-
-package com.example.miniproject.screens
+package com.example.miniproject.screens.admin
 
 import android.net.http.SslCertificate.saveState
 import androidx.compose.foundation.background
@@ -18,6 +17,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -324,7 +324,7 @@ fun AdminDashboardScreen(navController: NavController) {
 fun AdminStatCard(
     title: String,
     value: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     color: Color,
     modifier: Modifier = Modifier
 ) {
@@ -356,7 +356,7 @@ fun AdminStatCard(
                 title,
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -366,7 +366,7 @@ fun AdminStatCard(
 fun AdminActionCard(
     title: String,
     description: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     onClick: () -> Unit
 ) {
     Card(

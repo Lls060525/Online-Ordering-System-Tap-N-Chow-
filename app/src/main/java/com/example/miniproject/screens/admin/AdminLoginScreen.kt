@@ -1,4 +1,4 @@
-package com.example.miniproject.screens
+package com.example.miniproject.screens.admin
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState

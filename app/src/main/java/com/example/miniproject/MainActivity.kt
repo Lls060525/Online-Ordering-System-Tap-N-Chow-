@@ -2,7 +2,6 @@ package com.example.miniproject
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.navigation.compose.NavHost
@@ -27,12 +26,12 @@ import com.example.miniproject.screens.VendorLoginScreen
 import com.example.miniproject.screens.VendorProductsContent
 import com.example.miniproject.screens.VendorRegisterScreen
 import com.example.miniproject.screens.VendorReviewsScreen
-import com.example.miniproject.screens.AdminAnalyticsScreen
+import com.example.miniproject.screens.admin.AdminAnalyticsScreen
 import com.example.miniproject.screens.AdminDashboardScreen
 import com.example.miniproject.screens.AdminFeedbackListScreen
 import com.example.miniproject.screens.AdminOrderListScreen
 import com.example.miniproject.screens.AdminUserManagementScreen
-import com.example.miniproject.screens.AdminVendorListScreen
+import com.example.miniproject.screens.admin.AdminVendorListScreen
 import com.example.miniproject.screens.AdminVendorSalesReportScreen
 import com.example.miniproject.screens.AdminLoginScreen
 import com.example.miniproject.screens.AdminOrderDetailsScreen
@@ -40,7 +39,6 @@ import com.example.miniproject.screens.ForgotPasswordScreen
 import com.example.miniproject.screens.order.OrderHistoryScreen
 import com.example.miniproject.ui.theme.MiniProjectTheme
 import androidx.compose.runtime.LaunchedEffect
-import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import com.example.miniproject.screens.CustomerVoucherScreen
 import com.example.miniproject.screens.VendorVoucherScreen
