@@ -1524,6 +1524,71 @@ class DatabaseService {
         }
     }
 
+    suspend fun claimVoucher(customerId: String, voucherId: String): Result<Boolean> {
+        return try {
+            val claimId = "${customerId}_${voucherId}" // Unique ID to prevent double claiming
+
+            val claimData = mapOf(
+                "customerId" to customerId,
+                "voucherId" to voucherId,
+                "claimedAt" to Timestamp.now(),
+                "isUsed" to false
+            )
+
+            db.collection("voucher_claims").document(claimId).set(claimData).await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun isVoucherClaimed(customerId: String, voucherId: String): Boolean {
+        return try {
+            val claimId = "${customerId}_${voucherId}"
+            val doc = db.collection("voucher_claims").document(claimId).get().await()
+            doc.exists()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun getClaimedVouchers(customerId: String): List<Voucher> {
+        return try {
+            // 1. Get all claim records for this customer
+            val claims = db.collection("voucher_claims")
+                .whereEqualTo("customerId", customerId)
+                .whereEqualTo("isUsed", false) // Optional: Only show unused vouchers
+                .get()
+                .await()
+
+            if (claims.isEmpty) return emptyList()
+
+            val voucherIds = claims.documents.map { it.getString("voucherId") ?: "" }.filter { it.isNotEmpty() }
+
+            if (voucherIds.isEmpty()) return emptyList()
+
+            // 2. Fetch the actual Voucher objects based on IDs
+            // Firestore 'in' query supports up to 10 items. For robustness, we fetch individually or in batches.
+            // Here we fetch individually for simplicity in this context.
+            val vouchers = mutableListOf<Voucher>()
+
+            for (id in voucherIds) {
+                val voucherDoc = db.collection("vouchers").document(id).get().await()
+                val voucher = voucherDoc.toObject(Voucher::class.java)
+
+                // Only add if voucher exists and is still valid (expiry check)
+                if (voucher != null && voucher.isActive && voucher.expiryDate.seconds > Timestamp.now().seconds) {
+                    vouchers.add(voucher)
+                }
+            }
+
+            vouchers.sortedByDescending { it.expiryDate }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
     suspend fun toggleVoucherStatus(voucherId: String, isActive: Boolean): Result<Boolean> {
         return try {
             db.collection("vouchers").document(voucherId)

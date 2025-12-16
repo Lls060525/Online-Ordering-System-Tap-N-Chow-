@@ -4,12 +4,14 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -60,6 +62,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,8 +84,10 @@ import com.example.miniproject.model.CartItem
 import com.example.miniproject.model.Product
 import com.example.miniproject.model.Vendor
 import com.example.miniproject.model.VendorCategory
+import com.example.miniproject.model.Voucher
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
+import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.net.URLEncoder
@@ -118,12 +123,18 @@ class ImageConverter(private val context: android.content.Context) {
 fun FoodMenuScreen(navController: NavController, vendorId: String?) {
     val databaseService = DatabaseService()
     val authService = AuthService()
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var vendor by remember { mutableStateOf<Vendor?>(null) }
     var products by remember { mutableStateOf<List<Product>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var cartItems by remember { mutableStateOf<List<CartItem>>(emptyList()) }
     var showCart by remember { mutableStateOf(false) }
+
+    // --- Voucher States ---
+    var vendorVouchers by remember { mutableStateOf<List<Voucher>>(emptyList()) }
+    var claimedVoucherIds by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     // --- Auto Filter Logic ---
     var selectedCategory by remember { mutableStateOf("All") }
@@ -149,17 +160,34 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
     }
 
     LaunchedEffect(vendorId) {
-        if (vendorId != null) {
-            val vendorData = databaseService.getVendorById(vendorId)
+        val targetVendorId = vendorId ?: authService.getCurrentVendor()?.vendorId
+
+        if (targetVendorId != null) {
+            // 1. Get Vendor Info
+            val vendorData = databaseService.getVendorById(targetVendorId)
             vendor = vendorData
-            val vendorProducts = databaseService.getProductsByVendor(vendorId)
+
+            // 2. Get Products
+            val vendorProducts = databaseService.getProductsByVendor(targetVendorId)
             products = vendorProducts
-        } else {
-            val currentVendor = authService.getCurrentVendor()
-            vendor = currentVendor
-            currentVendor?.let {
-                val vendorProducts = databaseService.getProductsByVendor(it.vendorId)
-                products = vendorProducts
+
+            // 3. Get Vouchers for this vendor
+            val allVouchers = databaseService.getVouchersByVendor(targetVendorId)
+            // Filter: Active AND Not Expired
+            vendorVouchers = allVouchers.filter {
+                it.isActive && it.expiryDate.seconds > com.google.firebase.Timestamp.now().seconds
+            }
+
+            // 4. Check Claim Status (if user is logged in as customer)
+            val customer = authService.getCurrentCustomer()
+            if (customer != null) {
+                val claimedList = mutableSetOf<String>()
+                vendorVouchers.forEach { v ->
+                    if (databaseService.isVoucherClaimed(customer.customerId, v.voucherId)) {
+                        claimedList.add(v.voucherId)
+                    }
+                }
+                claimedVoucherIds = claimedList
             }
         }
         isLoading = false
@@ -235,7 +263,49 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                 // 1. Vendor Header
                 VendorHeaderSection(vendor = vendor)
 
-                // 2. Filter Chips (Only show if there are products and categories)
+                // 2. Vouchers Section (NEW)
+                if (vendorVouchers.isNotEmpty()) {
+                    Text(
+                        text = "Vouchers",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(vendorVouchers) { voucher ->
+                            VoucherClaimCard(
+                                voucher = voucher,
+                                isClaimed = claimedVoucherIds.contains(voucher.voucherId),
+                                onClaim = {
+                                    scope.launch {
+                                        val customer = authService.getCurrentCustomer()
+                                        if (customer != null) {
+                                            val result = databaseService.claimVoucher(customer.customerId, voucher.voucherId)
+                                            if (result.isSuccess) {
+                                                // Update UI immediately
+                                                claimedVoucherIds = claimedVoucherIds + voucher.voucherId
+                                                Toast.makeText(context, "Voucher Claimed!", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "Failed to claim", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "Please login as customer to claim", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Divider(thickness = 0.5.dp, color = Color.LightGray)
+                }
+
+                // 3. Filter Chips (Only show if there are products and categories)
                 if (products.isNotEmpty() && categories.size > 1) {
                     LazyRow(
                         modifier = Modifier
@@ -267,7 +337,7 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                     }
                 }
 
-                // 3. Product List
+                // 4. Product List
                 if (products.isEmpty()) {
                     Box(
                         modifier = Modifier
@@ -366,7 +436,6 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                         vendorName = vendor?.vendorName ?: "",
                         vendorAddress = vendor?.address ?: "",
                         vendorContact = vendor?.vendorContact ?: "",
-                        // FIX: Remove vendorProfileImage if it doesn't exist in Cart model
                         items = cartItems,
                         subtotal = cartItems.sumOf { it.productPrice * it.quantity },
                         serviceFee = cartItems.sumOf { it.productPrice * it.quantity } * 0.10,
@@ -393,12 +462,9 @@ fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {
 
     val productBitmap = remember(product.imageUrl) {
         if (product.imageUrl.isNotEmpty()) {
-            Log.d("ProductImage", "Processing product image: ${product.productName}")
             val bitmap = imageConverter.base64ToBitmap(product.imageUrl)
-            Log.d("ProductImage", "Bitmap created: ${bitmap != null}")
             bitmap
         } else {
-            Log.d("ProductImage", "No image URL for product: ${product.productName}")
             null
         }
     }
@@ -673,29 +739,7 @@ fun VendorHeaderSection(vendor: Vendor?) {
         isLoadingRating = false
     }
 
-    // FIX: Use a safe approach for profile image
-    val vendorImageString = vendor?.let { vendorObj ->
-        // Try to get profile image using reflection or different property names
-        when {
-            // Try common property names
-            vendorObj::class.java.declaredFields.any { it.name == "profileImageBase64" } -> {
-                val field = vendorObj::class.java.getDeclaredField("profileImageBase64")
-                field.isAccessible = true
-                field.get(vendorObj) as? String
-            }
-            vendorObj::class.java.declaredFields.any { it.name == "profileImage" } -> {
-                val field = vendorObj::class.java.getDeclaredField("profileImage")
-                field.isAccessible = true
-                field.get(vendorObj) as? String
-            }
-            vendorObj::class.java.declaredFields.any { it.name == "imageUrl" } -> {
-                val field = vendorObj::class.java.getDeclaredField("imageUrl")
-                field.isAccessible = true
-                field.get(vendorObj) as? String
-            }
-            else -> null
-        }
-    }
+    val vendorImageString = vendor?.profileImageBase64
 
     val vendorBitmap = remember(vendorImageString) {
         imageConverter.base64ToBitmap(vendorImageString)
@@ -828,7 +872,6 @@ fun VendorHeaderSection(vendor: Vendor?) {
     }
 }
 
-// ... Rest of the file (FoodContentWithVendors and RestaurantCard) remains unchanged ...
 @Composable
 fun FoodContentWithVendors(navController: NavController) {
     val databaseService = DatabaseService()
@@ -845,7 +888,7 @@ fun FoodContentWithVendors(navController: NavController) {
         isLoading = false
     }
 
-    // Filter vendors based on search query, category, and restaurant type
+    // Filter vendors
     val filteredVendors = vendors.filter { vendor ->
         val isRestaurantType = vendor.category == VendorCategory.RESTAURANT ||
                 vendor.category == VendorCategory.CAFE ||
@@ -869,8 +912,7 @@ fun FoodContentWithVendors(navController: NavController) {
             value = searchQuery,
             onValueChange = { searchQuery = it },
             placeholder = { Text("Search for restaurants...") },
-            modifier = Modifier
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             singleLine = true,
             leadingIcon = {
@@ -969,25 +1011,10 @@ fun FoodContentWithVendors(navController: NavController) {
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = when {
-                                searchQuery.isNotEmpty() && selectedCategory != null ->
-                                    "No restaurants found for '$searchQuery' in ${VendorCategory.getDisplayName(selectedCategory!!)}"
-                                searchQuery.isNotEmpty() ->
-                                    "No restaurants found for '$searchQuery'"
-                                selectedCategory != null ->
-                                    "No restaurants available in ${VendorCategory.getDisplayName(selectedCategory!!)}"
-                                else -> "No restaurants available"
-                            },
+                            text = "No restaurants found",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
-                        if (searchQuery.isNotEmpty() || selectedCategory != null) {
-                            Text(
-                                text = "Try a different search term or clear filters",
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
                     }
                 }
             } else {
@@ -1013,7 +1040,6 @@ fun FoodContentWithVendors(navController: NavController) {
             title = { Text("Filter by Category") },
             text = {
                 Column {
-                    // All categories option
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1031,13 +1057,8 @@ fun FoodContentWithVendors(navController: NavController) {
                                 showCategoryFilter = false
                             }
                         )
-                        Text(
-                            text = "All Categories",
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
+                        Text(text = "All Categories", modifier = Modifier.padding(start = 8.dp))
                     }
-
-                    // Specific category options
                     VendorCategory.getAllCategories().forEach { category ->
                         Row(
                             modifier = Modifier
@@ -1079,39 +1100,15 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
     val imageConverter = remember { ImageConverter(context) }
     val databaseService = DatabaseService()
 
-    // State for vendor rating
     var vendorRating by remember { mutableStateOf<com.example.miniproject.model.VendorRating?>(null) }
     var isLoadingRating by remember { mutableStateOf(true) }
 
-    // Load vendor rating
     LaunchedEffect(vendor.vendorId) {
         vendorRating = databaseService.getVendorRating(vendor.vendorId)
         isLoadingRating = false
     }
 
-    // FIX: Use a safe approach for profile image
-    val vendorImageString = vendor.let { vendorObj ->
-        // Try to get profile image using reflection or different property names
-        when {
-            // Try common property names
-            vendorObj::class.java.declaredFields.any { it.name == "profileImageBase64" } -> {
-                val field = vendorObj::class.java.getDeclaredField("profileImageBase64")
-                field.isAccessible = true
-                field.get(vendorObj) as? String
-            }
-            vendorObj::class.java.declaredFields.any { it.name == "profileImage" } -> {
-                val field = vendorObj::class.java.getDeclaredField("profileImage")
-                field.isAccessible = true
-                field.get(vendorObj) as? String
-            }
-            vendorObj::class.java.declaredFields.any { it.name == "imageUrl" } -> {
-                val field = vendorObj::class.java.getDeclaredField("imageUrl")
-                field.isAccessible = true
-                field.get(vendorObj) as? String
-            }
-            else -> null
-        }
-    }
+    val vendorImageString = vendor.profileImageBase64
 
     val vendorBitmap = remember(vendorImageString) {
         imageConverter.base64ToBitmap(vendorImageString)
@@ -1130,7 +1127,6 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Vendor Logo/Image from Firebase
             Box(
                 modifier = Modifier
                     .size(60.dp)
@@ -1148,7 +1144,6 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
                         )
                     }
                     else -> {
-                        // Default icon if no image
                         Icon(
                             Icons.Default.Store,
                             contentDescription = "Vendor Logo",
@@ -1160,7 +1155,6 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
 
             Spacer(modifier = Modifier.size(16.dp))
 
-            // Vendor Info from Firebase
             Column(
                 modifier = Modifier.weight(1f)
             ) {
@@ -1173,7 +1167,6 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Rating Row
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1216,27 +1209,77 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
                         maxLines = 1
                     )
                 }
-
-                // Optional: Show contact info
-                if (vendor.vendorContact.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Contact: ${vendor.vendorContact}",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
 
-            // Navigation arrow
             Icon(
                 Icons.Default.ArrowBack,
                 contentDescription = "View Menu",
                 modifier = Modifier
                     .size(20.dp)
-                    .rotate(180f), // Rotate to make it point right
+                    .rotate(180f),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+fun VoucherClaimCard(
+    voucher: Voucher,
+    isClaimed: Boolean,
+    onClaim: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (isClaimed) Color(0xFFE8F5E9) else Color(0xFFFFF3E0)
+        ),
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier
+            .width(280.dp)
+            .padding(end = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = voucher.code,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = if (voucher.discountType == "percentage")
+                        "${voucher.discountValue.toInt()}% OFF"
+                    else "RM${"%.2f".format(voucher.discountValue)} OFF",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "Min Spend: RM${voucher.minSpend.toInt()}",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+
+            Button(
+                onClick = onClaim,
+                enabled = !isClaimed,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isClaimed) Color.Gray else MaterialTheme.colorScheme.primary
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                modifier = Modifier.height(36.dp)
+            ) {
+                Text(
+                    text = if (isClaimed) "Claimed" else "Claim",
+                    fontSize = 12.sp
+                )
+            }
         }
     }
 }

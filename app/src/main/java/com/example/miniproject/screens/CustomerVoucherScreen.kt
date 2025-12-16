@@ -34,12 +34,18 @@ import java.util.Locale
 @Composable
 fun CustomerVoucherScreen(navController: NavController) {
     val databaseService = DatabaseService()
+    val authService = com.example.miniproject.service.AuthService() // Add this
+
     var vouchers by remember { mutableStateOf<List<Voucher>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
     // Load Vouchers
     LaunchedEffect(Unit) {
-        vouchers = databaseService.getAllActiveVouchers()
+        val customer = authService.getCurrentCustomer()
+        if (customer != null) {
+            // CHANGED: Now fetching only CLAIMED vouchers
+            vouchers = databaseService.getClaimedVouchers(customer.customerId)
+        }
         isLoading = false
     }
 
@@ -52,7 +58,6 @@ fun CustomerVoucherScreen(navController: NavController) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 },
-                // Green color to match your Customer App theme
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF4CAF50))
             )
         }
@@ -70,7 +75,12 @@ fun CustomerVoucherScreen(navController: NavController) {
                     modifier = Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("No vouchers available at the moment.", color = Color.Gray)
+                    // Optional: Add an image here if you have one
+                    // Image(painter = painterResource(id = R.drawable.empty_voucher), contentDescription = null)
+                    Text("You haven't claimed any vouchers yet.", color = Color.Gray)
+                    TextButton(onClick = { navController.popBackStack() }) { // Go back to home
+                        Text("Go find some food!")
+                    }
                 }
             } else {
                 LazyColumn(
@@ -85,7 +95,6 @@ fun CustomerVoucherScreen(navController: NavController) {
         }
     }
 }
-
 @Composable
 fun CustomerVoucherCard(voucher: Voucher) {
     val clipboardManager = LocalClipboardManager.current
