@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -291,7 +292,7 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                                                 claimedVoucherIds = claimedVoucherIds + voucher.voucherId
                                                 Toast.makeText(context, "Voucher Claimed!", Toast.LENGTH_SHORT).show()
                                             } else {
-                                                Toast.makeText(context, "Failed to claim", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "Coin Insuffiecient, Failed to Claim", Toast.LENGTH_SHORT).show()
                                             }
                                         } else {
                                             Toast.makeText(context, "Please login as customer to claim", Toast.LENGTH_SHORT).show()
@@ -1264,6 +1265,17 @@ fun VoucherClaimCard(
                     fontSize = 12.sp,
                     color = Color.Gray
                 )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.MonetizationOn, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color(0xFFFFD700))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${voucher.coinCost} Coins",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                }
             }
 
             Button(

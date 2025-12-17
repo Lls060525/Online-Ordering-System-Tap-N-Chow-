@@ -1,7 +1,6 @@
 package com.example.miniproject.screens
 
-import android.content.Context
-import android.graphics.Paint
+import android.R.attr.label
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -18,49 +17,44 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.miniproject.model.Order
 import com.example.miniproject.model.Vendor
 import com.example.miniproject.service.DatabaseService
-import com.example.miniproject.utils.PdfGenerator
 import kotlinx.coroutines.launch
-import java.io.File
-import java.io.FileOutputStream
 import java.text.DecimalFormat
-import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalTextApi::class)
 @Composable
 fun AdminAnalyticsScreen(navController: NavController) {
     val databaseService = DatabaseService()
     val coroutineScope = rememberCoroutineScope()
     val decimalFormat = DecimalFormat("#,##0.00")
-    val context = LocalContext.current
 
-    // State variables
     var vendors by remember { mutableStateOf<List<Vendor>>(emptyList()) }
     var orders by remember { mutableStateOf<List<Order>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var selectedTimeRange by remember { mutableStateOf("month") } // day, week, month, year
+    var selectedTimeRange by remember { mutableStateOf("month") }
     var platformRevenueData by remember { mutableStateOf<List<Double>>(emptyList()) }
-    var isGeneratingReport by remember { mutableStateOf(false) }
 
-    // Load data
     LaunchedEffect(Unit) {
         coroutineScope.launch {
             try {
                 vendors = databaseService.getAllVendors().filter { it.vendorId != "ADMIN001" }
                 orders = databaseService.getAllOrders()
-
-                // Generate platform revenue data for chart
                 platformRevenueData = generatePlatformRevenueData(orders, selectedTimeRange)
-
                 isLoading = false
             } catch (_: Exception) {
                 isLoading = false
@@ -68,21 +62,18 @@ fun AdminAnalyticsScreen(navController: NavController) {
         }
     }
 
-    // Update revenue data when time range changes
     LaunchedEffect(selectedTimeRange, orders) {
         coroutineScope.launch {
             platformRevenueData = generatePlatformRevenueData(orders, selectedTimeRange)
         }
     }
 
-    // Calculate stats
     val totalRevenue = orders.sumOf { order -> order.totalPrice }
     val platformRevenue = totalRevenue * 0.10
     val vendorRevenue = totalRevenue * 0.90
     val totalOrders = orders.size
     val activeVendors = vendors.size
     val ordersByStatus = orders.groupBy { order -> order.status }.mapValues { entry -> entry.value.size }
-    val topVendors = calculateTopVendors(vendors, orders).take(5)
 
     Scaffold(
         topBar = {
@@ -100,74 +91,6 @@ fun AdminAnalyticsScreen(navController: NavController) {
                     }
                 },
                 actions = {
-                    // Download Report Button
-                    IconButton(
-                        onClick = {
-                            coroutineScope.launch {
-                                isGeneratingReport = true
-                                try {
-                                    // Create a timestamp for the filename
-                                    val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-                                    val fileName = "Platform_Analytics_Report_$timestamp.pdf"
-
-                                    // SIMPLE APPROACH: Save to app's external files directory in "Downloads" subfolder
-                                    val downloadsDir = File(context.getExternalFilesDir(null), "Downloads")
-                                    if (!downloadsDir.exists()) {
-                                        downloadsDir.mkdirs()
-                                    }
-                                    val file = File(downloadsDir, fileName)
-
-                                    // Generate the PDF
-                                    FileOutputStream(file).use { outputStream ->
-                                        PdfGenerator.generatePlatformAnalyticsReport(
-                                            context = context,
-                                            outputStream = outputStream,
-                                            vendors = vendors,
-                                            orders = orders,
-                                            platformRevenueData = platformRevenueData,
-                                            selectedTimeRange = selectedTimeRange,
-                                            totalRevenue = totalRevenue,
-                                            platformRevenue = platformRevenue,
-                                            vendorRevenue = vendorRevenue,
-                                            totalOrders = totalOrders,
-                                            activeVendors = activeVendors,
-                                            ordersByStatus = ordersByStatus,
-                                            topVendors = topVendors
-                                        )
-                                    }
-
-                                    // Show success message
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        "Report saved to: ${file.absolutePath}",
-                                        android.widget.Toast.LENGTH_LONG
-                                    ).show()
-
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        "Failed to generate report: ${e.message}",
-                                        android.widget.Toast.LENGTH_LONG
-                                    ).show()
-                                } finally {
-                                    isGeneratingReport = false
-                                }
-                            }
-                        },
-                        enabled = !isGeneratingReport && !isLoading && vendors.isNotEmpty()
-                    ) {
-                        if (isGeneratingReport) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(Icons.Default.Download, contentDescription = "Download Report")
-                        }
-                    }
-
-                    // Refresh Button
                     IconButton(onClick = {
                         coroutineScope.launch {
                             isLoading = true
@@ -176,7 +99,6 @@ fun AdminAnalyticsScreen(navController: NavController) {
                                 orders = databaseService.getAllOrders()
                                 platformRevenueData = generatePlatformRevenueData(orders, selectedTimeRange)
                             } catch (_: Exception) {
-                                // Handle error
                             }
                             isLoading = false
                         }
@@ -211,7 +133,6 @@ fun AdminAnalyticsScreen(navController: NavController) {
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Time Range Selector
                 item {
                     AdminTimeRangeSelector(
                         selectedTimeRange = selectedTimeRange,
@@ -219,16 +140,15 @@ fun AdminAnalyticsScreen(navController: NavController) {
                     )
                 }
 
-                // Platform Revenue Chart
                 item {
                     PlatformRevenueChart(
                         revenueData = platformRevenueData,
                         timeRange = selectedTimeRange,
-                        decimalFormat = decimalFormat
+                        decimalFormat = decimalFormat,
+                        orders = orders
                     )
                 }
 
-                // Key Metrics
                 item {
                     Text(
                         "Key Platform Metrics",
@@ -283,7 +203,6 @@ fun AdminAnalyticsScreen(navController: NavController) {
                     }
                 }
 
-                // Revenue Breakdown
                 item {
                     RevenueBreakdownCard(
                         platformRevenue = platformRevenue,
@@ -292,7 +211,6 @@ fun AdminAnalyticsScreen(navController: NavController) {
                     )
                 }
 
-                // Order Status Distribution
                 item {
                     OrderStatusDistributionCard(
                         ordersByStatus = ordersByStatus,
@@ -300,7 +218,6 @@ fun AdminAnalyticsScreen(navController: NavController) {
                     )
                 }
 
-                // Top Performing Vendors
                 item {
                     TopVendorsCard(
                         vendors = vendors,
@@ -309,7 +226,6 @@ fun AdminAnalyticsScreen(navController: NavController) {
                     )
                 }
 
-                // Revenue Trends
                 item {
                     RevenueTrendsCard(
                         orders = orders,
@@ -322,15 +238,6 @@ fun AdminAnalyticsScreen(navController: NavController) {
     }
 }
 
-// Helper function to calculate top vendors
-private fun calculateTopVendors(vendors: List<Vendor>, orders: List<Order>): List<Pair<Vendor, Double>> {
-    val vendorRevenueMap = calculateVendorRevenue(orders, vendors)
-    return vendors.map { vendor ->
-        vendor to (vendorRevenueMap[vendor.vendorId] ?: 0.0)
-    }.sortedByDescending { pair -> pair.second }
-}
-
-// The rest of your existing functions remain exactly the same...
 @Composable
 private fun AdminTimeRangeSelector(
     selectedTimeRange: String,
@@ -367,33 +274,32 @@ private fun AdminTimeRangeSelector(
     }
 }
 
+@OptIn(ExperimentalTextApi::class)
 @Composable
 fun PlatformRevenueChart(
     revenueData: List<Double>,
     timeRange: String,
-    decimalFormat: DecimalFormat
+    decimalFormat: DecimalFormat,
+    orders: List<Order>
 ) {
-    // Animation state
-    var animationPlayed by remember { mutableStateOf(false) }
-
-    LaunchedEffect(key1 = true) {
-        animationPlayed = true
-    }
+    val actualPlatformRevenue = orders.sumOf { it.totalPrice } * 0.10
+    val textMeasurer = rememberTextMeasurer()
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(300.dp), // Taller for better look
+            .height(350.dp), // Increased height for labels above bars
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp)
+                .padding(16.dp)
         ) {
-            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -401,165 +307,301 @@ fun PlatformRevenueChart(
             ) {
                 Column {
                     Text(
-                        "Platform Revenue",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.Gray
-                    )
-                    Text(
-                        "RM ${decimalFormat.format(revenueData.sum())}",
-                        style = MaterialTheme.typography.headlineSmall,
+                        "Platform Revenue (10%)",
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
+                    val timeLabel = when (timeRange) {
+                        "day" -> "Daily Performance"
+                        "week" -> "Weekly Performance"
+                        "month" -> "Monthly Performance (Current Year)"
+                        "year" -> "Yearly Performance (Last 5 Years)"
+                        else -> "${timeRange.replaceFirstChar { it.uppercaseChar() }}ly Performance"
+                    }
+                    Text(
+                        timeLabel,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-
-                // Small indicator
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
+                Box(
+                    modifier = Modifier
+                        .background(Color(0xFFFF9800).copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = "10% Cut",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        "RM${decimalFormat.format(actualPlatformRevenue)}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFFF9800)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Chart Area
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .background(Color.White, RoundedCornerShape(8.dp))
             ) {
-                if (revenueData.isNotEmpty()) {
-                    BeautifulBarChart(data = revenueData, animationPlayed = animationPlayed)
+                if (revenueData.isNotEmpty() && revenueData.any { it > 0 }) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        BarChartCanvas(
+                            data = revenueData,
+                            textMeasurer = textMeasurer,
+                            timeRange = timeRange
+                        )
+
+                        // Labels for each time range
+                        val labels = when (timeRange) {
+                            "day" -> {
+                                listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+                            }
+                            "week" -> {
+                                listOf("Week 1", "Week 2", "Week 3", "Week 4")
+                            }
+                            "month" -> {
+                                listOf("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D")
+                            }
+                            "year" -> {
+                                val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+                                val startYear = currentYear - 4
+                                (startYear..currentYear).map { year ->
+                                    "'${year.toString().takeLast(2)}"
+                                }
+                            }
+                            else -> emptyList()
+                        }
+
+                        // Show labels below the chart
+                        if (labels.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                labels.forEach { label ->
+                                    Text(
+                                        text = label,
+                                        fontSize = if (timeRange == "month") 9.sp else 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 } else {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No data available", color = Color.LightGray)
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.BarChart,
+                                contentDescription = "No data",
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "No revenue data available for this period",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(16.dp))
 
-            // Labels (Keep existing logic, just style it)
-            val labels = when (timeRange) {
-                "day" -> listOf("12am", "6am", "12pm", "6pm")
-                "week" -> listOf("Mon", "Wed", "Fri", "Sun")
-                "month" -> listOf("Week 1", "Week 2", "Week 3", "Week 4")
-                "year" -> listOf("Q1", "Q2", "Q3", "Q4")
-                else -> emptyList()
-            }
+@Composable
+fun BarChartCanvas(
+    data: List<Double>,
+    textMeasurer: TextMeasurer,
+    timeRange: String,
+    textColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    val maxValue = if (data.isNotEmpty()) data.maxOrNull() ?: 1.0 else 1.0
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                labels.forEach { label ->
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray
+    Canvas(modifier = Modifier
+        .fillMaxWidth()
+        .height(220.dp)) {  // Increased height for labels above bars
+        val totalBars = data.size
+
+        // Dynamic spacing based on number of bars
+        val spacing = when (totalBars) {
+            12 -> 4.dp.toPx()  // Monthly view
+            5 -> 8.dp.toPx()   // Yearly view
+            4 -> 12.dp.toPx()  // Weekly view
+            7 -> 8.dp.toPx()   // Daily view
+            else -> 8.dp.toPx()
+        }
+
+        val availableWidth = size.width - (spacing * (totalBars + 1))
+        val barWidth = (availableWidth / totalBars).coerceAtLeast(8.dp.toPx())
+
+        // Leave space at top for labels and at bottom for axis labels
+        val maxBarHeight = size.height * 0.65f
+        val chartTop = 20.dp.toPx()  // Space for value labels above bars
+        val chartBottom = size.height * 0.85f  // Leave space for month labels
+
+        // Draw horizontal grid lines
+        val gridLineCount = 4
+        repeat(gridLineCount) { i ->
+            val y = chartBottom - (maxBarHeight * i / (gridLineCount - 1))
+            drawLine(
+                color = Color.LightGray.copy(alpha = 0.2f),
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 0.5.dp.toPx()
+            )
+        }
+
+        data.forEachIndexed { index, value ->
+            val x = spacing + index * (barWidth + spacing)
+            val barHeight = if (maxValue > 0) (value / maxValue).toFloat() * maxBarHeight else 0f
+            val y = chartBottom - barHeight
+
+            val barColor = Color(0xFFFF9800)
+
+            // Draw bar with solid color
+            drawRoundRect(
+                color = barColor,
+                topLeft = Offset(x, y),
+                size = Size(barWidth, barHeight),
+                cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+            )
+
+            // Draw outline
+            drawRoundRect(
+                color = barColor.copy(alpha = 0.3f),
+                topLeft = Offset(x, y),
+                size = Size(barWidth, barHeight),
+                cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()),
+                style = Stroke(width = 0.5.dp.toPx())
+            )
+
+            // Draw value ABOVE the bar
+            if (value > 0) {
+                // Smart formatting based on value size and time range
+                val text = formatCompactValue(value, timeRange)
+
+                val textStyle = TextStyle(
+                    color = textColor,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                val textLayoutResult = textMeasurer.measure(text, textStyle)
+                val textX = x + barWidth / 2 - textLayoutResult.size.width / 2
+                val textY = y - 12.dp.toPx()  // Position above bar
+
+                // Only draw if text fits within available space
+                if (textX >= 0 && textX + textLayoutResult.size.width <= size.width) {
+                    drawText(
+                        textLayoutResult = textLayoutResult,
+                        topLeft = Offset(textX, textY)
                     )
                 }
             }
         }
+
+        // Draw baseline
+        drawLine(
+            color = Color.Gray.copy(alpha = 0.5f),
+            start = Offset(0f, chartBottom),
+            end = Offset(size.width, chartBottom),
+            strokeWidth = 1.dp.toPx()
+        )
     }
 }
 
-@Composable
-fun BeautifulBarChart(data: List<Double>, animationPlayed: Boolean) {
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val secondaryColor = MaterialTheme.colorScheme.secondary
-
-    // Animate the height factor
-    val heightFactor by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (animationPlayed) 1f else 0f,
-        animationSpec = androidx.compose.animation.core.tween(durationMillis = 1000, delayMillis = 100),
-        label = "barHeight"
-    )
-
-    val maxValue = data.maxOrNull() ?: 1.0
-
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val barWidth = size.width / (data.size * 1.5f)
-        val space = (size.width - (barWidth * data.size)) / (data.size - 1)
-        val maxBarHeight = size.height
-
-        val brush = Brush.verticalGradient(
-            colors = listOf(primaryColor, primaryColor.copy(alpha = 0.6f))
-        )
-
-        data.forEachIndexed { index, value ->
-            val finalHeight = (value / maxValue).toFloat() * maxBarHeight
-            val currentHeight = finalHeight * heightFactor // Animation applied here
-
-            val x = index * (barWidth + space)
-            val y = size.height - currentHeight
-
-            // Draw Bar
-            drawRoundRect(
-                brush = brush,
-                topLeft = Offset(x, y),
-                size = Size(barWidth, currentHeight),
-                cornerRadius = CornerRadius(8f, 8f)
-            )
+// Compact formatting for bar chart values
+private fun formatCompactValue(value: Double, timeRange: String): String {
+    return when (timeRange) {
+        "day" -> {
+            // Daily: show appropriate decimals
+            when {
+                value < 1 -> "RM${String.format(Locale.getDefault(), "%.2f", value)}"
+                value < 10 -> "RM${String.format(Locale.getDefault(), "%.1f", value)}"
+                else -> "RM${String.format(Locale.getDefault(), "%.0f", value)}"
+            }
+        }
+        "week" -> {
+            // Weekly: show appropriate decimals
+            when {
+                value < 10 -> "RM${String.format(Locale.getDefault(), "%.1f", value)}"
+                else -> "RM${String.format(Locale.getDefault(), "%.0f", value)}"
+            }
+        }
+        "month", "year" -> {
+            // Monthly & Yearly: show appropriate decimals (no K/M suffixes)
+            when {
+                value < 1 -> "RM${String.format(Locale.getDefault(), "%.2f", value)}"
+                value < 10 -> "RM${String.format(Locale.getDefault(), "%.1f", value)}"
+                value < 1000 -> "RM${String.format(Locale.getDefault(), "%.0f", value)}"
+                value < 10000 -> "RM${String.format(Locale.getDefault(), "%.1f", value)}"
+                else -> "RM${String.format(Locale.getDefault(), "%.0f", value)}"
+            }
+        }
+        else -> {
+            // Default: simple formatting with decimals
+            when {
+                value < 1 -> "RM${String.format(Locale.getDefault(), "%.2f", value)}"
+                value < 10 -> "RM${String.format(Locale.getDefault(), "%.1f", value)}"
+                else -> "RM${String.format(Locale.getDefault(), "%.0f", value)}"
+            }
         }
     }
 }
-
-
 @Composable
 fun AdminMetricCard(
     title: String,
     value: String,
-    icon: ImageVector,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     color: Color,
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(12.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Icon in a colored circle
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(color.copy(alpha = 0.15f), androidx.compose.foundation.shape.CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = color
-                )
-            }
-
-            Column {
-                Text(
-                    value,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    title,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Icon(
+                icon,
+                contentDescription = title,
+                modifier = Modifier.size(24.dp),
+                tint = color
+            )
+            Text(
+                value,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                title,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -588,12 +630,10 @@ fun RevenueBreakdownCard(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            // Pie Chart
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Pie Chart
                 Box(
                     modifier = Modifier
                         .size(120.dp)
@@ -605,7 +645,6 @@ fun RevenueBreakdownCard(
                     )
                 }
 
-                // Legend
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -627,7 +666,6 @@ fun RevenueBreakdownCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Total
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -642,6 +680,7 @@ fun RevenueBreakdownCard(
             }
         }
     }
+
 }
 
 @Composable
@@ -649,30 +688,36 @@ fun PieChartCanvas(
     platformPercentage: Float,
     vendorPercentage: Float
 ) {
-    val platformColor = Color(0xFFFF9800)
-    val vendorColor = MaterialTheme.colorScheme.primary
-
     Canvas(modifier = Modifier.fillMaxSize()) {
         val diameter = size.minDimension
-        val strokeWidth = 40f
 
-        // Draw Vendor Arc (Background/Main)
+        // Define colors
+        val platformColor = Color(0xFFFF9800)  // Orange
+        val vendorColor = Color(0xFF4CAF50)    // Green
+
+        // Calculate angles
+        val vendorSweepAngle = vendorPercentage * 3.6f
+        val platformSweepAngle = platformPercentage * 3.6f
+
+        // Draw vendor segment first (90%) - the large green part
         drawArc(
             color = vendorColor,
-            startAngle = 0f,
-            sweepAngle = 360f,
-            useCenter = false,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
+            startAngle = -90f,
+            sweepAngle = vendorSweepAngle,
+            useCenter = true,
+            size = Size(diameter, diameter)
         )
 
-        // Draw Platform Arc (Overlay)
+        // Draw platform segment second (10%) - the small orange part
         drawArc(
             color = platformColor,
-            startAngle = -90f,
-            sweepAngle = platformPercentage * 3.6f,
-            useCenter = false,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            startAngle = -90f + vendorSweepAngle,
+            sweepAngle = platformSweepAngle,
+            useCenter = true,
+            size = Size(diameter, diameter)
         )
+
+
     }
 }
 
@@ -697,7 +742,6 @@ fun RevenueLegendItem(
             Text(label, fontSize = 12.sp)
             Text(value, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        // Fixed: Added locale to String.format
         Text(
             "${String.format(Locale.getDefault(), "%.1f", percentage)}%",
             fontSize = 12.sp,
@@ -754,7 +798,6 @@ fun OrderStatusDistributionItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Status color indicator
             Box(
                 modifier = Modifier
                     .size(12.dp)
@@ -785,7 +828,6 @@ fun OrderStatusDistributionItem(
             }
         }
 
-        // Fixed: Added locale to String.format
         Text(
             text = String.format(Locale.getDefault(), "%.1f%%", percentage),
             fontSize = 14.sp,
@@ -800,7 +842,6 @@ fun TopVendorsCard(
     orders: List<Order>,
     decimalFormat: DecimalFormat
 ) {
-    // Calculate vendor revenue (simplified - in real app, you'd calculate from order details)
     val vendorRevenueMap = calculateVendorRevenue(orders, vendors)
 
     val topVendors = vendors.map { vendor ->
@@ -845,13 +886,9 @@ fun TopVendorsCard(
     }
 }
 
-// Helper function to calculate vendor revenue
 private fun calculateVendorRevenue(orders: List<Order>, vendors: List<Vendor>): Map<String, Double> {
-    // This is a simplified calculation
-    // In a real app, you would need to get order details to know which vendor products were ordered
     val revenueMap = mutableMapOf<String, Double>()
 
-    // Distribute revenue evenly among vendors for demo purposes
     val averageRevenuePerVendor = if (vendors.isNotEmpty()) {
         (orders.sumOf { order -> order.totalPrice } * 0.9) / vendors.size
     } else {
@@ -872,58 +909,76 @@ fun TopVendorItem(
     revenue: Double,
     decimalFormat: DecimalFormat
 ) {
-    Row(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
-            .background(Color.White, RoundedCornerShape(12.dp))
-            .padding(12.dp), // Inner padding
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        // Rank Circle
-        Box(
+        Row(
             modifier = Modifier
-                .size(32.dp)
-                .background(
-                    color = when (rank) {
-                        1 -> Color(0xFFFFD700)
-                        2 -> Color(0xFFE0E0E0)
-                        3 -> Color(0xFFCD7F32)
-                        else -> Color(0xFFF5F5F5)
-                    },
-                    shape = androidx.compose.foundation.shape.CircleShape
-                ),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                rank.toString(),
-                fontWeight = FontWeight.Bold,
-                color = if (rank <= 3) Color.White else Color.Black
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .background(
+                            color = when (rank) {
+                                1 -> Color(0xFFFFD700)
+                                2 -> Color(0xFFC0C0C0)
+                                3 -> Color(0xFFCD7F32)
+                                else -> MaterialTheme.colorScheme.surfaceVariant
+                            },
+                            shape = RoundedCornerShape(6.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        rank.toString(),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = when (rank) {
+                            1, 2, 3 -> Color.White
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
+                    )
+                }
+
+                Column {
+                    Text(
+                        text = vendor.vendorName,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = vendor.category.replaceFirstChar { char -> char.uppercaseChar() },
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "Revenue",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "RM${decimalFormat.format(revenue)}",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
-
-        Spacer(modifier = Modifier.width(16.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = vendor.vendorName,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = vendor.category.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.Gray,
-                letterSpacing = 1.sp
-            )
-        }
-
-        Text(
-            text = "RM${decimalFormat.format(revenue)}",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
     }
 }
 
@@ -933,8 +988,6 @@ fun RevenueTrendsCard(
     selectedTimeRange: String,
     decimalFormat: DecimalFormat
 ) {
-    val currentMillis = System.currentTimeMillis() / 1000 // Convert to seconds
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp)
@@ -949,46 +1002,10 @@ fun RevenueTrendsCard(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            // Simplified trend analysis
-            val recentOrders = when (selectedTimeRange) {
-                "day" -> orders.filter { order ->
-                    val orderSeconds = order.orderDate.seconds
-                    currentMillis - orderSeconds < 86400 // 24 hours in seconds
-                }
-                "week" -> orders.filter { order ->
-                    val orderSeconds = order.orderDate.seconds
-                    currentMillis - orderSeconds < 604800 // 7 days in seconds
-                }
-                "month" -> orders.filter { order ->
-                    val orderSeconds = order.orderDate.seconds
-                    currentMillis - orderSeconds < 2592000 // 30 days in seconds
-                }
-                "year" -> orders.filter { order ->
-                    val orderSeconds = order.orderDate.seconds
-                    currentMillis - orderSeconds < 31536000 // 365 days in seconds
-                }
-                else -> orders
-            }
+            val (currentOrders, previousOrders) = calculateOrdersForTimeRange(orders, selectedTimeRange)
 
-            val previousPeriodSeconds = when (selectedTimeRange) {
-                "day" -> 86400
-                "week" -> 604800
-                "month" -> 2592000
-                "year" -> 31536000
-                else -> 0
-            }
-
-            val previousPeriodOrders = if (previousPeriodSeconds > 0) {
-                orders.filter { order ->
-                    val orderSeconds = order.orderDate.seconds
-                    currentMillis - orderSeconds in previousPeriodSeconds..(previousPeriodSeconds * 2)
-                }
-            } else {
-                emptyList()
-            }
-
-            val currentRevenue = recentOrders.sumOf { order -> order.totalPrice }
-            val previousRevenue = previousPeriodOrders.sumOf { order -> order.totalPrice }
+            val currentRevenue = currentOrders.sumOf { order -> order.totalPrice }
+            val previousRevenue = previousOrders.sumOf { order -> order.totalPrice }
             val revenueChange = if (previousRevenue > 0) {
                 ((currentRevenue - previousRevenue) / previousRevenue) * 100
             } else {
@@ -1030,7 +1047,6 @@ fun RevenueTrendsCard(
                                 tint = if (revenueChange >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
                             )
                             Text(
-                                // Fixed: Added locale to String.format
                                 "${String.format(Locale.getDefault(), "%.1f", revenueChange)}%",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -1040,27 +1056,28 @@ fun RevenueTrendsCard(
                     }
                 }
 
-                // Additional trend metrics
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     TrendMetric(
                         label = "Orders",
-                        current = recentOrders.size,
-                        previous = previousPeriodOrders.size
-                    )
+                        current = currentOrders.size,
+                        previous = previousOrders.size,
+                        decimalFormat = decimalFormat)
                     TrendMetric(
                         label = "Avg Order",
-                        current = if (recentOrders.isNotEmpty()) currentRevenue / recentOrders.size else 0.0,
-                        previous = if (previousPeriodOrders.isNotEmpty()) previousRevenue / previousPeriodOrders.size else 0.0,
-                        isCurrency = true
+                        current = if (currentOrders.isNotEmpty()) currentRevenue / currentOrders.size else 0.0,
+                        previous = if (previousOrders.isNotEmpty()) previousRevenue / previousOrders.size else 0.0,
+                        isCurrency = true,
+                        decimalFormat = decimalFormat
                     )
                     TrendMetric(
                         label = "Platform Rev",
                         current = currentRevenue * 0.10,
                         previous = previousRevenue * 0.10,
-                        isCurrency = true
+                        isCurrency = true,
+                        decimalFormat = decimalFormat
                     )
                 }
             }
@@ -1068,12 +1085,129 @@ fun RevenueTrendsCard(
     }
 }
 
+private fun calculateOrdersForTimeRange(orders: List<Order>, timeRange: String): Pair<List<Order>, List<Order>> {
+    val currentCalendar = Calendar.getInstance()
+    val currentOrders: List<Order>
+    val previousOrders: List<Order>
+
+    when (timeRange) {
+        "day" -> {
+            val today = currentCalendar.clone() as Calendar
+            val yesterday = Calendar.getInstance().apply {
+                add(Calendar.DAY_OF_YEAR, -1)
+            }
+
+            currentOrders = orders.filter { order ->
+                val timestampMillis = order.orderDate.seconds * 1000L
+                val date = Date(timestampMillis)
+                val orderCalendar = Calendar.getInstance().apply { time = date }
+
+                orderCalendar.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+                        orderCalendar.get(Calendar.MONTH) == today.get(Calendar.MONTH) &&
+                        orderCalendar.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
+            }
+
+            previousOrders = orders.filter { order ->
+                val timestampMillis = order.orderDate.seconds * 1000L
+                val date = Date(timestampMillis)
+                val orderCalendar = Calendar.getInstance().apply { time = date }
+
+                orderCalendar.get(Calendar.YEAR) == yesterday.get(Calendar.YEAR) &&
+                        orderCalendar.get(Calendar.MONTH) == yesterday.get(Calendar.MONTH) &&
+                        orderCalendar.get(Calendar.DAY_OF_YEAR) == yesterday.get(Calendar.DAY_OF_YEAR)
+            }
+        }
+        "week" -> {
+            val currentWeek = currentCalendar.get(Calendar.WEEK_OF_YEAR)
+            val currentYear = currentCalendar.get(Calendar.YEAR)
+
+            val previousWeekCalendar = Calendar.getInstance().apply {
+                add(Calendar.WEEK_OF_YEAR, -1)
+            }
+            val previousWeek = previousWeekCalendar.get(Calendar.WEEK_OF_YEAR)
+            val previousWeekYear = previousWeekCalendar.get(Calendar.YEAR)
+
+            currentOrders = orders.filter { order ->
+                val timestampMillis = order.orderDate.seconds * 1000L
+                val date = Date(timestampMillis)
+                val orderCalendar = Calendar.getInstance().apply { time = date }
+
+                orderCalendar.get(Calendar.YEAR) == currentYear &&
+                        orderCalendar.get(Calendar.WEEK_OF_YEAR) == currentWeek
+            }
+
+            previousOrders = orders.filter { order ->
+                val timestampMillis = order.orderDate.seconds * 1000L
+                val date = Date(timestampMillis)
+                val orderCalendar = Calendar.getInstance().apply { time = date }
+
+                orderCalendar.get(Calendar.YEAR) == previousWeekYear &&
+                        orderCalendar.get(Calendar.WEEK_OF_YEAR) == previousWeek
+            }
+        }
+        "month" -> {
+            val currentMonth = currentCalendar.get(Calendar.MONTH)
+            val currentYear = currentCalendar.get(Calendar.YEAR)
+
+            currentOrders = orders.filter { order ->
+                val timestampMillis = order.orderDate.seconds * 1000L
+                val date = Date(timestampMillis)
+                val orderCalendar = Calendar.getInstance().apply { time = date }
+
+                orderCalendar.get(Calendar.YEAR) == currentYear &&
+                        orderCalendar.get(Calendar.MONTH) == currentMonth
+            }
+
+            val previousMonthCalendar = Calendar.getInstance().apply {
+                add(Calendar.MONTH, -1)
+            }
+            val previousMonth = previousMonthCalendar.get(Calendar.MONTH)
+            val previousMonthYear = previousMonthCalendar.get(Calendar.YEAR)
+
+            previousOrders = orders.filter { order ->
+                val timestampMillis = order.orderDate.seconds * 1000L
+                val date = Date(timestampMillis)
+                val orderCalendar = Calendar.getInstance().apply { time = date }
+
+                orderCalendar.get(Calendar.YEAR) == previousMonthYear &&
+                        orderCalendar.get(Calendar.MONTH) == previousMonth
+            }
+        }
+        "year" -> {
+            val currentYear = currentCalendar.get(Calendar.YEAR)
+
+            currentOrders = orders.filter { order ->
+                val timestampMillis = order.orderDate.seconds * 1000L
+                val date = Date(timestampMillis)
+                val orderCalendar = Calendar.getInstance().apply { time = date }
+
+                orderCalendar.get(Calendar.YEAR) == currentYear
+            }
+
+            previousOrders = orders.filter { order ->
+                val timestampMillis = order.orderDate.seconds * 1000L
+                val date = Date(timestampMillis)
+                val orderCalendar = Calendar.getInstance().apply { time = date }
+
+                orderCalendar.get(Calendar.YEAR) == currentYear - 1
+            }
+        }
+        else -> {
+            currentOrders = emptyList()
+            previousOrders = emptyList()
+        }
+    }
+
+    return Pair(currentOrders, previousOrders)
+}
+
 @Composable
 fun TrendMetric(
     label: String,
     current: Number,
     previous: Number,
-    isCurrency: Boolean = false
+    isCurrency: Boolean = false,
+    decimalFormat: DecimalFormat
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
@@ -1081,9 +1215,8 @@ fun TrendMetric(
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        // Fixed: Added locale to String.format
         Text(
-            if (isCurrency) "RM${String.format(Locale.getDefault(), "%.0f", current.toDouble())}" else current.toString(),
+            if (isCurrency) "RM${decimalFormat.format(current.toDouble())}" else current.toString(),
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold
         )
@@ -1101,7 +1234,6 @@ fun TrendMetric(
                 modifier = Modifier.size(12.dp),
                 tint = if (change >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
             )
-            // Fixed: Added locale to String.format
             Text(
                 "${String.format(Locale.getDefault(), "%.1f", change)}%",
                 fontSize = 10.sp,
@@ -1111,24 +1243,89 @@ fun TrendMetric(
     }
 }
 
-// Helper function to generate platform revenue data for charts
 private fun generatePlatformRevenueData(orders: List<Order>, timeRange: String): List<Double> {
+    if (orders.isEmpty()) return emptyList()
+
     return when (timeRange) {
-        "day" -> List(24) { hour ->
-            orders.filter { order ->
-                val orderHour = (order.orderDate.seconds % 86400) / 3600
-                orderHour.toInt() == hour
-            }.sumOf { order -> order.totalPrice * 0.10 }
+        "day" -> {
+            val revenueByDay = MutableList(7) { 0.0 }
+
+            orders.forEach { order ->
+                val timestampMillis = order.orderDate.seconds * 1000L
+                val date = Date(timestampMillis)
+                val calendar = Calendar.getInstance()
+                calendar.time = date
+
+                var dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK) - 2
+                if (dayOfWeek < 0) dayOfWeek = 6
+
+                revenueByDay[dayOfWeek] += order.totalPrice * 0.10
+            }
+
+            revenueByDay
         }
-        "week" -> List(7) { _ -> // Fixed: Changed unused parameter to underscore
-            orders.filter { true }.sumOf { order -> order.totalPrice * 0.10 }
-        }.map { value -> value / 7 }
-        "month" -> List(4) { _ -> // Fixed: Changed unused parameter to underscore
-            orders.filter { true }.sumOf { order -> order.totalPrice * 0.10 }
-        }.map { value -> value / 4 }
-        "year" -> List(12) { _ -> // Fixed: Changed unused parameter to underscore
-            orders.filter { true }.sumOf { order -> order.totalPrice * 0.10 }
-        }.map { value -> value / 12 }
+        "week" -> {
+            val revenueByWeek = MutableList(4) { 0.0 }
+            val currentCalendar = Calendar.getInstance()
+
+            orders.forEach { order ->
+                val timestampMillis = order.orderDate.seconds * 1000L
+                val date = Date(timestampMillis)
+                val calendar = Calendar.getInstance()
+                calendar.time = date
+
+                if (calendar.get(Calendar.YEAR) == currentCalendar.get(Calendar.YEAR) &&
+                    calendar.get(Calendar.MONTH) == currentCalendar.get(Calendar.MONTH)) {
+
+                    val weekOfMonth = calendar.get(Calendar.WEEK_OF_MONTH) - 1
+                    if (weekOfMonth in 0..3) {
+                        revenueByWeek[weekOfMonth] += order.totalPrice * 0.10
+                    }
+                }
+            }
+
+            revenueByWeek
+        }
+        "month" -> {
+            val revenueByMonth = MutableList(12) { 0.0 }
+            val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+
+            orders.forEach { order ->
+                val timestampMillis = order.orderDate.seconds * 1000L
+                val date = Date(timestampMillis)
+                val calendar = Calendar.getInstance()
+                calendar.time = date
+
+                val orderYear = calendar.get(Calendar.YEAR)
+                if (orderYear == currentYear) {
+                    val month = calendar.get(Calendar.MONTH)
+                    revenueByMonth[month] += order.totalPrice * 0.10
+                }
+            }
+
+            revenueByMonth
+        }
+        "year" -> {
+            val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+            val startYear = currentYear - 4
+
+            val yearlyRevenue = MutableList(5) { 0.0 }
+
+            orders.forEach { order ->
+                val timestampMillis = order.orderDate.seconds * 1000L
+                val date = Date(timestampMillis)
+                val calendar = Calendar.getInstance()
+                calendar.time = date
+
+                val orderYear = calendar.get(Calendar.YEAR)
+                if (orderYear in startYear..currentYear) {
+                    val yearIndex = orderYear - startYear
+                    yearlyRevenue[yearIndex] += order.totalPrice * 0.10
+                }
+            }
+
+            yearlyRevenue
+        }
         else -> emptyList()
     }
 }
