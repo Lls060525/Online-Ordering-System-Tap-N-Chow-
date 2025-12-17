@@ -1,20 +1,24 @@
 package com.example.miniproject.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -34,39 +38,29 @@ fun AdminVendorListScreen(navController: NavController) {
     var vendors by remember { mutableStateOf<List<Vendor>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var searchQuery by remember { mutableStateOf("") }
+
+    // Dialog States
     var showFreezeDialog by remember { mutableStateOf(false) }
     var vendorToFreeze by remember { mutableStateOf<Vendor?>(null) }
     var freezeAction by remember { mutableStateOf(true) } // true = freeze, false = unfreeze
     var showDeleteDialog by remember { mutableStateOf(false) }
     var vendorToDelete by remember { mutableStateOf<Vendor?>(null) }
-    var showSnackbar by remember { mutableStateOf(false) }
-    var snackbarMessage by remember { mutableStateOf("") }
 
+    // Snackbar State
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Initial Data Load
     LaunchedEffect(Unit) {
         coroutineScope.launch {
             try {
-                // FIXED: Get vendors from SERVER to ensure fresh data including isFrozen status
                 val allVendors = databaseService.getAllVendors().filter { it.vendorId != "ADMIN001" }
-
-                // Calculate actual stats for each vendor
                 vendors = allVendors.map { vendor ->
                     val stats = databaseService.calculateVendorActualStats(vendor.vendorId)
-
-                    Vendor(
-                        vendorId = vendor.vendorId,
-                        vendorName = vendor.vendorName,
-                        email = vendor.email,
-                        vendorContact = vendor.vendorContact,
-                        address = vendor.address,
-                        category = vendor.category,
-                        profileImageBase64 = vendor.profileImageBase64,
-                        isFrozen = vendor.isFrozen, // Use the value from Firestore
-                        lastLogin = vendor.lastLogin,
-                        loginCount = vendor.loginCount,
-                        orderCount = stats.first,      // Use calculated value
-                        totalRevenue = stats.second,    // Use calculated value
-                        rating = stats.third,           // Use calculated value
-                        reviewCount = vendor.reviewCount
+                    // Create a copy with updated stats
+                    vendor.copy(
+                        orderCount = stats.first,
+                        totalRevenue = stats.second,
+                        rating = stats.third
                     )
                 }
                 isLoading = false
@@ -75,254 +69,128 @@ fun AdminVendorListScreen(navController: NavController) {
             }
         }
     }
-    // Filter vendors based on search
+
+    // Filter Logic
     val filteredVendors = if (searchQuery.isBlank()) {
         vendors
     } else {
         vendors.filter { vendor ->
             vendor.vendorName.contains(searchQuery, ignoreCase = true) ||
-                    vendor.email.contains(searchQuery, ignoreCase = true) ||
-                    vendor.vendorContact.contains(searchQuery, ignoreCase = true)
+                    vendor.vendorId.contains(searchQuery, ignoreCase = true)
         }
     }
 
     Scaffold(
-        topBar = {
-            Box(
-                modifier = Modifier
-                    .background(Color(0xFF2196F3))
-                    .statusBarsPadding()
-            ) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            "Tap N Chow - Admin",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                            color = Color.White
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(
-                                Icons.Default.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Color.White
-                            )
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = {
-                            coroutineScope.launch {
-                                isLoading = true
-                                try {
-                                    // Force server fetch with Source.SERVER
-                                    val allVendors = databaseService.getAllVendors().filter { it.vendorId != "ADMIN001" }
-
-                                    vendors = allVendors.map { vendor ->
-                                        // IMPORTANT: Get fresh vendor data including isFrozen status
-                                        val freshVendor = databaseService.getVendorById(vendor.vendorId)
-
-                                        if (freshVendor != null) {
-                                            val stats = databaseService.calculateVendorActualStats(vendor.vendorId)
-                                            Vendor(
-                                                vendorId = freshVendor.vendorId,
-                                                vendorName = freshVendor.vendorName,
-                                                email = freshVendor.email,
-                                                vendorContact = freshVendor.vendorContact,
-                                                address = freshVendor.address,
-                                                category = freshVendor.category,
-                                                profileImageBase64 = freshVendor.profileImageBase64,
-                                                isFrozen = freshVendor.isFrozen, // Use the fresh value
-                                                lastLogin = freshVendor.lastLogin,
-                                                loginCount = freshVendor.loginCount,
-                                                orderCount = stats.first,
-                                                totalRevenue = stats.second,
-                                                rating = stats.third,
-                                                reviewCount = freshVendor.reviewCount
-                                            )
-                                        } else {
-                                            vendor // fallback
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    // Handle error
-                                }
-                                isLoading = false
-                            }
-                        }) {
-                            Icon(
-                                Icons.Default.Refresh,
-                                contentDescription = "Refresh",
-                                tint = Color.White
-                            )
-                        }
-                        IconButton(onClick = {
-                            navController.navigate("adminLogin") {
-                                popUpTo("adminDashboard") { inclusive = true }
-                            }
-                        }) {
-                            Icon(
-                                Icons.Default.Logout,
-                                contentDescription = "Logout",
-                                tint = Color.White
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        titleContentColor = Color.White,
-                        actionIconContentColor = Color.White
-                    ),
-                    modifier = Modifier.background(Color.Transparent)
-                )
-            }
-        },
-        bottomBar = {
-            AdminBottomNavigation(navController)
-        }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = { AdminBottomNavigation(navController) },
+        containerColor = Color(0xFFF5F6F9) // Light Grey Background
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-
-            // Search Bar
-            Card(
+            // --- Header & Search Section ---
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(12.dp)
+                    .background(Color.White)
+                    .padding(bottom = 16.dp)
             ) {
+                // Title Row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    Text(
+                        text = "Vendor Management",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF333333)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        placeholder = { Text("Search vendors...") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent
-                        )
-                    )
-                }
-            }
 
-            // Stats
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
+                    // Refresh Button
+                    IconButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                isLoading = true
+                                // ... (refresh logic same as before)
+                                try {
+                                    val allVendors = databaseService.getAllVendors().filter { it.vendorId != "ADMIN001" }
+                                    vendors = allVendors.map { vendor ->
+                                        val freshVendor = databaseService.getVendorById(vendor.vendorId)
+                                        if (freshVendor != null) {
+                                            val stats = databaseService.calculateVendorActualStats(vendor.vendorId)
+                                            freshVendor.copy(
+                                                orderCount = stats.first,
+                                                totalRevenue = stats.second,
+                                                rating = stats.third
+                                            )
+                                        } else vendor
+                                    }
+                                } catch (_: Exception) {}
+                                isLoading = false
+                            }
+                        },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(Color(0xFFF5F6F9), CircleShape)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.Black)
+                    }
+                }
+
+                // Search Bar
+                ModernSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Quick Stats Row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            vendors.size.toString(),
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            "Total Vendors",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            filteredVendors.size.toString(),
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            "Showing",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            vendors.filter { it.isFrozen }.size.toString(),
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            "Frozen",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    VendorStatChip(
+                        label = "Total",
+                        count = vendors.size,
+                        color = Color(0xFF2196F3)
+                    )
+                    VendorStatChip(
+                        label = "Active",
+                        count = vendors.count { !it.isFrozen },
+                        color = Color(0xFF4CAF50)
+                    )
+                    VendorStatChip(
+                        label = "Frozen",
+                        count = vendors.count { it.isFrozen },
+                        color = Color(0xFFF44336)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
+            // --- Vendor List ---
             if (isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             } else if (filteredVendors.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Store,
-                            contentDescription = "No vendors",
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            "No Vendors Found",
-                            fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (searchQuery.isNotBlank()) {
-                            Text(
-                                "Try a different search term",
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+                EmptyStateView()
             } else {
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(filteredVendors) { vendor ->
-                        AdminVendorItem(
+                        ModernVendorItem(
                             vendor = vendor,
                             decimalFormat = decimalFormat,
                             onDeleteClick = {
@@ -335,7 +203,6 @@ fun AdminVendorListScreen(navController: NavController) {
                                 showFreezeDialog = true
                             },
                             onViewClick = {
-                                // Navigate to sales report instead of details
                                 navController.navigate("adminVendorSalesReport/${vendor.vendorId}")
                             }
                         )
@@ -345,166 +212,293 @@ fun AdminVendorListScreen(navController: NavController) {
         }
     }
 
-// Freeze/Unfreeze Confirmation Dialog
+    // --- Dialogs (Logic remains largely the same, just keeping it clean) ---
+
+    // Freeze Dialog
     if (showFreezeDialog && vendorToFreeze != null) {
         AlertDialog(
-            onDismissRequest = {
-                showFreezeDialog = false
-                vendorToFreeze = null
-            },
+            onDismissRequest = { showFreezeDialog = false },
             title = {
                 Text(
                     if (freezeAction) "Freeze Account" else "Unfreeze Account",
-                    fontWeight = FontWeight.Bold,
-                    color = if (freezeAction) Color(0xFFF44336) else Color(0xFF4CAF50)
+                    fontWeight = FontWeight.Bold
                 )
             },
-            text = {
-                Text("Are you sure you want to ${if (freezeAction) "freeze" else "unfreeze"} \"${vendorToFreeze?.vendorName}\"?")
-            },
+            text = { Text("Are you sure you want to ${if (freezeAction) "freeze" else "unfreeze"} ${vendorToFreeze?.vendorName}?") },
             confirmButton = {
                 Button(
                     onClick = {
                         coroutineScope.launch {
-                            try {
-                                val vendor = vendorToFreeze!!
-                                // Use DatabaseService directly
-                                val result = if (freezeAction) {
-                                    databaseService.freezeVendorAccount(vendor.vendorId)
-                                } else {
-                                    databaseService.unfreezeVendorAccount(vendor.vendorId)
-                                }
-
-                                if (result.isSuccess) {
-                                    // Update local state immediately
-                                    vendors = vendors.map { v ->
-                                        if (v.vendorId == vendor.vendorId) {
-                                            v.copy(isFrozen = freezeAction)
-                                        } else {
-                                            v
-                                        }
-                                    }
-                                    snackbarMessage = "Account ${if (freezeAction) "frozen" else "unfrozen"} successfully"
-                                    showSnackbar = true
-                                } else {
-                                    snackbarMessage = "Failed to update account status: ${result.exceptionOrNull()?.message}"
-                                    showSnackbar = true
-                                }
-                            } catch (e: Exception) {
-                                snackbarMessage = "Error: ${e.message}"
-                                showSnackbar = true
+                            val vendor = vendorToFreeze!!
+                            val result = if (freezeAction) databaseService.freezeVendorAccount(vendor.vendorId)
+                            else databaseService.unfreezeVendorAccount(vendor.vendorId)
+                            if (result.isSuccess) {
+                                vendors = vendors.map { if (it.vendorId == vendor.vendorId) it.copy(isFrozen = freezeAction) else it }
+                                snackbarHostState.showSnackbar("Status updated successfully")
                             }
                             showFreezeDialog = false
-                            vendorToFreeze = null
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (freezeAction) Color(0xFFF44336) else Color(0xFF4CAF50)
-                    )
-                ) {
-                    Text(if (freezeAction) "Freeze" else "Unfreeze")
-                }
+                    colors = ButtonDefaults.buttonColors(containerColor = if (freezeAction) Color(0xFFF44336) else Color(0xFF4CAF50))
+                ) { Text("Confirm") }
             },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showFreezeDialog = false
-                        vendorToFreeze = null
-                    }
-                ) {
-                    Text("Cancel")
-                }
-            }
+            dismissButton = { TextButton(onClick = { showFreezeDialog = false }) { Text("Cancel") } }
         )
     }
-    // Delete Confirmation Dialog
+
+    // Delete Dialog
     if (showDeleteDialog && vendorToDelete != null) {
         AlertDialog(
-            onDismissRequest = {
-                showDeleteDialog = false
-                vendorToDelete = null
-            },
-            title = {
-                Text(
-                    "Delete Vendor",
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.error
-                )
-            },
-            text = {
-                Text("Are you sure you want to delete \"${vendorToDelete?.vendorName}\"? This action cannot be undone.")
-            },
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Vendor", color = Color.Red, fontWeight = FontWeight.Bold) },
+            text = { Text("This action cannot be undone. Delete ${vendorToDelete?.vendorName}?") },
             confirmButton = {
                 Button(
                     onClick = {
                         coroutineScope.launch {
-                            try {
-                                val vendor = vendorToDelete!!
-                                val result = databaseService.deleteVendor(vendor.vendorId)
-
-                                if (result.isSuccess) {
-                                    // Remove from local list
-                                    vendors = vendors.filter { it.vendorId != vendor.vendorId }
-                                    snackbarMessage = "Vendor deleted successfully"
-                                    showSnackbar = true
-                                } else {
-                                    snackbarMessage = "Failed to delete vendor"
-                                    showSnackbar = true
-                                }
-                            } catch (e: Exception) {
-                                snackbarMessage = "Error: ${e.message}"
-                                showSnackbar = true
+                            if (databaseService.deleteVendor(vendorToDelete!!.vendorId).isSuccess) {
+                                vendors = vendors.filter { it.vendorId != vendorToDelete!!.vendorId }
+                                snackbarHostState.showSnackbar("Vendor deleted")
                             }
                             showDeleteDialog = false
-                            vendorToDelete = null
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Delete")
-                }
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) { Text("Delete") }
             },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteDialog = false
-                        vendorToDelete = null
-                    }
-                ) {
-                    Text("Cancel")
-                }
-            }
+            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") } }
         )
     }
+}
 
-    // Snackbar
-    if (showSnackbar) {
-        LaunchedEffect(showSnackbar) {
-            kotlinx.coroutines.delay(3000)
-            showSnackbar = false
-        }
+// --- UI Components ---
 
+@Composable
+fun ModernSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    TextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            .border(1.dp, Color(0xFFEEEEEE), RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp)),
+        placeholder = { Text("Search by name or ID...", color = Color.Gray, fontSize = 14.sp) },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Color(0xFFFAFAFA),
+            unfocusedContainerColor = Color(0xFFFAFAFA),
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent
+        ),
+        singleLine = true
+    )
+}
+
+@Composable
+fun VendorStatChip(
+    label: String,
+    count: Int,
+    color: Color
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .background(color.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 80.dp),
-            contentAlignment = Alignment.BottomCenter
+                .size(8.dp)
+                .background(color, CircleShape)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "$label: $count",
+            color = color,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp
+        )
+    }
+}
+
+@Composable
+fun ModernVendorItem(
+    vendor: Vendor,
+    decimalFormat: DecimalFormat,
+    onDeleteClick: () -> Unit,
+    onFreezeClick: () -> Unit,
+    onViewClick: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onViewClick), // Entire card is clickable
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
         ) {
-            Card(
+            // --- Top Row: Identity & Menu ---
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Category Icon Box
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(getCategoryColor(vendor.category).copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        getCategoryIcon(vendor.category),
+                        contentDescription = null,
+                        tint = getCategoryColor(vendor.category),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Name and ID
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = vendor.vendorName,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color(0xFF333333)
+                        )
+                        // Status Dot
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(if (vendor.isFrozen) Color.Red else Color(0xFF4CAF50), CircleShape)
+                        )
+                    }
+                    Text(
+                        text = "ID: ${vendor.vendorId}",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+
+                // Menu Button (The Cleaner Approach)
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = Color.Gray)
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier.background(Color.White)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("View Reports") },
+                            onClick = {
+                                showMenu = false
+                                onViewClick()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Analytics, null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (vendor.isFrozen) "Unfreeze Account" else "Freeze Account") },
+                            onClick = {
+                                showMenu = false
+                                onFreezeClick()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    if (vendor.isFrozen) Icons.Default.LockOpen else Icons.Default.Lock,
+                                    null,
+                                    tint = if (vendor.isFrozen) Color(0xFF4CAF50) else Color(0xFFFF9800)
+                                )
+                            }
+                        )
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text("Delete Vendor", color = Color.Red) },
+                            onClick = {
+                                showMenu = false
+                                onDeleteClick()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Red) }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // --- Middle Row: Key Stats (Grey Box) ---
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(8.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                    .background(Color(0xFFF9F9F9), RoundedCornerShape(8.dp))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Revenue
+                Column {
+                    Text("Total Revenue", fontSize = 10.sp, color = Color.Gray)
+                    Text(
+                        text = "RM${decimalFormat.format(vendor.totalRevenue)}",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF2E7D32)
+                    )
+                }
+
+                // Vertical Divider
+                Box(modifier = Modifier.width(1.dp).height(24.dp).background(Color.LightGray))
+
+                // Orders
+                Column {
+                    Text("Total Orders", fontSize = 10.sp, color = Color.Gray)
+                    Text(
+                        text = "${vendor.orderCount}",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color.Black
+                    )
+                }
+
+                // Vertical Divider
+                Box(modifier = Modifier.width(1.dp).height(24.dp).background(Color.LightGray))
+
+                // Rating
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = String.format("%.1f", vendor.rating),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // --- Bottom Row: Contact Info (Subtle) ---
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.LocationOn, null, tint = Color.Gray, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    snackbarMessage,
-                    modifier = Modifier.padding(16.dp),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    text = vendor.address.take(35) + if (vendor.address.length > 35) "..." else "",
+                    fontSize = 12.sp,
+                    color = Color.Gray
                 )
             }
         }
@@ -512,248 +506,35 @@ fun AdminVendorListScreen(navController: NavController) {
 }
 
 @Composable
-fun AdminVendorItem(
-    vendor: Vendor,
-    decimalFormat: DecimalFormat,
-    onDeleteClick: () -> Unit,
-    onFreezeClick: () -> Unit,
-    onViewClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onViewClick),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+fun EmptyStateView() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        vendor.vendorName,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        vendor.email,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .background(
-                            color = when (vendor.category.lowercase()) {
-                                "restaurant" -> Color(0xFF4CAF50)
-                                "grocery" -> Color(0xFF2196F3)
-                                "cafe" -> Color(0xFFFF9800)
-                                "bakery" -> Color(0xFF9C27B0)
-                                else -> Color(0xFF607D8B)
-                            },
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        vendor.category.replaceFirstChar { it.uppercase() },
-                        fontSize = 10.sp,
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
+        Icon(Icons.Outlined.Store, null, modifier = Modifier.size(80.dp), tint = Color.LightGray)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("No vendors found", fontSize = 18.sp, color = Color.Gray)
+    }
+}
 
-            Spacer(modifier = Modifier.height(8.dp))
+// Helper functions for colors and icons
+fun getCategoryColor(category: String): Color {
+    return when (category.lowercase()) {
+        "restaurant" -> Color(0xFF4CAF50)
+        "cafe" -> Color(0xFFFF9800)
+        "bakery" -> Color(0xFFE91E63)
+        "grocery" -> Color(0xFF2196F3)
+        else -> Color.Gray
+    }
+}
 
-            // Details
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Phone,
-                            contentDescription = "Phone",
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            vendor.vendorContact,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.LocationOn,
-                            contentDescription = "Location",
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            vendor.address.take(40) + if (vendor.address.length > 40) "..." else "",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Column(
-                    horizontalAlignment = Alignment.End
-                ) {
-                    Text(
-                        "Vendor ID",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        vendor.vendorId,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-
-            // Stats Row
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        vendor.orderCount.toString(),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        "Orders",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        "RM${decimalFormat.format(vendor.totalRevenue)}",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF4CAF50)
-                    )
-                    Text(
-                        "Revenue",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        String.format("%.1f", vendor.rating),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFF9800)
-                    )
-                    Text(
-                        "Rating",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                color = if (vendor.isFrozen) Color(0xFFF44336) else Color(0xFF4CAF50),
-                                shape = RoundedCornerShape(6.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            if (vendor.isFrozen) "FROZEN" else "ACTIVE",
-                            fontSize = 10.sp,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Action Buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                // View Button
-                OutlinedButton(
-                    onClick = onViewClick,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        Icons.Default.Visibility,
-                        contentDescription = "View",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("View Sales")
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Delete Button (Replaced Edit with Delete)
-                OutlinedButton(
-                    onClick = onDeleteClick,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Delete")
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Freeze/Unfreeze Button
-                Button(
-                    onClick = onFreezeClick,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (vendor.isFrozen) Color(0xFF4CAF50) else Color(0xFFF44336),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Icon(
-                        if (vendor.isFrozen) Icons.Default.LockOpen else Icons.Default.Lock,
-                        contentDescription = "Freeze",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (vendor.isFrozen) "Unfreeze" else "Freeze")
-                }
-            }
-        }
+fun getCategoryIcon(category: String): androidx.compose.ui.graphics.vector.ImageVector {
+    return when (category.lowercase()) {
+        "restaurant" -> Icons.Default.Restaurant
+        "cafe" -> Icons.Default.LocalCafe
+        "bakery" -> Icons.Default.Cake
+        "grocery" -> Icons.Default.ShoppingBasket
+        else -> Icons.Default.Store
     }
 }
