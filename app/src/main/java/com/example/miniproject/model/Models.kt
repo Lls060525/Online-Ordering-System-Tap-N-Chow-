@@ -299,6 +299,7 @@ data class OrderRequest(
 data class CustomerAccount(
     val customerId: String = "",
     val tapNChowCoins: Int = 0,
+    val lastSpinDate: Timestamp? = null,
     val lastUpdated: Timestamp = Timestamp.now()
 )
 

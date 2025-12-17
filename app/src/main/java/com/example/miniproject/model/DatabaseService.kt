@@ -896,24 +896,6 @@ class DatabaseService {
         }
     }
 
-
-
-    suspend fun updateCustomerCredit(customerId: String, newBalance: Double): Result<Boolean> {
-        return try {
-            val account = CustomerAccount(
-                customerId = customerId,
-                lastUpdated = Timestamp.now()
-            )
-            db.collection("customer_accounts")
-                .document(customerId)
-                .set(account)
-                .await()
-            Result.success(true)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
     suspend fun updateCustomerProfileImageBase64(customerId: String, base64Image: String): Result<Boolean> {
         return try {
             db.collection("customers").document(customerId)
@@ -934,59 +916,6 @@ class DatabaseService {
                 ?.toObject(Payment::class.java)
         } catch (e: Exception) {
             null
-        }
-    }
-
-
-
-    // Feedback Operations
-
-    suspend fun getAllFeedbacks(): List<Feedback> {
-        return try {
-            println("DEBUG: Attempting to get all feedbacks from Firestore")
-
-            val result = db.collection("feedbacks")
-                .get()
-                .await()
-
-            println("DEBUG: Retrieved ${result.documents.size} feedback documents")
-
-            val feedbacks = result.documents.mapNotNull { document ->
-                try {
-                    val data = document.data ?: return@mapNotNull null
-
-                    println("DEBUG: Processing feedback document ${document.id}")
-
-                    Feedback(
-                        feedbackId = document.id,
-                        customerId = data["customerId"] as? String ?: "",
-                        customerName = data["customerName"] as? String ?: "",
-                        vendorId = data["vendorId"] as? String ?: "",
-                        vendorName = data["vendorName"] as? String ?: "",
-                        orderId = data["orderId"] as? String ?: "",
-                        productId = data["productId"] as? String ?: "",
-                        productName = data["productName"] as? String ?: "",
-                        rating = (data["rating"] as? Double) ?: (data["rating"] as? Long)?.toDouble() ?: 0.0,
-                        comment = data["comment"] as? String ?: "",
-                        feedbackDate = data["feedbackDate"] as? Timestamp ?: Timestamp.now(),
-                        createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
-                        isVisible = data["isVisible"] as? Boolean ?: true,
-                        vendorReply = data["vendorReply"] as? String ?: "",
-                        vendorReplyDate = data["vendorReplyDate"] as? Timestamp,
-                        isReplied = data["isReplied"] as? Boolean ?: false
-                    )
-                } catch (e: Exception) {
-                    println("DEBUG: Error converting feedback document ${document.id}: ${e.message}")
-                    null
-                }
-            }
-
-            println("DEBUG: Successfully converted ${feedbacks.size} feedbacks")
-            feedbacks
-        } catch (e: Exception) {
-            println("ERROR in getAllFeedbacks: ${e.message}")
-            e.printStackTrace()
-            emptyList()
         }
     }
 
@@ -1011,7 +940,7 @@ class DatabaseService {
 
             Result.success(feedbackRef.id)
         } catch (e: Exception) {
-            println("🔴 DEBUG: Failed to save feedback: ${e.message}")
+            println("DEBUG: Failed to save feedback: ${e.message}")
             Result.failure(e)
         }
     }
@@ -1520,10 +1449,79 @@ class DatabaseService {
     }
 
     // --- Voucher Operations ---
+
+    data class SpinState(
+        val isFree: Boolean,
+        val currentCoins: Int,
+        val canAfford: Boolean
+    )
+
     suspend fun createVoucher(voucher: Voucher): Result<String> {
         return try {
             val ref = db.collection("vouchers").add(voucher).await()
             Result.success(ref.id)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getSpinState(customerId: String): SpinState {
+        return try {
+            val doc = db.collection("customer_accounts").document(customerId).get().await()
+            val account = doc.toObject(CustomerAccount::class.java)
+
+            val currentCoins = account?.tapNChowCoins ?: 0
+
+            if (account?.lastSpinDate == null) {
+                // Never spun before -> FREE
+                return SpinState(isFree = true, currentCoins = currentCoins, canAfford = true)
+            }
+
+            // Check if last spin was on a different calendar day
+            val lastSpin = account.lastSpinDate.toDate()
+            val cal1 = java.util.Calendar.getInstance()
+            val cal2 = java.util.Calendar.getInstance()
+            cal1.time = lastSpin
+            cal2.time = java.util.Date()
+
+            val sameDay = cal1.get(java.util.Calendar.DAY_OF_YEAR) == cal2.get(java.util.Calendar.DAY_OF_YEAR) &&
+                    cal1.get(java.util.Calendar.YEAR) == cal2.get(java.util.Calendar.YEAR)
+
+            if (!sameDay) {
+                // New day -> FREE
+                SpinState(isFree = true, currentCoins = currentCoins, canAfford = true)
+            } else {
+                // Same day -> PAID (Check if balance >= 5)
+                SpinState(isFree = false, currentCoins = currentCoins, canAfford = currentCoins >= 5)
+            }
+        } catch (e: Exception) {
+            // Default to safe state on error
+            SpinState(isFree = false, currentCoins = 0, canAfford = false)
+        }
+    }
+    suspend fun performDailySpin(customerId: String, coinsWon: Int, cost: Int): Result<Boolean> {
+        return try {
+            db.runTransaction { transaction ->
+                val ref = db.collection("customer_accounts").document(customerId)
+                val snapshot = transaction.get(ref)
+
+                val currentCoins = snapshot.getLong("tapNChowCoins")?.toInt() ?: 0
+
+                // Double check balance inside transaction for paid spins
+                if (cost > 0 && currentCoins < cost) {
+                    throw Exception("Insufficient coins")
+                }
+
+                // Calculate new balance: Old - Cost + Win
+                val newBalance = currentCoins - cost + coinsWon
+
+                transaction.update(ref, mapOf(
+                    "tapNChowCoins" to newBalance,
+                    "lastSpinDate" to Timestamp.now(),
+                    "lastUpdated" to Timestamp.now()
+                ))
+            }.await()
+            Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)
         }

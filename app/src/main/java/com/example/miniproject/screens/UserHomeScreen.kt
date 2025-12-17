@@ -1,5 +1,6 @@
 package com.example.miniproject.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,18 +8,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Store
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,7 +51,7 @@ import kotlinx.coroutines.launch
 // Fixed screen definitions to match your screenshot
 sealed class UserScreen(val title: String, val icon: ImageVector) {
     object Food : UserScreen("Vendor List", Icons.Default.Store)
-    object Feedback : UserScreen("Feedback", Icons.Default.Feedback) // Changed from Grocery to Feedback
+    object Feedback : UserScreen("Feedback", Icons.Default.Feedback)
     object MyOrder : UserScreen("My Order", Icons.Default.ShoppingCart)
     object Account : UserScreen("Account", Icons.Default.AccountCircle)
 }
@@ -59,6 +60,18 @@ sealed class UserScreen(val title: String, val icon: ImageVector) {
 @Composable
 fun UserHomeScreen(navController: NavController) {
     var currentScreen by remember { mutableStateOf<UserScreen>(UserScreen.Food) }
+
+    // --- NEW: State for Spin Feature ---
+    var showSpinDialog by remember { mutableStateOf(false) }
+    var currentCustomerId by remember { mutableStateOf<String?>(null) }
+    val authService = remember { AuthService() } // Use remember to avoid recreating
+    val context = LocalContext.current
+
+    // --- NEW: Fetch Customer ID for the Spin Feature ---
+    LaunchedEffect(Unit) {
+        val customer = authService.getCurrentCustomer()
+        currentCustomerId = customer?.customerId
+    }
 
     Scaffold(
         topBar = {
@@ -74,11 +87,11 @@ fun UserHomeScreen(navController: NavController) {
                             "Tap N Chow",
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp,
-                            color = Color.White // White text for better contrast on green
+                            color = Color.White
                         )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent, // Make the TopAppBar transparent
+                        containerColor = Color.Transparent,
                         titleContentColor = Color.White,
                         actionIconContentColor = Color.White
                     ),
@@ -86,11 +99,24 @@ fun UserHomeScreen(navController: NavController) {
                 )
             }
         },
+        // --- NEW: Floating Action Button for Daily Spin ---
+        floatingActionButton = {
+            // Only show FAB on the main Food/Vendor screen and if user is logged in
+            if (currentScreen == UserScreen.Food && currentCustomerId != null) {
+                ExtendedFloatingActionButton(
+                    onClick = { showSpinDialog = true },
+                    containerColor = Color(0xFFFFD700), // Gold Color for "Winning" feel
+                    contentColor = Color.Black,
+                    icon = { Icon(Icons.Default.Star, contentDescription = "Win Prizes") },
+                    text = { Text("Daily Spin", fontWeight = FontWeight.Bold) }
+                )
+            }
+        },
         bottomBar = {
             NavigationBar {
                 listOf(
                     UserScreen.Food,
-                    UserScreen.Feedback, // This should point to FeedbackScreen
+                    UserScreen.Feedback,
                     UserScreen.MyOrder,
                     UserScreen.Account
                 ).forEach { screen ->
@@ -107,7 +133,6 @@ fun UserHomeScreen(navController: NavController) {
                     )
                 }
             }
-
         }
     ) { paddingValues ->
         Box(
@@ -117,14 +142,28 @@ fun UserHomeScreen(navController: NavController) {
         ) {
             when (currentScreen) {
                 is UserScreen.Food -> FoodContentWithVendors(navController)
-                is UserScreen.Feedback -> FeedbackScreen(navController) // Show FeedbackScreen
+                is UserScreen.Feedback -> FeedbackScreen(navController)
                 is UserScreen.MyOrder -> MyOrderContent(navController)
                 is UserScreen.Account -> AccountContent(navController)
+            }
+
+            // --- NEW: The Spin Dialog Overlay ---
+            if (showSpinDialog && currentCustomerId != null) {
+                DailySpinDialog(
+                    customerId = currentCustomerId!!,
+                    onDismiss = { showSpinDialog = false },
+                    onCoinsWon = { amount ->
+                        // Show feedback and close
+                        Toast.makeText(context, "You won $amount Coins!", Toast.LENGTH_LONG).show()
+                        showSpinDialog = false
+                    }
+                )
             }
         }
     }
 }
 
+// ... (Rest of your existing FoodContent, MyOrderContent, AccountContent code remains unchanged) ...
 @Composable
 fun FoodContent(navController: NavController) {
     Column(
