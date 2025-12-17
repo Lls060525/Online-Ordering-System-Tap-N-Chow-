@@ -751,36 +751,37 @@ fun NavigationCards(navController: NavController) {
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // My Retail Card
+        // 1. My Retail Card -> Navigates to Product Management
         NavigationCard(
             title = "My Retail",
             description = "Manage your products and inventory",
             onClick = {
-                 //navController.navigate("vendorProduct")
+                // Navigates to the Product screen
+                navController.navigate("vendorProduct")
             }
         )
 
-        // Report Card
+        // 2. Report Card -> Navigates to Analytics Dashboard
         NavigationCard(
             title = "Report",
             description = "View sales reports and analytics",
             onClick = {
-                //navController.navigate("vendorAnalytics")
+                // Navigates to the Analytics screen
+                navController.navigate("vendorAnalytics")
             }
         )
 
-        // Account Card
+        // 3. Account Card -> Navigates to Settings
         NavigationCard(
             title = "Account",
             description = "Manage account settings and profile",
             onClick = {
-                // Navigate to account settings
-                // navController.navigate("vendorAccountSettings")
+                // Navigates to Account Settings (ensure this route exists in your NavHost)
+                navController.navigate("vendorAccountSettings")
             }
         )
     }
 }
-
 @Composable
 fun NavigationCard(
     title: String,
