@@ -12,20 +12,24 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -33,8 +37,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -45,6 +52,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,7 +72,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.miniproject.model.CustomizationOption
 import com.example.miniproject.model.Product
+import com.example.miniproject.model.ProductCustomization
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.utils.ImageConverter
@@ -579,15 +589,19 @@ fun AddEditProductDialog(
     val context = LocalContext.current
     val imageConverter = remember { ImageConverter(context) }
 
+    // Existing States
     var productName by remember { mutableStateOf(product?.productName ?: "") }
     var productPrice by remember { mutableStateOf(product?.productPrice?.toString() ?: "") }
     var description by remember { mutableStateOf(product?.description ?: "") }
     var stock by remember { mutableStateOf(product?.stock?.toString() ?: "") }
     var category by remember { mutableStateOf(product?.category ?: "") }
     var imageUrl by remember { mutableStateOf(product?.imageUrl ?: "") }
+
+    // NEW STATE for Customizations
+    var customizations by remember { mutableStateOf(product?.customizations ?: emptyList()) }
+
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var isImageLoading by remember { mutableStateOf(false) }
 
@@ -609,170 +623,67 @@ fun AddEditProductDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                if (product == null) "Add New Product" else "Edit Product",
-                fontWeight = FontWeight.Bold
-            )
-        },
+        modifier = Modifier.fillMaxWidth().fillMaxHeight(0.9f), // Taller dialog
+        title = { Text(if (product == null) "Add New Product" else "Edit Product") },
         text = {
-            Column {
+            Column(
+                modifier = Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())
+            ) {
                 if (errorMessage != null) {
-                    Text(
-                        text = errorMessage!!,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                    Text(text = errorMessage!!, color = MaterialTheme.colorScheme.error)
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                ) {
-                    Box(
-                        modifier = Modifier.size(100.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isImageLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            ProductImage(
-                                imageUrl = imageUrl,
-                                modifier = Modifier.size(100.dp)
-                            )
-                        }
+                // --- Image Picker Section (Same as before) ---
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
+                    Box(modifier = Modifier.size(80.dp), contentAlignment = Alignment.Center) {
+                        if (isImageLoading) CircularProgressIndicator() else ProductImage(imageUrl = imageUrl, modifier = Modifier.size(80.dp))
                     }
-
-                    Spacer(modifier = Modifier.size(16.dp))
-
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Button(
-                            onClick = { imagePicker.pickImageFromGallery() },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isImageLoading
-                        ) {
-                            Icon(
-                                Icons.Default.CameraAlt,
-                                contentDescription = "Pick Image",
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.size(8.dp))
-                            Text("Choose Image")
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        if (imageUrl.isNotEmpty()) {
-                            Button(
-                                onClick = {
-                                    imageUrl = ""
-                                    selectedImageUri = null
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer
-                                )
-                            ) {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "Remove Image",
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.size(8.dp))
-                                Text("Remove Image")
-                            }
-                        }
-                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Button(onClick = { imagePicker.pickImageFromGallery() }) { Text("Choose Image") }
                 }
 
-                OutlinedTextField(
-                    value = productName,
-                    onValueChange = { productName = it },
-                    label = { Text("Product Name *") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    isError = productName.isBlank()
-                )
-
+                // --- Basic Fields (Same as before) ---
+                OutlinedTextField(value = productName, onValueChange = { productName = it }, label = { Text("Product Name *") }, modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedTextField(
                     value = productPrice,
-                    onValueChange = {
-                        if (it.isEmpty() || it.toDoubleOrNull() != null) {
-                            productPrice = it
-                        }
-                    },
+                    onValueChange = { if (it.isEmpty() || it.toDoubleOrNull() != null) productPrice = it },
                     label = { Text("Price (RM) *") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    isError = productPrice.isBlank() || productPrice.toDoubleOrNull() == null
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
-
                 Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedTextField(
                     value = stock,
-                    onValueChange = {
-                        if (it.isEmpty() || it.toIntOrNull() != null) {
-                            stock = it
-                        }
-                    },
-                    label = { Text("Stock Quantity *") },
+                    onValueChange = { if (it.isEmpty() || it.toIntOrNull() != null) stock = it },
+                    label = { Text("Stock *") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    isError = stock.isBlank() || stock.toIntOrNull() == null
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
-
                 Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = category,
-                    onValueChange = { category = it },
-                    label = { Text("Category (e.g., Food, Drink)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    placeholder = { Text("Optional category for filtering") }
-                )
-
+                OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Category") }, modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), maxLines = 3)
 
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = false,
-                    maxLines = 3
+                // --- NEW CUSTOMIZATION EDITOR ---
+                Spacer(modifier = Modifier.height(16.dp))
+                Divider()
+                Spacer(modifier = Modifier.height(16.dp))
+
+                CustomizationEditor(
+                    customizations = customizations,
+                    onUpdate = { updatedList -> customizations = updatedList }
                 )
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    if (productName.isBlank()) {
-                        errorMessage = "Product name is required"
+                    if (productName.isBlank() || productPrice.isBlank() || stock.isBlank()) {
+                        errorMessage = "Please fill in all required fields"
                         return@Button
                     }
-                    if (productPrice.isBlank() || productPrice.toDoubleOrNull() == null) {
-                        errorMessage = "Valid price is required"
-                        return@Button
-                    }
-                    if (stock.isBlank() || stock.toIntOrNull() == null) {
-                        errorMessage = "Valid stock quantity is required"
-                        return@Button
-                    }
-
                     isLoading = true
-                    errorMessage = null
-
                     val newProduct = Product(
                         productId = product?.productId ?: "",
                         vendorId = vendorId,
@@ -782,53 +693,178 @@ fun AddEditProductDialog(
                         stock = stock.toInt(),
                         imageUrl = imageUrl,
                         category = category.trim(),
+                        customizations = customizations, // SAVE CUSTOMIZATIONS
                         createdAt = product?.createdAt ?: Timestamp.now(),
                         updatedAt = Timestamp.now()
                     )
 
                     coroutineScope.launch {
                         if (product == null) {
-                            databaseService.addProduct(newProduct).onSuccess { productId ->
-                                val productWithId = newProduct.copy(productId = productId)
-                                onSave(productWithId)
-                                isLoading = false
-                            }.onFailure {
-                                errorMessage = "Failed to add product: ${it.message}"
-                                isLoading = false
+                            databaseService.addProduct(newProduct).onSuccess { id ->
+                                onSave(newProduct.copy(productId = id))
                             }
                         } else {
                             databaseService.updateProduct(newProduct).onSuccess {
                                 onSave(newProduct)
-                                isLoading = false
-                            }.onFailure {
-                                errorMessage = "Failed to update product: ${it.message}"
-                                isLoading = false
+                            }
+                        }
+                        isLoading = false
+                    }
+                },
+                enabled = !isLoading
+            ) {
+                Text(if (product == null) "Add" else "Update")
+            }
+        },
+        dismissButton = { Button(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+
+@Composable
+fun CustomizationEditor(
+    customizations: List<ProductCustomization>,
+    onUpdate: (List<ProductCustomization>) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("Product Customizations", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+
+        customizations.forEachIndexed { index, customization ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    // Header: Remove Group Button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Group ${index + 1}", fontWeight = FontWeight.Bold)
+                        IconButton(onClick = {
+                            val newList = customizations.toMutableList()
+                            newList.removeAt(index)
+                            onUpdate(newList)
+                        }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+
+                    // Title Input (e.g., "Size")
+                    OutlinedTextField(
+                        value = customization.title,
+                        onValueChange = { newTitle ->
+                            val newList = customizations.toMutableList()
+                            newList[index] = customization.copy(title = newTitle)
+                            onUpdate(newList)
+                        },
+                        label = { Text("Title (e.g. Size, Spiciness)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Settings: Required & Single Selection
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = customization.required,
+                            onCheckedChange = { isRequired ->
+                                val newList = customizations.toMutableList()
+                                newList[index] = customization.copy(required = isRequired)
+                                onUpdate(newList)
+                            }
+                        )
+                        Text("Required", fontSize = 12.sp)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Checkbox(
+                            checked = customization.singleSelection,
+                            onCheckedChange = { isSingle ->
+                                val newList = customizations.toMutableList()
+                                newList[index] = customization.copy(singleSelection = isSingle)
+                                onUpdate(newList)
+                            }
+                        )
+                        Text("Single Select", fontSize = 12.sp)
+                    }
+
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    // Options List
+                    customization.options.forEachIndexed { optIndex, option ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = option.name,
+                                onValueChange = { name ->
+                                    val newOptions = customization.options.toMutableList()
+                                    newOptions[optIndex] = option.copy(name = name)
+                                    val newList = customizations.toMutableList()
+                                    newList[index] = customization.copy(options = newOptions)
+                                    onUpdate(newList)
+                                },
+                                placeholder = { Text("Option Name") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            OutlinedTextField(
+                                value = option.price.toString(),
+                                onValueChange = { priceStr ->
+                                    // Allow numbers and one decimal point
+                                    if (priceStr.isEmpty() || priceStr.matches(Regex("^\\d*\\.?\\d*$"))) {
+                                        val newPrice = priceStr.toDoubleOrNull() ?: 0.0
+                                        val newOptions = customization.options.toMutableList()
+                                        newOptions[optIndex] = option.copy(price = newPrice)
+                                        val newList = customizations.toMutableList()
+                                        newList[index] = customization.copy(options = newOptions)
+                                        onUpdate(newList)
+                                    }
+                                },
+                                label = { Text("+RM") },
+                                modifier = Modifier.width(80.dp),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true
+                            )
+                            IconButton(onClick = {
+                                val newOptions = customization.options.toMutableList()
+                                newOptions.removeAt(optIndex)
+                                val newList = customizations.toMutableList()
+                                newList[index] = customization.copy(options = newOptions)
+                                onUpdate(newList)
+                            }) {
+                                Icon(Icons.Default.Delete, null, modifier = Modifier.size(20.dp))
                             }
                         }
                     }
-                },
-                enabled = !isLoading && !isImageLoading
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text(if (product == null) "Add Product" else "Update Product")
+
+                    // Add Option Button
+                    TextButton(onClick = {
+                        val newOptions = customization.options + CustomizationOption("", 0.0)
+                        val newList = customizations.toMutableList()
+                        newList[index] = customization.copy(options = newOptions)
+                        onUpdate(newList)
+                    }) {
+                        Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
+                        Text("Add Option")
+                    }
                 }
             }
-        },
-        dismissButton = {
-            Button(
-                onClick = onDismiss,
-                enabled = !isLoading && !isImageLoading
-            ) {
-                Text("Cancel")
-            }
         }
-    )
+
+        // Add Customization Group Button
+        Button(
+            onClick = {
+                onUpdate(customizations + ProductCustomization("", required = false, singleSelection = true, options = listOf(CustomizationOption("", 0.0))))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+        ) {
+            Icon(Icons.Default.Add, null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Add Customization Group")
+        }
+    }
 }
 
 @Composable

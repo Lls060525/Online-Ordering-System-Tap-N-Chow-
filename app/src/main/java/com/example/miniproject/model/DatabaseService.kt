@@ -392,6 +392,7 @@ class DatabaseService {
                         "stock" to product.stock,
                         "imageUrl" to product.imageUrl,
                         "category" to product.category,
+                        "customizations" to product.customizations, // <--- ADD THIS LINE
                         "updatedAt" to Timestamp.now()
                     )
                 ).await()

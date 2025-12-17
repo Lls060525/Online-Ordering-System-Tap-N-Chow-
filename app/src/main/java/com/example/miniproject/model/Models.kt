@@ -126,7 +126,7 @@ data class Voucher(
 
 // Product Model
 data class Product(
-    @DocumentId val productId: String = "", // Keep for products as they need auto-generated IDs
+    @DocumentId val productId: String = "",
     val vendorId: String = "",
     val productName: String = "",
     val productPrice: Double = 0.0,
@@ -134,8 +134,21 @@ data class Product(
     val stock: Int = 0,
     val imageUrl: String = "",
     val category: String = "",
+    val customizations: List<ProductCustomization> = emptyList(), // <--- ADD THIS
     val createdAt: Timestamp = Timestamp.now(),
     val updatedAt: Timestamp = Timestamp.now()
+)
+
+data class CustomizationOption(
+    val name: String = "",      // e.g., "Large", "Extra Spicy"
+    val price: Double = 0.0     // e.g., 2.0 (adds RM2.00)
+)
+
+data class ProductCustomization(
+    val title: String = "",       // e.g., "Size", "Spiciness Level"
+    val required: Boolean = false, // If true, customer MUST select one
+    val singleSelection: Boolean = true, // true = Radio Button, false = Checkbox
+    val options: List<CustomizationOption> = emptyList()
 )
 
 // Order Model

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,12 +25,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MonetizationOn
@@ -44,6 +48,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,12 +60,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -82,6 +89,7 @@ import androidx.navigation.NavController
 import com.example.miniproject.R
 import com.example.miniproject.model.Cart
 import com.example.miniproject.model.CartItem
+import com.example.miniproject.model.CustomizationOption
 import com.example.miniproject.model.Product
 import com.example.miniproject.model.Vendor
 import com.example.miniproject.model.VendorCategory
@@ -107,8 +115,6 @@ class ImageConverter(private val context: android.content.Context) {
             } else {
                 base64String
             }
-
-            Log.d("ImageConverter", "Base64 string length: ${pureBase64.length}")
 
             val decodedBytes = Base64.decode(pureBase64, Base64.DEFAULT)
             BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
@@ -136,6 +142,10 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
     // --- Voucher States ---
     var vendorVouchers by remember { mutableStateOf<List<Voucher>>(emptyList()) }
     var claimedVoucherIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    // --- Customization States ---
+    var showCustomizationDialog by remember { mutableStateOf(false) }
+    var selectedProductForCustomization by remember { mutableStateOf<Product?>(null) }
 
     // --- Auto Filter Logic ---
     var selectedCategory by remember { mutableStateOf("All") }
@@ -264,7 +274,7 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                 // 1. Vendor Header
                 VendorHeaderSection(vendor = vendor)
 
-                // 2. Vouchers Section (NEW)
+                // 2. Vouchers Section
                 if (vendorVouchers.isNotEmpty()) {
                     Text(
                         text = "Vouchers",
@@ -292,7 +302,8 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                                                 claimedVoucherIds = claimedVoucherIds + voucher.voucherId
                                                 Toast.makeText(context, "Voucher Claimed!", Toast.LENGTH_SHORT).show()
                                             } else {
-                                                Toast.makeText(context, "Coin Insuffiecient, Failed to Claim", Toast.LENGTH_SHORT).show()
+                                                // Show failure reason (likely insufficient coins)
+                                                Toast.makeText(context, result.exceptionOrNull()?.message ?: "Failed to claim", Toast.LENGTH_SHORT).show()
                                             }
                                         } else {
                                             Toast.makeText(context, "Please login as customer to claim", Toast.LENGTH_SHORT).show()
@@ -306,7 +317,7 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                     Divider(thickness = 0.5.dp, color = Color.LightGray)
                 }
 
-                // 3. Filter Chips (Only show if there are products and categories)
+                // 3. Filter Chips
                 if (products.isNotEmpty() && categories.size > 1) {
                     LazyRow(
                         modifier = Modifier
@@ -363,7 +374,6 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                         }
                     }
                 } else if (filteredProducts.isEmpty()) {
-                    // Show message when filter returns nothing
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -386,22 +396,30 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                             ProductMenuItem(
                                 product = product,
                                 onAddToCart = {
-                                    val existingItem = cartItems.find { it.productId == product.productId }
-                                    if (existingItem != null) {
-                                        cartItems = cartItems.map { item ->
-                                            if (item.productId == product.productId) {
-                                                item.copy(quantity = item.quantity + 1)
-                                            } else item
-                                        }
+                                    // --- CUSTOMIZATION LOGIC ---
+                                    if (product.customizations.isNotEmpty()) {
+                                        selectedProductForCustomization = product
+                                        showCustomizationDialog = true
                                     } else {
-                                        cartItems = cartItems + CartItem(
-                                            productId = product.productId,
-                                            productName = product.productName,
-                                            productPrice = product.productPrice,
-                                            quantity = 1,
-                                            vendorId = product.vendorId,
-                                            imageUrl = product.imageUrl
-                                        )
+                                        // Standard Add logic
+                                        val existingItem = cartItems.find { it.productId == product.productId }
+                                        if (existingItem != null) {
+                                            cartItems = cartItems.map { item ->
+                                                if (item.productId == product.productId) {
+                                                    item.copy(quantity = item.quantity + 1)
+                                                } else item
+                                            }
+                                        } else {
+                                            cartItems = cartItems + CartItem(
+                                                productId = product.productId,
+                                                productName = product.productName,
+                                                productPrice = product.productPrice,
+                                                quantity = 1,
+                                                vendorId = product.vendorId,
+                                                imageUrl = product.imageUrl
+                                            )
+                                        }
+                                        Toast.makeText(context, "Added to cart", Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             )
@@ -412,7 +430,24 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
             }
         }
 
-        // Cart Dialog
+        // --- Customization Dialog Overlay ---
+        if (showCustomizationDialog && selectedProductForCustomization != null) {
+            ProductCustomizationDialog(
+                product = selectedProductForCustomization!!,
+                onDismiss = {
+                    showCustomizationDialog = false
+                    selectedProductForCustomization = null
+                },
+                onAddToCart = { customCartItem ->
+                    cartItems = cartItems + customCartItem
+                    showCustomizationDialog = false
+                    selectedProductForCustomization = null
+                    Toast.makeText(context, "Added to cart", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+
+        // --- Cart Dialog ---
         if (showCart) {
             CartDialog(
                 cartItems = cartItems,
@@ -471,8 +506,7 @@ fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {
     }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -500,7 +534,6 @@ fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {
                         )
                     }
                     else -> {
-                        // Fallback icon
                         Icon(
                             Icons.Default.Fastfood,
                             contentDescription = "Product Image",
@@ -540,19 +573,31 @@ fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "RM ${"%.2f".format(product.productPrice)}",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "RM ${"%.2f".format(product.productPrice)}",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        // Show "Customizable" label if applicable
+                        if (product.customizations.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Customizable",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.secondary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
 
                     if (product.stock > 0) {
                         TextButton(
                             onClick = onAddToCart,
                             enabled = product.stock > 0
                         ) {
-                            Text("Add to Cart")
+                            Text("Add")
                         }
                     } else {
                         Text(
@@ -596,9 +641,8 @@ fun CartDialog(
                         Text("Your cart is empty", textAlign = TextAlign.Center)
                     }
                 } else {
-                    // Cart items
                     LazyColumn(
-                        modifier = Modifier.heightIn(max = 200.dp)
+                        modifier = Modifier.heightIn(max = 300.dp)
                     ) {
                         items(cartItems) { item ->
                             Row(
@@ -612,7 +656,8 @@ fun CartDialog(
                                     Text(
                                         item.productName,
                                         fontWeight = FontWeight.Medium,
-                                        fontSize = 16.sp
+                                        fontSize = 16.sp,
+                                        maxLines = 2
                                     )
                                     Text(
                                         "RM ${"%.2f".format(item.productPrice)}",
@@ -648,7 +693,8 @@ fun CartDialog(
                                     "RM ${"%.2f".format(item.productPrice * item.quantity)}",
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 16.sp,
-                                    modifier = Modifier.width(70.dp)
+                                    modifier = Modifier.width(70.dp),
+                                    textAlign = TextAlign.End
                                 )
                             }
                             Divider()
@@ -1122,12 +1168,14 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
+        // --- START OF ROW (Wraps Image, Text, and Arrow) ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // 1. Vendor Logo
             Box(
                 modifier = Modifier
                     .size(60.dp)
@@ -1156,8 +1204,9 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
 
             Spacer(modifier = Modifier.size(16.dp))
 
+            // 2. Vendor Details (Name, Rating, Address)
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f) // Takes up remaining horizontal space
             ) {
                 Text(
                     text = vendor.vendorName,
@@ -1212,6 +1261,7 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
                 }
             }
 
+            // 3. Arrow Icon
             Icon(
                 Icons.Default.ArrowBack,
                 contentDescription = "View Menu",
@@ -1224,25 +1274,214 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
     }
 }
 
+
 @Composable
-fun VoucherClaimCard(
-    voucher: Voucher,
-    isClaimed: Boolean,
-    onClaim: () -> Unit
+fun ProductCustomizationDialog(
+    product: Product,
+    onDismiss: () -> Unit,
+    onAddToCart: (CartItem) -> Unit
 ) {
+    // State to store selected options: Map<GroupTitle, List<Option>>
+    val selections = remember { mutableStateMapOf<String, List<CustomizationOption>>() }
+
+    // Calculate Total Price dynamically
+    val totalPrice = remember(selections.toMap()) {
+        var total = product.productPrice
+        selections.values.flatten().forEach { total += it.price }
+        total
+    }
+
+    // Validation: Check if all REQUIRED groups have a selection
+    val isValid = remember(selections.toMap()) {
+        product.customizations.all { group ->
+            if (group.required) {
+                !selections[group.title].isNullOrEmpty()
+            } else {
+                true
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Customize Order",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close")
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState())
+            ) {
+                // Header: Product Info
+                Text(
+                    text = product.productName,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Base Price: RM ${"%.2f".format(product.productPrice)}",
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+
+                Divider(modifier = Modifier.padding(vertical = 12.dp))
+
+                // Customization Groups
+                product.customizations.forEach { group ->
+                    Column(modifier = Modifier.padding(bottom = 16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = group.title,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            if (group.required) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Surface(
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = "Required",
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            } else {
+                                Text(" (Optional)", fontSize = 12.sp, color = Color.Gray)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Options List
+                        group.options.forEach { option ->
+                            val isSelected = selections[group.title]?.contains(option) == true
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        val currentList = selections[group.title]?.toMutableList() ?: mutableListOf()
+
+                                        if (group.singleSelection) {
+                                            // Radio Button Logic
+                                            selections[group.title] = listOf(option)
+                                        } else {
+                                            // Checkbox Logic
+                                            if (isSelected) {
+                                                currentList.remove(option)
+                                            } else {
+                                                currentList.add(option)
+                                            }
+                                            selections[group.title] = currentList
+                                        }
+                                    }
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (group.singleSelection) {
+                                    RadioButton(
+                                        selected = isSelected,
+                                        onClick = null // Handled by Row clickable
+                                    )
+                                } else {
+                                    Checkbox(
+                                        checked = isSelected,
+                                        onCheckedChange = null // Handled by Row clickable
+                                    )
+                                }
+
+                                Text(
+                                    text = option.name,
+                                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                                )
+
+                                if (option.price > 0) {
+                                    Text(
+                                        text = "+ RM ${"%.2f".format(option.price)}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Divider(color = Color.LightGray.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    // 1. Generate modified name: "Burger (Large, Spicy)"
+                    val selectedOptionsList = selections.values.flatten()
+                    val optionsString = if (selectedOptionsList.isNotEmpty()) {
+                        " (" + selectedOptionsList.joinToString(", ") { it.name } + ")"
+                    } else ""
+
+                    val finalName = product.productName + optionsString
+
+                    // 2. Create Cart Item with NEW price and name
+                    val cartItem = CartItem(
+                        productId = product.productId,
+                        productName = finalName,
+                        productPrice = totalPrice, // Use calculated total price
+                        quantity = 1,
+                        vendorId = product.vendorId,
+                        imageUrl = product.imageUrl
+                    )
+
+                    onAddToCart(cartItem)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = isValid // Only enable if required fields are filled
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Add to Cart")
+                    Text(
+                        "RM ${"%.2f".format(totalPrice)}",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        dismissButton = null
+    )
+}
+
+@Composable
+fun VoucherClaimCard(voucher: Voucher, isClaimed: Boolean, onClaim: () -> Unit) {
     Card(
+        modifier = Modifier.width(280.dp), // Fixed width for horizontal scrolling cards
         colors = CardDefaults.cardColors(
-            containerColor = if (isClaimed) Color(0xFFE8F5E9) else Color(0xFFFFF3E0)
+            containerColor = if (isClaimed) Color(0xFFF0F0F0) else Color(0xFFE3F2FD)
         ),
-        shape = RoundedCornerShape(8.dp),
-        modifier = Modifier
-            .width(280.dp)
-            .padding(end = 12.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
-            modifier = Modifier
-                .padding(12.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
