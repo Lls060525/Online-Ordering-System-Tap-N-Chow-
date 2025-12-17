@@ -1,5 +1,6 @@
 package com.example.miniproject.screens
 
+import android.content.Context
 import android.graphics.Paint
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -18,6 +19,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,9 +27,13 @@ import androidx.navigation.NavController
 import com.example.miniproject.model.Order
 import com.example.miniproject.model.Vendor
 import com.example.miniproject.service.DatabaseService
+import com.example.miniproject.utils.PdfGenerator
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
 import java.text.DecimalFormat
-import java.util.Locale
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,6 +41,7 @@ fun AdminAnalyticsScreen(navController: NavController) {
     val databaseService = DatabaseService()
     val coroutineScope = rememberCoroutineScope()
     val decimalFormat = DecimalFormat("#,##0.00")
+    val context = LocalContext.current
 
     // State variables
     var vendors by remember { mutableStateOf<List<Vendor>>(emptyList()) }
@@ -42,6 +49,7 @@ fun AdminAnalyticsScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
     var selectedTimeRange by remember { mutableStateOf("month") } // day, week, month, year
     var platformRevenueData by remember { mutableStateOf<List<Double>>(emptyList()) }
+    var isGeneratingReport by remember { mutableStateOf(false) }
 
     // Load data
     LaunchedEffect(Unit) {
@@ -73,8 +81,8 @@ fun AdminAnalyticsScreen(navController: NavController) {
     val vendorRevenue = totalRevenue * 0.90
     val totalOrders = orders.size
     val activeVendors = vendors.size
-    // avgOrderValue removed since it's unused
     val ordersByStatus = orders.groupBy { order -> order.status }.mapValues { entry -> entry.value.size }
+    val topVendors = calculateTopVendors(vendors, orders).take(5)
 
     Scaffold(
         topBar = {
@@ -88,11 +96,78 @@ fun AdminAnalyticsScreen(navController: NavController) {
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        // Fixed deprecated icon
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
+                    // Download Report Button
+                    IconButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                isGeneratingReport = true
+                                try {
+                                    // Create a timestamp for the filename
+                                    val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                                    val fileName = "Platform_Analytics_Report_$timestamp.pdf"
+
+                                    // SIMPLE APPROACH: Save to app's external files directory in "Downloads" subfolder
+                                    val downloadsDir = File(context.getExternalFilesDir(null), "Downloads")
+                                    if (!downloadsDir.exists()) {
+                                        downloadsDir.mkdirs()
+                                    }
+                                    val file = File(downloadsDir, fileName)
+
+                                    // Generate the PDF
+                                    FileOutputStream(file).use { outputStream ->
+                                        PdfGenerator.generatePlatformAnalyticsReport(
+                                            context = context,
+                                            outputStream = outputStream,
+                                            vendors = vendors,
+                                            orders = orders,
+                                            platformRevenueData = platformRevenueData,
+                                            selectedTimeRange = selectedTimeRange,
+                                            totalRevenue = totalRevenue,
+                                            platformRevenue = platformRevenue,
+                                            vendorRevenue = vendorRevenue,
+                                            totalOrders = totalOrders,
+                                            activeVendors = activeVendors,
+                                            ordersByStatus = ordersByStatus,
+                                            topVendors = topVendors
+                                        )
+                                    }
+
+                                    // Show success message
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "Report saved to: ${file.absolutePath}",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "Failed to generate report: ${e.message}",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                } finally {
+                                    isGeneratingReport = false
+                                }
+                            }
+                        },
+                        enabled = !isGeneratingReport && !isLoading && vendors.isNotEmpty()
+                    ) {
+                        if (isGeneratingReport) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(Icons.Default.Download, contentDescription = "Download Report")
+                        }
+                    }
+
+                    // Refresh Button
                     IconButton(onClick = {
                         coroutineScope.launch {
                             isLoading = true
@@ -247,6 +322,15 @@ fun AdminAnalyticsScreen(navController: NavController) {
     }
 }
 
+// Helper function to calculate top vendors
+private fun calculateTopVendors(vendors: List<Vendor>, orders: List<Order>): List<Pair<Vendor, Double>> {
+    val vendorRevenueMap = calculateVendorRevenue(orders, vendors)
+    return vendors.map { vendor ->
+        vendor to (vendorRevenueMap[vendor.vendorId] ?: 0.0)
+    }.sortedByDescending { pair -> pair.second }
+}
+
+// The rest of your existing functions remain exactly the same...
 @Composable
 private fun AdminTimeRangeSelector(
     selectedTimeRange: String,
@@ -289,66 +373,84 @@ fun PlatformRevenueChart(
     timeRange: String,
     decimalFormat: DecimalFormat
 ) {
+    // Animation state
+    var animationPlayed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(key1 = true) {
+        animationPlayed = true
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(250.dp),
-        shape = RoundedCornerShape(16.dp)
+            .height(300.dp), // Taller for better look
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(20.dp)
         ) {
+            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "Platform Revenue (10%)",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "RM${decimalFormat.format(revenueData.sum())}",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFFFF9800)
-                )
+                Column {
+                    Text(
+                        "Platform Revenue",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.Gray
+                    )
+                    Text(
+                        "RM ${decimalFormat.format(revenueData.sum())}",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                // Small indicator
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Text(
+                        text = "10% Cut",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Bar Chart
+            // Chart Area
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.LightGray.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                    .padding(8.dp)
+                    .weight(1f)
+                    .fillMaxWidth()
             ) {
                 if (revenueData.isNotEmpty()) {
-                    BarChartCanvas(data = revenueData)
+                    BeautifulBarChart(data = revenueData, animationPlayed = animationPlayed)
                 } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "No revenue data available",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No data available", color = Color.LightGray)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Time labels
+            // Labels (Keep existing logic, just style it)
             val labels = when (timeRange) {
                 "day" -> listOf("12am", "6am", "12pm", "6pm")
-                "week" -> listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-                "month" -> listOf("W1", "W2", "W3", "W4")
+                "week" -> listOf("Mon", "Wed", "Fri", "Sun")
+                "month" -> listOf("Week 1", "Week 2", "Week 3", "Week 4")
                 "year" -> listOf("Q1", "Q2", "Q3", "Q4")
                 else -> emptyList()
             }
@@ -360,8 +462,8 @@ fun PlatformRevenueChart(
                 labels.forEach { label ->
                     Text(
                         label,
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray
                     )
                 }
             }
@@ -370,42 +472,46 @@ fun PlatformRevenueChart(
 }
 
 @Composable
-fun BarChartCanvas(data: List<Double>) {
+fun BeautifulBarChart(data: List<Double>, animationPlayed: Boolean) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val secondaryColor = MaterialTheme.colorScheme.secondary
+
+    // Animate the height factor
+    val heightFactor by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (animationPlayed) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 1000, delayMillis = 100),
+        label = "barHeight"
+    )
+
     val maxValue = data.maxOrNull() ?: 1.0
+
     Canvas(modifier = Modifier.fillMaxSize()) {
-        val barWidth = size.width / (data.size * 2)
-        val maxBarHeight = size.height * 0.7f
+        val barWidth = size.width / (data.size * 1.5f)
+        val space = (size.width - (barWidth * data.size)) / (data.size - 1)
+        val maxBarHeight = size.height
+
+        val brush = Brush.verticalGradient(
+            colors = listOf(primaryColor, primaryColor.copy(alpha = 0.6f))
+        )
 
         data.forEachIndexed { index, value ->
-            val barHeight = (value / maxValue).toFloat() * maxBarHeight
-            val x = barWidth + index * (barWidth + barWidth)
-            val y = size.height - barHeight
+            val finalHeight = (value / maxValue).toFloat() * maxBarHeight
+            val currentHeight = finalHeight * heightFactor // Animation applied here
 
-            // FIXED: Use drawRoundRect instead of drawRect for rounded corners
+            val x = index * (barWidth + space)
+            val y = size.height - currentHeight
+
+            // Draw Bar
             drawRoundRect(
-                color = Color(0xFFFF9800),
+                brush = brush,
                 topLeft = Offset(x, y),
-                size = Size(barWidth, barHeight),
-                cornerRadius = CornerRadius(4.dp.toPx())
+                size = Size(barWidth, currentHeight),
+                cornerRadius = CornerRadius(8f, 8f)
             )
-
-            // Draw value on top of bar
-            if (value > 0) {
-                drawContext.canvas.nativeCanvas.drawText(
-                    "RM${String.format(Locale.getDefault(), "%.0f", value)}",
-                    x + barWidth / 2,
-                    y - 8.dp.toPx(),
-                    Paint().apply {
-                        color = android.graphics.Color.BLACK
-                        textSize = 10.sp.toPx()
-                        textAlign = Paint.Align.CENTER
-                        isAntiAlias = true
-                    }
-                )
-            }
         }
     }
 }
+
 
 @Composable
 fun AdminMetricCard(
@@ -417,31 +523,43 @@ fun AdminMetricCard(
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(
-                icon,
-                contentDescription = title,
-                modifier = Modifier.size(24.dp),
-                tint = color
-            )
-            Text(
-                value,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                title,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // Icon in a colored circle
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(color.copy(alpha = 0.15f), androidx.compose.foundation.shape.CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = color
+                )
+            }
+
+            Column {
+                Text(
+                    value,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -531,34 +649,29 @@ fun PieChartCanvas(
     platformPercentage: Float,
     vendorPercentage: Float
 ) {
+    val platformColor = Color(0xFFFF9800)
+    val vendorColor = MaterialTheme.colorScheme.primary
+
     Canvas(modifier = Modifier.fillMaxSize()) {
         val diameter = size.minDimension
-        val radius = diameter / 2
-        val center = Offset(size.width / 2, size.height / 2)
+        val strokeWidth = 40f
 
-        // Draw platform revenue slice
+        // Draw Vendor Arc (Background/Main)
         drawArc(
-            color = Color(0xFFFF9800),
+            color = vendorColor,
+            startAngle = 0f,
+            sweepAngle = 360f,
+            useCenter = false,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
+        )
+
+        // Draw Platform Arc (Overlay)
+        drawArc(
+            color = platformColor,
             startAngle = -90f,
             sweepAngle = platformPercentage * 3.6f,
-            useCenter = true,
-            size = Size(diameter, diameter)
-        )
-
-        // Draw vendor revenue slice
-        drawArc(
-            color = Color(0xFF4CAF50),
-            startAngle = -90f + platformPercentage * 3.6f,
-            sweepAngle = vendorPercentage * 3.6f,
-            useCenter = true,
-            size = Size(diameter, diameter)
-        )
-
-        // Draw center circle
-        drawCircle(
-            color = Color.White,
-            center = center,
-            radius = radius * 0.4f
+            useCenter = false,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round)
         )
     }
 }
@@ -759,77 +872,58 @@ fun TopVendorItem(
     revenue: Double,
     decimalFormat: DecimalFormat
 ) {
-    Card(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            .padding(vertical = 8.dp)
+            .background(Color.White, RoundedCornerShape(12.dp))
+            .padding(12.dp), // Inner padding
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
+        // Rank Circle
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .size(32.dp)
+                .background(
+                    color = when (rank) {
+                        1 -> Color(0xFFFFD700)
+                        2 -> Color(0xFFE0E0E0)
+                        3 -> Color(0xFFCD7F32)
+                        else -> Color(0xFFF5F5F5)
+                    },
+                    shape = androidx.compose.foundation.shape.CircleShape
+                ),
+            contentAlignment = Alignment.Center
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Rank
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .background(
-                            color = when (rank) {
-                                1 -> Color(0xFFFFD700) // Gold
-                                2 -> Color(0xFFC0C0C0) // Silver
-                                3 -> Color(0xFFCD7F32) // Bronze
-                                else -> MaterialTheme.colorScheme.surfaceVariant
-                            },
-                            shape = RoundedCornerShape(6.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        rank.toString(),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = when (rank) {
-                            1, 2, 3 -> Color.White
-                            else -> MaterialTheme.colorScheme.onSurface
-                        }
-                    )
-                }
-
-                Column {
-                    Text(
-                        text = vendor.vendorName,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = vendor.category.replaceFirstChar { char -> char.uppercaseChar() },
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "Revenue",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "RM${decimalFormat.format(revenue)}",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+            Text(
+                rank.toString(),
+                fontWeight = FontWeight.Bold,
+                color = if (rank <= 3) Color.White else Color.Black
+            )
         }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = vendor.vendorName,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = vendor.category.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray,
+                letterSpacing = 1.sp
+            )
+        }
+
+        Text(
+            text = "RM${decimalFormat.format(revenue)}",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
     }
 }
 
@@ -840,7 +934,6 @@ fun RevenueTrendsCard(
     decimalFormat: DecimalFormat
 ) {
     val currentMillis = System.currentTimeMillis() / 1000 // Convert to seconds
-    // Removed unused calendar variable
 
     Card(
         modifier = Modifier.fillMaxWidth(),
