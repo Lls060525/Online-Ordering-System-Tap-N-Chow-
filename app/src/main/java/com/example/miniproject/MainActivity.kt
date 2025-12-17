@@ -107,16 +107,6 @@ class MainActivity : FragmentActivity() {
                         CustomerVoucherScreen(navController)
                     }
 
-                    composable("vendorAccountSettings") {
-                        // You'll need to create this screen or point it to a settings page
-                        // VendorAccountSettingsScreen(navController)
-
-                        // For now, you can just show a placeholder text if the screen doesn't exist yet
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Account Settings Page")
-                        }
-                    }
-
                     composable("vendorVouchers") {
                         VendorVoucherScreen(navController)
                     }
