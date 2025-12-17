@@ -3,6 +3,7 @@ package com.example.miniproject.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -12,12 +13,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.miniproject.model.*
 import com.example.miniproject.service.DatabaseService
+import com.example.miniproject.util.OrderStatusHelper
 import com.google.firebase.Timestamp
 import kotlinx.coroutines.launch
 import java.text.DecimalFormat
@@ -87,39 +90,31 @@ fun AdminOrderDetailsScreen(
     }
 
     Scaffold(
+        containerColor = Color(0xFFF5F6F9), // Light Grey Background
         topBar = {
-            Box(
-                modifier = Modifier
-                    .background(Color(0xFF2196F3))
-                    .statusBarsPadding()
-            ) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            "Order Details",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                            color = Color.White
+            TopAppBar(
+                title = {
+                    Text(
+                        "Order Details",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        color = Color(0xFF2196F3)
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color(0xFF333333)
                         )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(
-                                Icons.Default.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Color.White
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        titleContentColor = Color.White,
-                        actionIconContentColor = Color.White
-                    ),
-                    modifier = Modifier.background(Color.Transparent)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White
                 )
-            }
-        },
+            )
+        }
     ) { paddingValues ->
         if (isLoading) {
             Box(
@@ -142,24 +137,16 @@ fun AdminOrderDetailsScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Icon(
-                        Icons.Default.Error,
-                        contentDescription = "Order not found",
+                        Icons.Default.ErrorOutline,
+                        contentDescription = "Not Found",
                         modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = Color.Gray
                     )
                     Text(
                         "Order Not Found",
                         fontSize = 18.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Color.Gray
                     )
-                    Text(
-                        "Order ID: $orderId",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Button(onClick = { navController.popBackStack() }) {
-                        Text("Go Back")
-                    }
                 }
             }
         } else {
@@ -170,17 +157,15 @@ fun AdminOrderDetailsScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // 1. Order ID & Status Header Card
                 item {
-                    // Order Summary Card
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            // Order Header
+                        Column(modifier = Modifier.padding(20.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -188,597 +173,370 @@ fun AdminOrderDetailsScreen(
                             ) {
                                 Column {
                                     Text(
-                                        "Order #${order!!.orderId}",
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        dateFormat.format(order!!.orderDate.toDate()),
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                OrderStatusBadgeLarge(status = order!!.status)
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Order Stats Row
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                // Total Amount
-                                Column(
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(
-                                        "Total Amount",
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        "RM${decimalFormat.format(order!!.totalPrice)}",
-                                        fontSize = 18.sp,
+                                        text = "Order #${order!!.orderId.takeLast(8).uppercase()}",
+                                        fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-
-                                // Platform Fee
-                                Column(
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(
-                                        "Platform Fee (10%)",
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = Color(0xFF333333)
                                     )
                                     Text(
-                                        "RM${decimalFormat.format(order!!.totalPrice * 0.10)}",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFFF9800)
+                                        text = dateFormat.format(order!!.orderDate.toDate()),
+                                        fontSize = 13.sp,
+                                        color = Color.Gray
                                     )
                                 }
+                                ModernStatusBadgeLarge(status = order!!.status)
                             }
-                        }
-                    }
-                }
 
-                item {
-                    // Customer Information Card
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
+                            Spacer(modifier = Modifier.height(20.dp))
+                            HorizontalDivider(color = Color(0xFFF5F5F5))
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            // Key Financials
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Icon(
-                                    Icons.Default.Person,
-                                    contentDescription = "Customer",
-                                    modifier = Modifier.size(24.dp),
-                                    tint = MaterialTheme.colorScheme.primary
+                                FinancialColumn(
+                                    label = "Total Amount",
+                                    value = "RM${decimalFormat.format(order!!.totalPrice)}",
+                                    isHighlight = true
                                 )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    "Customer Information",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            if (customer != null) {
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    InfoRow(label = "Name", value = customer!!.name)
-                                    InfoRow(label = "Customer ID", value = customer!!.customerId)
-                                    InfoRow(label = "Email", value = customer!!.email)
-                                    InfoRow(label = "Phone", value = customer!!.phoneNumber)
-
-                                    // Customer Stats
-                                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.weight(1f),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Text(
-                                                customer!!.orderCount.toString(),
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                "Orders",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        Column(
-                                            modifier = Modifier.weight(1f),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Text(
-                                                "RM${decimalFormat.format(customer!!.totalSpent)}",
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                "Total Spent",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        Column(
-                                            modifier = Modifier.weight(1f),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Text(
-                                                if (customer!!.isFrozen) "Frozen" else "Active",
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (customer!!.isFrozen) Color.Red else Color.Green
-                                            )
-                                            Text(
-                                                "Status",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                }
-                            } else {
-                                Text(
-                                    "Customer information not found",
-                                    fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.fillMaxWidth()
+                                FinancialColumn(
+                                    label = "Platform Fee (10%)",
+                                    value = "RM${decimalFormat.format(order!!.totalPrice * 0.10)}",
+                                    isHighlight = false
                                 )
                             }
                         }
                     }
                 }
 
-                // Vendor Information (if available)
-                if (vendor != null) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Default.Store,
-                                        contentDescription = "Vendor",
-                                        modifier = Modifier.size(24.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        "Vendor Information",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    InfoRow(label = "Vendor Name", value = vendor!!.vendorName)
-                                    InfoRow(label = "Vendor ID", value = vendor!!.vendorId)
-                                    InfoRow(label = "Category",
-                                        value = VendorCategory.getDisplayName(vendor!!.category))
-                                    InfoRow(label = "Email", value = vendor!!.email)
-                                    InfoRow(label = "Contact", value = vendor!!.vendorContact)
-                                    InfoRow(label = "Address", value = vendor!!.address)
-
-                                    // Vendor Stats
-                                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.weight(1f),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Text(
-                                                vendor!!.orderCount.toString(),
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                "Orders",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        Column(
-                                            modifier = Modifier.weight(1f),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Text(
-                                                "RM${decimalFormat.format(vendor!!.totalRevenue)}",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                "Revenue",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        Column(
-                                            modifier = Modifier.weight(1f),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Text(
-                                                String.format("%.1f", vendor!!.rating),
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                "Rating",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        Column(
-                                            modifier = Modifier.weight(1f),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Text(
-                                                if (vendor!!.isFrozen) "Frozen" else "Active",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (vendor!!.isFrozen) Color.Red else Color.Green
-                                            )
-                                            Text(
-                                                "Status",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Order Items Section
-                if (orderDetails.isNotEmpty()) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Default.ShoppingCart,
-                                        contentDescription = "Order Items",
-                                        modifier = Modifier.size(24.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        "Order Items (${orderDetails.size})",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                orderDetails.forEachIndexed { index, detail ->
-                                    OrderItemRow(
-                                        detail = detail,
-                                        decimalFormat = decimalFormat,
-                                        isLast = index == orderDetails.size - 1
-                                    )
-                                }
-
-                                Divider(modifier = Modifier.padding(vertical = 12.dp))
-
-                                // Order Summary
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            "Subtotal",
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Text(
-                                            "RM${decimalFormat.format(orderDetails.sumOf { it.subtotal })}",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            "Service Fee",
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Text(
-                                            "RM${decimalFormat.format(order!!.totalPrice * 0.06)}",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            "Platform Fee (10%)",
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Text(
-                                            "RM${decimalFormat.format(order!!.totalPrice * 0.10)}",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Color(0xFFFF9800)
-                                        )
-                                    }
-                                    Divider(modifier = Modifier.padding(vertical = 4.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            "Total Amount",
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            "RM${decimalFormat.format(order!!.totalPrice)}",
-                                            fontSize = 18.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Payment Information
-                if (payment != null) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Default.Payment,
-                                        contentDescription = "Payment",
-                                        modifier = Modifier.size(24.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        "Payment Information",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    InfoRow(label = "Payment Method", value = payment!!.paymentMethod)
-                                    InfoRow(label = "Amount",
-                                        value = "RM${decimalFormat.format(payment!!.amount)}")
-                                    InfoRow(label = "Status", value = payment!!.paymentStatus)
-                                    InfoRow(
-                                        label = "Transaction Date",
-                                        value = dateFormat.format(payment!!.transactionDate.toDate())
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Order Timeline
+                // 2. Timeline Card
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.Timeline,
-                                    contentDescription = "Order Timeline",
-                                    modifier = Modifier.size(24.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    "Order Timeline",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Timeline items - UPDATED FOR "completed" STATUS
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                TimelineItem(
-                                    title = "Order Placed",
-                                    date = order!!.orderDate,
-                                    isCompleted = true,
-                                    isCurrent = order!!.status == "pending"
-                                )
-
-                                TimelineItem(
-                                    title = "Order Confirmed",
-                                    date = if (order!!.status in listOf("confirmed", "preparing", "completed"))
-                                        order!!.updatedAt else null,
-                                    isCompleted = order!!.status in listOf("confirmed", "preparing", "completed"),
-                                    isCurrent = order!!.status == "confirmed"
-                                )
-
-                                TimelineItem(
-                                    title = "Preparing",
-                                    date = if (order!!.status in listOf("preparing", "completed"))
-                                        order!!.updatedAt else null,
-                                    isCompleted = order!!.status in listOf("preparing", "completed"),
-                                    isCurrent = order!!.status == "preparing"
-                                )
-
-                                TimelineItem(
-                                    title = "Completed", // Changed from "Delivered"
-                                    date = if (order!!.status == "completed")
-                                        order!!.updatedAt else null,
-                                    isCompleted = order!!.status == "completed",
-                                    isCurrent = order!!.status == "completed"
-                                )
-
-                                if (order!!.status == "cancelled") {
-                                    TimelineItem(
-                                        title = "Cancelled",
-                                        date = order!!.updatedAt,
-                                        isCompleted = true,
-                                        isCurrent = true,
-                                        isCancelled = true
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Action Buttons
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Text(
-                                "Order Actions",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 12.dp)
+                    ModernSectionCard(title = "Order Timeline", icon = Icons.Default.Timeline, iconColor = Color(0xFF9C27B0)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                            // Order Placed
+                            ModernTimelineItem(
+                                title = "Order Placed",
+                                date = order!!.orderDate,
+                                state = TimelineState.COMPLETED,
+                                isFirst = true,
+                                isLast = false
                             )
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                // Update Status Button
-                                var expanded by remember { mutableStateOf(false) }
-                                Box(
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    OutlinedButton(
-                                        onClick = { expanded = true },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Edit,
-                                            contentDescription = "Update Status",
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Update Status")
-                                    }
-                                    DropdownMenu(
-                                        expanded = expanded,
-                                        onDismissRequest = { expanded = false }
-                                    ) {
-                                        listOf("pending", "confirmed", "preparing", "completed", "cancelled")
-                                            .forEach { status ->
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        Text(status.replaceFirstChar {
-                                                            it.titlecase(Locale.getDefault())
-                                                        })
-                                                    },
-                                                    onClick = {
-                                                        coroutineScope.launch {
-                                                            databaseService.updateOrderStatus(orderId, status)
-                                                            // Refresh order
-                                                            order = databaseService.getOrderById(orderId)
-                                                            expanded = false
-                                                        }
-                                                    }
-                                                )
-                                            }
-                                    }
-                                }
+                            // Confirmed
+                            val isConfirmed = order!!.status in listOf("confirmed", "preparing", "completed")
+                            ModernTimelineItem(
+                                title = "Order Confirmed",
+                                date = if (isConfirmed) order!!.updatedAt else null,
+                                state = if (isConfirmed) TimelineState.COMPLETED else TimelineState.PENDING,
+                                isFirst = false,
+                                isLast = false
+                            )
 
+                            // Preparing
+                            val isPreparing = order!!.status in listOf("preparing", "completed")
+                            ModernTimelineItem(
+                                title = "Preparing",
+                                date = if (isPreparing) order!!.updatedAt else null,
+                                state = if (isPreparing) TimelineState.COMPLETED else TimelineState.PENDING,
+                                isFirst = false,
+                                isLast = false
+                            )
+
+                            // Completed/Cancelled
+                            if (order!!.status == "cancelled") {
+                                ModernTimelineItem(
+                                    title = "Cancelled",
+                                    date = order!!.updatedAt,
+                                    state = TimelineState.CANCELLED,
+                                    isFirst = false,
+                                    isLast = true
+                                )
+                            } else {
+                                val isCompleted = order!!.status == "completed"
+                                ModernTimelineItem(
+                                    title = "Completed",
+                                    date = if (isCompleted) order!!.updatedAt else null,
+                                    state = if (isCompleted) TimelineState.COMPLETED else TimelineState.PENDING,
+                                    isFirst = false,
+                                    isLast = true
+                                )
                             }
                         }
                     }
                 }
 
+                // 3. Customer & Vendor Info (Side by Side if on Tablet, but Stacked here for safety)
                 item {
-                    Spacer(modifier = Modifier.height(32.dp))
+                    ModernSectionCard(title = "Customer Details", icon = Icons.Default.Person, iconColor = Color(0xFF2196F3)) {
+                        if (customer != null) {
+                            ModernInfoRow(icon = Icons.Default.Badge, label = "Name", value = customer!!.name)
+                            ModernInfoRow(icon = Icons.Default.Email, label = "Email", value = customer!!.email)
+                            ModernInfoRow(icon = Icons.Default.Phone, label = "Phone", value = customer!!.phoneNumber)
+                        } else {
+                            Text("Customer info unavailable", color = Color.Gray, fontSize = 14.sp)
+                        }
+                    }
                 }
+
+                if (vendor != null) {
+                    item {
+                        ModernSectionCard(title = "Vendor Details", icon = Icons.Default.Store, iconColor = Color(0xFFFF9800)) {
+                            ModernInfoRow(icon = Icons.Default.Storefront, label = "Name", value = vendor!!.vendorName)
+                            ModernInfoRow(icon = Icons.Default.Category, label = "Category", value = VendorCategory.getDisplayName(vendor!!.category))
+                            ModernInfoRow(icon = Icons.Default.Phone, label = "Contact", value = vendor!!.vendorContact)
+                        }
+                    }
+                }
+
+                // 4. Order Items
+                if (orderDetails.isNotEmpty()) {
+                    item {
+                        ModernSectionCard(title = "Items Ordered", icon = Icons.Default.ShoppingBag, iconColor = Color(0xFFE91E63)) {
+                            orderDetails.forEachIndexed { index, detail ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(detail.productName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                        Text("Qty: ${detail.quantity}", fontSize = 12.sp, color = Color.Gray)
+                                    }
+                                    Text(
+                                        "RM${decimalFormat.format(detail.subtotal)}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                                if (index < orderDetails.lastIndex) {
+                                    HorizontalDivider(color = Color(0xFFF5F5F5))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 5. Payment Info
+                if (payment != null) {
+                    item {
+                        ModernSectionCard(title = "Payment", icon = Icons.Default.Payment, iconColor = Color(0xFF009688)) {
+                            ModernInfoRow(icon = Icons.Default.CreditCard, label = "Method", value = payment!!.paymentMethod)
+                            ModernInfoRow(icon = Icons.Default.CheckCircle, label = "Status", value = payment!!.paymentStatus)
+                            ModernInfoRow(icon = Icons.Default.Schedule, label = "Date", value = dateFormat.format(payment!!.transactionDate.toDate()))
+                        }
+                    }
+                }
+
+                // 6. Action Button (Update Status)
+                item {
+                    var expanded by remember { mutableStateOf(false) }
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = { expanded = true },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Update Order Status", fontSize = 16.sp)
+                        }
+
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                            modifier = Modifier.background(Color.White).width(250.dp)
+                        ) {
+                            val statuses = listOf("pending", "confirmed", "preparing", "completed", "cancelled")
+                            statuses.forEach { status ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            status.replaceFirstChar { it.uppercase() },
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    },
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            databaseService.updateOrderStatus(orderId, status)
+                                            // Refresh
+                                            val updatedOrder = databaseService.getOrderById(orderId)
+                                            if (updatedOrder != null) order = updatedOrder
+                                            expanded = false
+                                        }
+                                    },
+                                    leadingIcon = {
+                                        val color = OrderStatusHelper.getStatusColor(status)
+                                        Box(modifier = Modifier.size(12.dp).background(color, CircleShape))
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(20.dp)) }
+            }
+        }
+    }
+}
+
+// --- Modern Helper Components ---
+
+@Composable
+fun ModernSectionCard(
+    title: String,
+    icon: ImageVector,
+    iconColor: Color,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(iconColor.copy(alpha = 0.1f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(18.dp))
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            content()
+        }
+    }
+}
+
+@Composable
+fun FinancialColumn(label: String, value: String, isHighlight: Boolean) {
+    Column {
+        Text(label, fontSize = 12.sp, color = Color.Gray)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            value,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (isHighlight) MaterialTheme.colorScheme.primary else Color(0xFFFF9800)
+        )
+    }
+}
+
+@Composable
+fun ModernInfoRow(icon: ImageVector, label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(label, fontSize = 14.sp, color = Color.Gray, modifier = Modifier.width(80.dp))
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color.DarkGray)
+    }
+}
+
+@Composable
+fun ModernStatusBadgeLarge(status: String) {
+    val (color, label) = when (status.lowercase()) {
+        "pending" -> Color(0xFFFF9800) to "Pending"
+        "confirmed" -> Color(0xFF2196F3) to "Confirmed"
+        "preparing" -> Color(0xFF9C27B0) to "Preparing"
+        "completed" -> Color(0xFF4CAF50) to "Completed"
+        "cancelled" -> Color(0xFFF44336) to "Cancelled"
+        else -> Color.Gray to status
+    }
+
+    Box(
+        modifier = Modifier
+            .background(color.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = label,
+            color = color,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+enum class TimelineState { COMPLETED, PENDING, CANCELLED }
+
+@Composable
+fun ModernTimelineItem(
+    title: String,
+    date: Timestamp?,
+    state: TimelineState,
+    isFirst: Boolean,
+    isLast: Boolean
+) {
+    val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
+
+    val color = when(state) {
+        TimelineState.COMPLETED -> Color(0xFF4CAF50)
+        TimelineState.CANCELLED -> Color(0xFFF44336)
+        TimelineState.PENDING -> Color(0xFFE0E0E0)
+    }
+
+    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+        // Line Column
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(24.dp)) {
+            // Top Line
+            if (!isFirst) {
+                Box(modifier = Modifier
+                    .width(2.dp)
+                    .weight(1f)
+                    .background(if (state == TimelineState.PENDING) Color(0xFFE0E0E0) else color))
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+
+            // Dot
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .background(color, CircleShape)
+                    .then(if (state == TimelineState.PENDING) Modifier else Modifier.padding(3.dp).background(Color.White, CircleShape))
+            )
+
+            // Bottom Line
+            if (!isLast) {
+                Box(modifier = Modifier
+                    .width(2.dp)
+                    .weight(1f)
+                    .background(if (state == TimelineState.PENDING) Color(0xFFE0E0E0) else color))
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // Content
+        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            Text(
+                title,
+                fontWeight = if (state != TimelineState.PENDING) FontWeight.Bold else FontWeight.Normal,
+                color = if (state != TimelineState.PENDING) Color.Black else Color.Gray,
+                fontSize = 14.sp
+            )
+            if (date != null) {
+                Text(dateFormat.format(date.toDate()), fontSize = 12.sp, color = Color.Gray)
             }
         }
     }
