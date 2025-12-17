@@ -116,6 +116,7 @@ data class Voucher(
     val discountType: String = "percentage",
     val discountValue: Double = 0.0,
     val minSpend: Double = 0.0,
+    val coinCost: Int = 0,
     val expiryDate: Timestamp = Timestamp.now(),
     val isActive: Boolean = true,
     val usageLimit: Int = 100,
@@ -297,7 +298,7 @@ data class OrderRequest(
 
 data class CustomerAccount(
     val customerId: String = "",
-    val tapNChowCredit: Double = 0.0,
+    val tapNChowCoins: Int = 0,
     val lastUpdated: Timestamp = Timestamp.now()
 )
 

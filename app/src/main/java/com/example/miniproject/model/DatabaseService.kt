@@ -526,6 +526,8 @@ class DatabaseService {
                 updateVendorOrderStats(vendorId, vendorTotal)
             }
 
+            awardCoins(orderRequest.customerId, orderRequest.totalAmount)
+
             Result.success(orderId)
         } catch (e: Exception) {
             Result.failure(e)
@@ -894,11 +896,12 @@ class DatabaseService {
         }
     }
 
+
+
     suspend fun updateCustomerCredit(customerId: String, newBalance: Double): Result<Boolean> {
         return try {
             val account = CustomerAccount(
                 customerId = customerId,
-                tapNChowCredit = newBalance,
                 lastUpdated = Timestamp.now()
             )
             db.collection("customer_accounts")
@@ -1526,24 +1529,67 @@ class DatabaseService {
         }
     }
 
+    suspend fun awardCoins(customerId: String, amountSpent: Double) {
+        try {
+            val coinsEarned = amountSpent.toInt() // Round down to nearest Integer
+
+            // Atomically increment coins
+            db.collection("customer_accounts").document(customerId)
+                .update("tapNChowCoins", FieldValue.increment(coinsEarned.toLong()))
+                .await()
+
+        } catch (e: Exception) {
+            // Check if document exists, if not create it
+            val account = CustomerAccount(
+                customerId = customerId,
+                tapNChowCoins = amountSpent.toInt(),
+                lastUpdated = Timestamp.now()
+            )
+            db.collection("customer_accounts").document(customerId).set(account)
+        }
+    }
+
     suspend fun claimVoucher(customerId: String, voucherId: String): Result<Boolean> {
         return try {
-            val claimId = "${customerId}_${voucherId}" // Unique ID to prevent double claiming
+            // 1. Get Voucher details to check cost
+            val voucherDoc = db.collection("vouchers").document(voucherId).get().await()
+            val voucher = voucherDoc.toObject(Voucher::class.java) ?: return Result.failure(Exception("Voucher not found"))
 
-            val claimData = mapOf(
-                "customerId" to customerId,
-                "voucherId" to voucherId,
-                "claimedAt" to Timestamp.now(),
-                "isUsed" to false
-            )
+            // 2. Get Customer Account to check balance
+            val accountDoc = db.collection("customer_accounts").document(customerId).get().await()
+            val currentCoins = accountDoc.getLong("tapNChowCoins")?.toInt() ?: 0
 
-            db.collection("voucher_claims").document(claimId).set(claimData).await()
+            // 3. Check Balance
+            if (currentCoins < voucher.coinCost) {
+                return Result.failure(Exception("Insufficient coins. You need ${voucher.coinCost} coins."))
+            }
+
+            // 4. Run Transaction: Deduct coins AND Create Claim
+            db.runTransaction { transaction ->
+                // Deduct coins
+                transaction.update(
+                    db.collection("customer_accounts").document(customerId),
+                    "tapNChowCoins",
+                    currentCoins - voucher.coinCost
+                )
+
+                // Create claim record
+                val claimId = "${customerId}_${voucherId}"
+                val claimData = mapOf(
+                    "customerId" to customerId,
+                    "voucherId" to voucherId,
+                    "claimedAt" to Timestamp.now(),
+                    "isUsed" to false,
+                    "costPaid" to voucher.coinCost // Optional: track history
+                )
+                transaction.set(db.collection("voucher_claims").document(claimId), claimData)
+            }.await()
+
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
-
     suspend fun isVoucherClaimed(customerId: String, voucherId: String): Boolean {
         return try {
             val claimId = "${customerId}_${voucherId}"

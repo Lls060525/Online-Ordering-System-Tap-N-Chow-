@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -253,23 +254,25 @@ fun CustomerAccountContent(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    // Change Icon to something resembling a coin/reward
                     Icon(
-                        imageVector = Icons.Default.CreditCard,
-                        contentDescription = "Credit",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
+                        imageVector = Icons.Default.MonetizationOn,
+                        contentDescription = "Coins",
+                        tint = Color(0xFFFFD700), // Gold color for coins
+                        modifier = Modifier.size(32.dp)
                     )
 
                     Spacer(modifier = Modifier.width(12.dp))
 
                     Column {
                         Text(
-                            text = "Tap N Chow Credit",
+                            text = "Tap N Chow Coins", // Updated Label
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "RM ${String.format("%.2f", customerAccount?.tapNChowCredit ?: 0.0)}",
+                            // Display as Integer Coins
+                            text = "${customerAccount?.tapNChowCoins ?: 0} Coins",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary

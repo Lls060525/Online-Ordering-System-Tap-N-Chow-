@@ -54,7 +54,7 @@ import java.net.URLDecoder
 import java.util.Calendar
 import java.util.Date
 
-// ... (Keep PaymentImageConverter, Bank data class, and malaysianBanks list exactly as they are) ...
+
 class PaymentImageConverter(private val context: android.content.Context) {
     fun base64ToBitmap(base64String: String): Bitmap? {
         return try {
@@ -302,10 +302,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                         databaseService.trackVoucherUsage(customer!!.customerId, selectedVoucher!!.voucherId)
                     }
 
-                    if (selectedPaymentMethod == "wallet" && customerAccount != null) {
-                        val newBalance = customerAccount!!.tapNChowCredit - finalTotal
-                        databaseService.updateCustomerCredit(customer!!.customerId, newBalance)
-                    }
 
                     navController.navigate("orderConfirmation/${orderId}") {
                         popUpTo("home") { inclusive = false }
@@ -323,12 +319,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
         if (cart == null) { errorMessage = "Cart is empty"; return }
         if (selectedPaymentMethod == "card" && !isCardDetailsValid()) { errorMessage = "Check card details"; return }
 
-        if (selectedPaymentMethod == "wallet" && customerAccount != null) {
-            if (customerAccount!!.tapNChowCredit < finalTotal) {
-                errorMessage = "Insufficient wallet balance"
-                return
-            }
-        }
 
         // --- BIOMETRIC CHECK ---
         coroutineScope.launch {
@@ -518,7 +508,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                         val methods = listOf(
                             Triple("paypal", "PayPal", Icons.Default.Payment),
                             Triple("card", "Credit / Debit Card", Icons.Default.CreditCard),
-                            Triple("wallet", "Tap N Chow Wallet", Icons.Default.Wallet),
                             Triple("cash", "Cash on Pickup", Icons.Default.Money)
                         )
 
@@ -534,10 +523,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                                 Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(name, fontSize = 16.sp)
-                                if (id == "wallet" && customerAccount != null) {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Text("RM ${"%.2f".format(customerAccount!!.tapNChowCredit)}", fontSize = 12.sp, color = Color.Gray)
-                                }
+
                             }
                         }
                     }

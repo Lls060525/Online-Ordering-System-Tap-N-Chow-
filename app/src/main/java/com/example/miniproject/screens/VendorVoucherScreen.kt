@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -363,6 +364,8 @@ fun AddVoucherDialog(
     var isLoading by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
 
+    var coinCost by remember { mutableStateOf("") }
+
     // Initial date setup
     val calendar = Calendar.getInstance()
     calendar.add(Calendar.DAY_OF_YEAR, 1)
@@ -441,6 +444,8 @@ fun AddVoucherDialog(
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters)
                 )
 
+
+
                 // Discount Type Selector
                 Column {
                     Text("Discount Type", fontSize = 14.sp, color = Color.Gray)
@@ -483,6 +488,18 @@ fun AddVoucherDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                OutlinedTextField(
+                    value = coinCost,
+                    onValueChange = { if (it.all { char -> char.isDigit() }) coinCost = it },
+                    label = { Text("Coin Cost (Redemption Price)") },
+                    placeholder = { Text("e.g. 50") },
+                    leadingIcon = {
+                        Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = Color(0xFFFFD700))
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
                 // Date Picker Input
                 OutlinedTextField(
                     value = dateFormatter.format(Date(selectedDate)),
@@ -511,6 +528,8 @@ fun AddVoucherDialog(
                     val spend = minSpend.toDoubleOrNull() ?: 0.0
                     val limit = usageLimit.toIntOrNull() ?: 100
 
+                    val cost = coinCost.toIntOrNull() ?: 0
+
                     isLoading = true
                     val newVoucher = Voucher(
                         vendorId = vendorId,
@@ -521,6 +540,7 @@ fun AddVoucherDialog(
                         discountValue = value,
                         minSpend = spend,
                         usageLimit = limit,
+                        coinCost = cost,
                         expiryDate = Timestamp(Date(selectedDate))
                     )
 
