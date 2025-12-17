@@ -244,15 +244,6 @@ fun VendorDashboardContent(navController: NavController) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.size(8.dp))
-                        IconButton(
-                            onClick = { /* Navigate to products screen - handled by bottom nav */ }
-                        ) {
-                            Icon(
-                                Icons.Default.Inventory,
-                                contentDescription = "View All Products",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
                     }
                 }
 

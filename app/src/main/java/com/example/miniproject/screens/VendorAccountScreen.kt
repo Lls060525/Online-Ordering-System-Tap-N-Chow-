@@ -771,15 +771,6 @@ fun NavigationCards(navController: NavController) {
             }
         )
 
-        // 3. Account Card -> Navigates to Settings
-        NavigationCard(
-            title = "Account",
-            description = "Manage account settings and profile",
-            onClick = {
-                // Navigates to Account Settings (ensure this route exists in your NavHost)
-                navController.navigate("vendorAccountSettings")
-            }
-        )
     }
 }
 @Composable
