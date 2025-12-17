@@ -1,7 +1,6 @@
 
 package com.example.miniproject.screens
 
-import android.net.http.SslCertificate.saveState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,18 +9,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.miniproject.service.DatabaseService
 import kotlinx.coroutines.launch
@@ -45,18 +46,12 @@ fun AdminDashboardScreen(navController: NavController) {
     LaunchedEffect(Unit) {
         coroutineScope.launch {
             try {
-                // Get all vendors
                 val vendors = databaseService.getAllVendors()
                 totalVendors = vendors.size
-
-                // Get all orders
                 val orders = databaseService.getAllOrders()
                 totalOrders = orders.size
-
-                // Calculate total revenue and platform revenue (10%)
                 totalRevenue = orders.sumOf { it.totalPrice }
                 platformRevenue = totalRevenue * 0.10
-
                 isLoading = false
             } catch (e: Exception) {
                 isLoading = false
@@ -65,257 +60,315 @@ fun AdminDashboardScreen(navController: NavController) {
     }
 
     Scaffold(
-        topBar = {
-            // Blue background with status bar padding
-            Box(
-                modifier = Modifier
-                    .background(Color(0xFF2196F3)) // Blue color
-                    .statusBarsPadding()
-            ) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            "Tap N Chow - Admin",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                            color = Color.White // White text for better contrast on blue
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(
-                                Icons.Default.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Color.White
-                            )
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { /* Refresh */ }) {
-                            Icon(
-                                Icons.Default.Refresh,
-                                contentDescription = "Refresh",
-                                tint = Color.White
-                            )
-                        }
-                        IconButton(onClick = {
-                            // Logout
-                            navController.navigate("adminLogin") {
-                                popUpTo("adminDashboard") { inclusive = true }
-                            }
-                        }) {
-                            Icon(
-                                Icons.Default.Logout,
-                                contentDescription = "Logout",
-                                tint = Color.White
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent, // Make the TopAppBar transparent
-                        titleContentColor = Color.White,
-                        actionIconContentColor = Color.White
-                    ),
-                    modifier = Modifier.background(Color.Transparent)
-                )
-            }
-        },
+        // 移除默认 TopBar，我们自定义头部以获得更好的 UI
         bottomBar = {
             AdminBottomNavigation(navController)
-        }
+        },
+        containerColor = Color(0xFFF5F6F9) // 浅灰白色背景，比纯白更有质感
     ) { paddingValues ->
-        if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // 1. 顶部渐变背景装饰
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Welcome Header
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp)
-                        ) {
-                            Text(
-                                "Platform Overview",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                    .fillMaxWidth()
+                    .height(240.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFF2196F3), // Blue 500
+                                Color(0xFF1976D2)  // Blue 700
                             )
-                            Text(
-                                "Tap N Chow Platform Management",
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                }
-
-                // Stats Grid
-                item {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // First Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            // Total Vendors Card
-                            AdminStatCard(
-                                title = "Total Vendors",
-                                value = totalVendors.toString(),
-                                icon = Icons.Default.Store,
-                                color = Color(0xFF4CAF50),
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            // Total Orders Card
-                            AdminStatCard(
-                                title = "Total Orders",
-                                value = totalOrders.toString(),
-                                icon = Icons.Default.Receipt,
-                                color = Color(0xFF2196F3),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        // Second Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            // Total Revenue Card
-                            AdminStatCard(
-                                title = "Total Revenue",
-                                value = "RM${decimalFormat.format(totalRevenue)}",
-                                icon = Icons.Default.AttachMoney,
-                                color = Color(0xFF9C27B0),
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            // Platform Revenue Card
-                            AdminStatCard(
-                                title = "Platform Revenue (10%)",
-                                value = "RM${decimalFormat.format(platformRevenue)}",
-                                icon = Icons.Default.AccountBalance,
-                                color = Color(0xFFFF9800),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-
-                // Quick Actions
-                item {
-                    Text(
-                        "Quick Actions",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)
+                        ),
+                        shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
                     )
+            )
+
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Color.White)
                 }
-
-                item {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Vendor Management
-                        AdminActionCard(
-                            title = "Vendor Management",
-                            description = "View, edit, and manage all vendors",
-                            icon = Icons.Default.Store,
-                            onClick = { navController.navigate("adminVendors") }
-                        )
-
-                        // Order Management
-                        AdminActionCard(
-                            title = "Order Management",
-                            description = "View and manage all orders",
-                            icon = Icons.Default.Receipt,
-                            onClick = { navController.navigate("adminOrders") }
-                        )
-
-                        // User Management
-                        AdminActionCard(
-                            title = "User Management",
-                            description = "View and manage customers and vendors",
-                            icon = Icons.Default.People,
-                            onClick = { navController.navigate("adminUserManagement") }
-                        )
-
-                        // Feedback Management
-                        AdminActionCard(
-                            title = "Feedback Management",
-                            description = "View and manage customer feedback",
-                            icon = Icons.Default.Reviews,
-                            onClick = { navController.navigate("adminFeedback") }
-                        )
-
-                        // Sales Analytics
-                        AdminActionCard(
-                            title = "Platform Analytics",
-                            description = "View platform-wide analytics and reports",
-                            icon = Icons.Default.Analytics,
-                            onClick = { navController.navigate("adminAnalytics") }
-                        )
-                    }
-                }
-
-                // Recent Activity
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = paddingValues.calculateBottomPadding()), // 只应用底部 padding
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    // --- Header Section ---
+                    item {
+                        Column(modifier = Modifier.padding(top = 20.dp, bottom = 10.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    "Platform Earnings Summary",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
+                                Column {
+                                    Text(
+                                        text = "Dashboard",
+                                        fontSize = 28.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "Overview & Statistics",
+                                        fontSize = 14.sp,
+                                        color = Color.White.copy(alpha = 0.8f)
+                                    )
+                                }
+                                // Logout Button (Small)
+                                IconButton(
+                                    onClick = {
+                                        navController.navigate("adminLogin") {
+                                            popUpTo("adminDashboard") { inclusive = true }
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .background(Color.White.copy(alpha = 0.2f), CircleShape)
+                                        .size(40.dp)
+                                ) {
+                                    Icon(Icons.Default.Logout, contentDescription = "Logout", tint = Color.White)
+                                }
+                            }
+                        }
+                    }
+
+                    // --- Key Stats Grid (2x2) ---
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                ModernStatCard(
+                                    title = "Total Orders",
+                                    value = totalOrders.toString(),
+                                    icon = Icons.Default.ReceiptLong,
+                                    iconColor = Color(0xFF2196F3),
+                                    modifier = Modifier.weight(1f)
                                 )
-                                Icon(
-                                    Icons.Default.AccountBalance,
-                                    contentDescription = "Earnings",
-                                    tint = MaterialTheme.colorScheme.primary
+                                ModernStatCard(
+                                    title = "Total Vendors",
+                                    value = totalVendors.toString(),
+                                    icon = Icons.Default.Storefront,
+                                    iconColor = Color(0xFF4CAF50),
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                ModernStatCard(
+                                    title = "Total Revenue",
+                                    value = "RM${decimalFormat.format(totalRevenue)}",
+                                    icon = Icons.Default.Payments,
+                                    iconColor = Color(0xFF9C27B0),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ModernStatCard(
+                                    title = "Platform (10%)",
+                                    value = "RM${decimalFormat.format(platformRevenue)}",
+                                    icon = Icons.Default.AccountBalanceWallet,
+                                    iconColor = Color(0xFFFF9800),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                    // --- Quick Actions Grid ---
+                    item {
+                        Text(
+                            "Quick Management",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF333333),
+                            modifier = Modifier.padding(top = 10.dp, bottom = 5.dp)
+                        )
+                    }
 
-                            // Earnings breakdown
-                            PlatformEarningsBreakdown(
-                                platformRevenue = platformRevenue,
-                                vendorRevenue = totalRevenue - platformRevenue
-                            )
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            // Row 1
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                ModernActionCard(
+                                    title = "Vendors",
+                                    icon = Icons.Default.Store,
+                                    color = Color(0xFF5C6BC0),
+                                    onClick = { navController.navigate("adminVendors") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ModernActionCard(
+                                    title = "Orders",
+                                    icon = Icons.Default.Receipt,
+                                    color = Color(0xFFEC407A),
+                                    onClick = { navController.navigate("adminOrders") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            // Row 2
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                ModernActionCard(
+                                    title = "Users",
+                                    icon = Icons.Default.Group,
+                                    color = Color(0xFF26A69A),
+                                    onClick = { navController.navigate("adminUserManagement") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ModernActionCard(
+                                    title = "Analytics",
+                                    icon = Icons.Default.BarChart,
+                                    color = Color(0xFFFFA726),
+                                    onClick = { navController.navigate("adminAnalytics") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            // Row 3 (Single item or split)
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                ModernActionCard(
+                                    title = "Feedback",
+                                    icon = Icons.Default.Reviews,
+                                    color = Color(0xFF78909C),
+                                    onClick = { navController.navigate("adminFeedback") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                // Spacer to keep grid balanced if odd number
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+
+                    // --- Earnings Summary ---
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Text(
+                                    "Earnings Breakdown",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                PlatformEarningsBreakdown(
+                                    platformRevenue = platformRevenue,
+                                    vendorRevenue = totalRevenue - platformRevenue
+                                )
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+// --- Modern UI Components ---
+
+@Composable
+fun ModernStatCard(
+    title: String,
+    value: String,
+    icon: ImageVector,
+    iconColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp) // 更明显的阴影
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Icon in a subtle circle
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(iconColor.copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Value
+            Text(
+                text = value,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF333333),
+                lineHeight = 24.sp
+            )
+            // Title
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF9E9E9E)
+            )
+        }
+    }
+}
+
+@Composable
+fun ModernActionCard(
+    title: String,
+    icon: ImageVector,
+    color: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .height(90.dp) // Fixed height for uniformity
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Start
+        ) {
+            // Colorful Icon Box
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .background(color.copy(alpha = 0.1f), RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Text(
+                text = title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF424242)
+            )
         }
     }
 }
@@ -550,77 +603,33 @@ fun AdminBottomNavigation(navController: NavController) {
     )
 
     NavigationBar(
+        containerColor = Color.White,
         tonalElevation = 8.dp,
-        containerColor = MaterialTheme.colorScheme.surface,
-        modifier = Modifier
-            .shadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-                clip = true
-            )
+        modifier = Modifier.shadow(8.dp)
     ) {
         navItems.forEach { item ->
             val isSelected = currentDestination?.route == item.route
-
             NavigationBarItem(
                 selected = isSelected,
                 onClick = {
-                    // FIXED: Only navigate if not already on this screen
                     if (!isSelected) {
                         navController.navigate(item.route) {
-                            // FIXED: Don't pop up to start destination
-                            // Instead, pop up to current route to prevent back stack buildup
-                            popUpTo(currentDestination?.route ?: "adminDashboard") {
-                                saveState = true
-                                inclusive = false
-                            }
+                            popUpTo(currentDestination?.route ?: "adminDashboard") { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
                     }
                 },
                 icon = {
-                    Box(
-                        modifier = if (isSelected) {
-                            Modifier
-                                .shadow(
-                                    elevation = 4.dp,
-                                    shape = CircleShape,
-                                    spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                                )
-                                .background(
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    shape = CircleShape
-                                )
-                                .padding(8.dp)
-                        } else {
-                            Modifier.padding(8.dp)
-                        }
-                    ) {
-                        Icon(
-                            item.icon,
-                            contentDescription = item.label,
-                            tint = if (isSelected)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                },
-                label = {
-                    Text(
-                        item.label,
-                        fontSize = 12.sp,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                    Icon(
+                        item.icon,
+                        contentDescription = item.label,
+                        tint = if (isSelected) Color(0xFF2196F3) else Color.Gray
                     )
                 },
+                label = { Text(item.label, fontSize = 10.sp, color = if (isSelected) Color(0xFF2196F3) else Color.Gray) },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                    indicatorColor = Color(0xFFE3F2FD)
                 )
             )
         }
