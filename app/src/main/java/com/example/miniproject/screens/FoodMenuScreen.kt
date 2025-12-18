@@ -8,20 +8,7 @@ import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -30,48 +17,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Fastfood
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MonetizationOn
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Store
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -87,13 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.miniproject.R
-import com.example.miniproject.model.Cart
-import com.example.miniproject.model.CartItem
-import com.example.miniproject.model.CustomizationOption
-import com.example.miniproject.model.Product
-import com.example.miniproject.model.Vendor
-import com.example.miniproject.model.VendorCategory
-import com.example.miniproject.model.Voucher
+import com.example.miniproject.model.*
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import kotlinx.coroutines.launch
@@ -102,20 +44,18 @@ import kotlinx.serialization.json.Json
 import java.net.URLEncoder
 
 // Improved Image Converter
+// Improved Image Converter
 class ImageConverter(private val context: android.content.Context) {
     fun base64ToBitmap(base64String: String?): Bitmap? {
         if (base64String.isNullOrEmpty()) {
             return null
         }
-
         return try {
-            // Remove data URL prefix if present
             val pureBase64 = if (base64String.contains(",")) {
                 base64String.substringAfter(",")
             } else {
                 base64String
             }
-
             val decodedBytes = Base64.decode(pureBase64, Base64.DEFAULT)
             BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
         } catch (e: Exception) {
@@ -150,18 +90,15 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
     // --- Auto Filter Logic ---
     var selectedCategory by remember { mutableStateOf("All") }
 
-    // Calculate unique categories dynamically from the loaded products
     val categories = remember(products) {
         val uniqueCategories = products
             .map { it.category }
             .filter { it.isNotBlank() }
             .distinct()
             .sorted()
-
         listOf("All") + uniqueCategories
     }
 
-    // Filter products based on selection
     val filteredProducts = remember(products, selectedCategory) {
         if (selectedCategory == "All") {
             products
@@ -174,22 +111,17 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
         val targetVendorId = vendorId ?: authService.getCurrentVendor()?.vendorId
 
         if (targetVendorId != null) {
-            // 1. Get Vendor Info
             val vendorData = databaseService.getVendorById(targetVendorId)
             vendor = vendorData
 
-            // 2. Get Products
             val vendorProducts = databaseService.getProductsByVendor(targetVendorId)
             products = vendorProducts
 
-            // 3. Get Vouchers for this vendor
             val allVouchers = databaseService.getVouchersByVendor(targetVendorId)
-            // Filter: Active AND Not Expired
             vendorVouchers = allVouchers.filter {
                 it.isActive && it.expiryDate.seconds > com.google.firebase.Timestamp.now().seconds
             }
 
-            // 4. Check Claim Status (if user is logged in as customer)
             val customer = authService.getCurrentCustomer()
             if (customer != null) {
                 val claimedList = mutableSetOf<String>()
@@ -271,10 +203,8 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                // 1. Vendor Header
                 VendorHeaderSection(vendor = vendor)
 
-                // 2. Vouchers Section
                 if (vendorVouchers.isNotEmpty()) {
                     Text(
                         text = "Vouchers",
@@ -298,11 +228,9 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                                         if (customer != null) {
                                             val result = databaseService.claimVoucher(customer.customerId, voucher.voucherId)
                                             if (result.isSuccess) {
-                                                // Update UI immediately
                                                 claimedVoucherIds = claimedVoucherIds + voucher.voucherId
                                                 Toast.makeText(context, "Voucher Claimed!", Toast.LENGTH_SHORT).show()
                                             } else {
-                                                // Show failure reason (likely insufficient coins)
                                                 Toast.makeText(context, result.exceptionOrNull()?.message ?: "Failed to claim", Toast.LENGTH_SHORT).show()
                                             }
                                         } else {
@@ -317,7 +245,6 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                     Divider(thickness = 0.5.dp, color = Color.LightGray)
                 }
 
-                // 3. Filter Chips
                 if (products.isNotEmpty() && categories.size > 1) {
                     LazyRow(
                         modifier = Modifier
@@ -349,7 +276,6 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                     }
                 }
 
-                // 4. Product List
                 if (products.isEmpty()) {
                     Box(
                         modifier = Modifier
@@ -396,12 +322,10 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                             ProductMenuItem(
                                 product = product,
                                 onAddToCart = {
-                                    // --- CUSTOMIZATION LOGIC ---
                                     if (product.customizations.isNotEmpty()) {
                                         selectedProductForCustomization = product
                                         showCustomizationDialog = true
                                     } else {
-                                        // Standard Add logic
                                         val existingItem = cartItems.find { it.productId == product.productId }
                                         if (existingItem != null) {
                                             cartItems = cartItems.map { item ->
@@ -430,7 +354,6 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
             }
         }
 
-        // --- Customization Dialog Overlay ---
         if (showCustomizationDialog && selectedProductForCustomization != null) {
             ProductCustomizationDialog(
                 product = selectedProductForCustomization!!,
@@ -447,7 +370,6 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
             )
         }
 
-        // --- Cart Dialog ---
         if (showCart) {
             CartDialog(
                 cartItems = cartItems,
@@ -466,7 +388,7 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                 },
                 onCheckout = {
                     showCart = false
-                    // Create Cart object
+                    // 1. Create Cart object
                     val cart = Cart(
                         vendorId = vendor?.vendorId ?: "",
                         vendorName = vendor?.vendorName ?: "",
@@ -479,11 +401,11 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                         total = cartItems.sumOf { it.productPrice * it.quantity } * 1.18
                     )
 
-                    // Convert to JSON and navigate
-                    val cartJson = Json.encodeToString(Cart.serializer(), cart)
-                    val encodedCartJson = URLEncoder.encode(cartJson, "UTF-8")
+                    // 2. CHANGED: Save to Singleton Repository
+                    CartRepository.setCart(cart)
 
-                    navController.navigate("payment/${vendor?.vendorId ?: ""}/$encodedCartJson")
+                    // 3. CHANGED: Navigate WITHOUT JSON
+                    navController.navigate("payment/${vendor?.vendorId ?: ""}")
                 },
                 vendorName = vendor?.vendorName ?: "Vendor"
             )

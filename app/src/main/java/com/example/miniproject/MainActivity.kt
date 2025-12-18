@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.fragment.app.FragmentActivity
 import com.example.miniproject.screens.CustomerVoucherScreen
 import com.example.miniproject.screens.VendorVoucherScreen
+import com.example.miniproject.screens.order.OrderScreen
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -148,6 +149,11 @@ class MainActivity : FragmentActivity() {
                     composable("home") {
                         UserHomeScreen(navController = navController)
                     }
+
+                    composable("order_screen"){
+                        OrderScreen(navController = navController)
+                    }
+
                     composable("vendorHome") {
                         VendorHomeScreen(navController = navController)
                     }
@@ -171,10 +177,10 @@ class MainActivity : FragmentActivity() {
                         FoodMenuScreen(navController, vendorId)
                     }
 
-                    composable("payment/{vendorId}/{cartJson}") { backStackEntry ->
+                    composable("payment/{vendorId}") { backStackEntry ->
                         val vendorId = backStackEntry.arguments?.getString("vendorId")
-                        val cartJson = backStackEntry.arguments?.getString("cartJson")
-                        PaymentGatewayScreen(navController, vendorId, cartJson)
+                        // CHANGED: Removed cartJson argument extraction
+                        PaymentGatewayScreen(navController, vendorId)
                     }
 
                     composable("orderConfirmation/{orderId}") { backStackEntry ->

@@ -41,6 +41,7 @@ import androidx.navigation.NavController
 import com.example.miniproject.R
 import com.example.miniproject.PayPalWebViewActivity
 import com.example.miniproject.model.Cart
+import com.example.miniproject.model.CartRepository
 import com.example.miniproject.model.CustomerAccount
 import com.example.miniproject.model.OrderRequest
 import com.example.miniproject.model.Voucher
@@ -93,15 +94,12 @@ val malaysianBanks = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJson: String?) {
+fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // CHANGED: removed cartJson
     val authService = AuthService()
     val databaseService = DatabaseService()
     val payPalService = PayPalService()
     val context = LocalContext.current
-
-    // --- NEW: Initialize Biometric Service ---
     val biometricAuthService = remember { BiometricAuthService(context) }
-
     val coroutineScope = rememberCoroutineScope()
     val imageConverter = remember { PaymentImageConverter(context) }
 
@@ -138,20 +136,8 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
     var isExpiryDateValid by remember { mutableStateOf(true) }
     var isCVVValid by remember { mutableStateOf(true) }
 
-    // Parse Cart
-    val cart = remember(cartJson) {
-        if (!cartJson.isNullOrEmpty()) {
-            try {
-                val decodedJson = URLDecoder.decode(cartJson, "UTF-8")
-                Json.decodeFromString(Cart.serializer(), decodedJson)
-            } catch (e: Exception) {
-                e.printStackTrace()
-                null
-            }
-        } else {
-            null
-        }
-    }
+    // CHANGED: Retrieve Cart from Singleton Repository
+    val cart = remember { CartRepository.getCart() }
 
     // --- FETCH DATA ---
     LaunchedEffect(vendorId) {
@@ -215,7 +201,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
         else (cart.total - discountAmount).coerceAtLeast(0.0)
     }
 
-    // --- VALIDATION HELPERS ---
+    // ... (Validation Helpers - Same as before) ...
     LaunchedEffect(selectedPaymentMethod) { showCardForm = selectedPaymentMethod == "card" }
     val validateExpiryMonth = { month: String -> if (month.isNotEmpty()) { val m = month.toIntOrNull(); isExpiryMonthValid = m in 1..12; isExpiryMonthValid } else { isExpiryMonthValid = true; true } }
     val validateExpiryYear = { year: String -> if (year.isNotEmpty()) { val cy = Calendar.getInstance().get(Calendar.YEAR) % 100; val y = year.toIntOrNull(); isExpiryYearValid = y != null && y >= cy; isExpiryYearValid } else { isExpiryYearValid = true; true } }
@@ -223,9 +209,8 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
     val validateCVV = { cvv: String -> if (cvv.isNotEmpty()) { isCVVValid = cvv.length == 3 && cvv.all { it.isDigit() }; isCVVValid } else { isCVVValid = true; true } }
     val isCardDetailsValid = { selectedBank != null && cardHolderName.isNotBlank() && cardNumber.length == 16 && cardExpiryMonth.length == 2 && cardExpiryYear.length == 2 && cardCVV.length == 3 && validateExpiryMonth(cardExpiryMonth) && validateExpiryYear(cardExpiryYear) && validateExpiryDateNotPast(cardExpiryMonth, cardExpiryYear) && validateCVV(cardCVV) }
 
-    // --- PAYMENT LOGIC FUNCTIONS ---
 
-    // 1. Core Logic for PayPal
+    // --- PAYMENT LOGIC FUNCTIONS ---
     fun processPayPalPayment() {
         coroutineScope.launch {
             isLoading = true
@@ -274,7 +259,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
         }
     }
 
-    // 2. Core Logic for Regular Payment (Card, Wallet, Cash)
     fun processRegularPayment() {
         coroutineScope.launch {
             isLoading = true
@@ -302,6 +286,8 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                         databaseService.trackVoucherUsage(customer!!.customerId, selectedVoucher!!.voucherId)
                     }
 
+                    // CHANGED: Clear cart after successful payment
+                    CartRepository.clear()
 
                     navController.navigate("orderConfirmation/${orderId}") {
                         popUpTo("home") { inclusive = false }
@@ -313,40 +299,31 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
         }
     }
 
-    // --- MAIN PAYMENT HANDLER ---
     fun initiatePayment() {
         if (customer == null) { errorMessage = "Please log in"; return }
         if (cart == null) { errorMessage = "Cart is empty"; return }
         if (selectedPaymentMethod == "card" && !isCardDetailsValid()) { errorMessage = "Check card details"; return }
 
-
-        // --- BIOMETRIC CHECK ---
         coroutineScope.launch {
-            // Check if device supports fingerprint
             val status = biometricAuthService.checkBiometricAvailability()
 
             if (status == BiometricAuthService.BiometricStatus.AVAILABLE) {
-                // Prompt for fingerprint
                 val authenticated = biometricAuthService.authorizePayment(finalTotal)
 
                 if (authenticated) {
-                    // Success: Proceed to pay
                     if (selectedPaymentMethod == "paypal") processPayPalPayment()
                     else processRegularPayment()
                 } else {
-                    // Failed or Cancelled: Do nothing or show toast
                     Toast.makeText(context, "Authentication Cancelled", Toast.LENGTH_SHORT).show()
                 }
             } else {
-                // No fingerprint hardware or not enrolled -> Proceed directly (or show warning)
-                // For this app, we allow fallback to proceed without biometric if unavailable
                 if (selectedPaymentMethod == "paypal") processPayPalPayment()
                 else processRegularPayment()
             }
         }
     }
 
-    // --- UI CONTENT (Same as before) ---
+    // --- UI CONTENT ---
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -364,9 +341,10 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
             )
         }
     ) { paddingValues ->
+        // Check if cart is null (either from Repo or invalid state)
         if (cart == null) {
             Box(Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                Text("No cart data found")
+                Text("No cart data found. Please go back to menu.")
             }
         } else {
             Column(
@@ -375,7 +353,12 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                     .padding(paddingValues)
                     .verticalScroll(rememberScrollState())
             ) {
-                // ... (Vendor Info Card - Same as previous) ...
+                // ... (Rest of UI code remains identical, relying on 'cart') ...
+                // I am omitting the repeating UI code here for brevity as it relies
+                // on the 'cart' variable which is now correctly sourced.
+                // You can copy the exact UI code from your previous file.
+
+                // --- Vendor Info Card ---
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -412,7 +395,9 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                     }
                 }
 
-                // ... (Order Summary Card - Same as previous) ...
+                // ... And so on for other cards ...
+
+                // Order Summary Card
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -496,7 +481,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                     }
                 }
 
-                // ... (Payment Method Card - Same as previous) ...
+                // Payment Method Card
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -529,7 +514,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                     }
                 }
 
-                // ... (Card Form - Same as previous) ...
+                // Card Form
                 if (showCardForm) {
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -608,9 +593,8 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?, cartJs
                     }
                 }
 
-                // --- UPDATED COMPLETE BUTTON ---
                 Button(
-                    onClick = { initiatePayment() }, // Now calls the biometric flow
+                    onClick = { initiatePayment() },
                     modifier = Modifier.fillMaxWidth().padding(16.dp).height(56.dp),
                     enabled = !isLoading && (selectedPaymentMethod != "card" || isCardDetailsValid())
                 ) {

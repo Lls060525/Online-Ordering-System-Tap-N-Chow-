@@ -60,9 +60,10 @@ fun OrderConfirmationScreen(navController: NavController, orderId: String?) {
             ) {
                 Button(
                     onClick = {
-                        // Navigate to orders screen
-                        navController.navigate("home") {
-                            popUpTo(0) // Clear entire back stack
+                        navController.navigate("order_screen") {
+                            popUpTo("home") {
+                                inclusive = false
+                            }
                             launchSingleTop = true
                         }
                     },
@@ -73,10 +74,9 @@ fun OrderConfirmationScreen(navController: NavController, orderId: String?) {
 
                 OutlinedButton(
                     onClick = {
-                        // Continue shopping
+                        // Continue shopping 回到首頁
                         navController.navigate("home") {
-                            popUpTo(0) // Clear entire back stack
-                            launchSingleTop = true
+                            popUpTo("home") { inclusive = true }
                         }
                     },
                     modifier = Modifier.width(200.dp)
