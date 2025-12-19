@@ -1,19 +1,12 @@
 package com.example.miniproject.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,30 +31,30 @@ fun LoginScreen(navController: NavController) {
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var logoClickCount by remember { mutableStateOf(0) }
-    var showAdminHint by remember { mutableStateOf(false) }
+
+    // --- Hidden Admin Logic ---
+    var logoClickCount by remember { mutableIntStateOf(0) }
+
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     // Create AuthService instance once
     val authService = remember { AuthService() }
 
-    // Reset click count after 3 seconds of inactivity
+    // Logic: Reset click count if user stops tapping for 1 second (Requires rapid tapping)
     LaunchedEffect(logoClickCount) {
         if (logoClickCount > 0) {
-            kotlinx.coroutines.delay(3000)
-            if (logoClickCount < 5) {
+            kotlinx.coroutines.delay(1000) // 1 second reset timer
+            if (logoClickCount < 10) {
                 logoClickCount = 0
-                showAdminHint = false
             }
         }
     }
 
-    // Navigate to admin login when 5 clicks are reached
+    // Navigate to admin login when 10 clicks are reached
     LaunchedEffect(logoClickCount) {
-        if (logoClickCount >= 5) {
+        if (logoClickCount >= 10) {
             logoClickCount = 0
-            showAdminHint = false
             navController.navigate("adminLogin")
         }
     }
@@ -96,15 +89,16 @@ fun LoginScreen(navController: NavController) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    // Logo with click listener for hidden admin access
+                    // --- Logo Section (Hidden Trigger) ---
+                    // No visual feedback (ripple removed) to make it look like a static image
                     Box(
                         modifier = Modifier
                             .size(150.dp)
-                            .clickable {
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null // Removes the ripple effect to make it "Hidden"
+                            ) {
                                 logoClickCount++
-                                if (logoClickCount in 1..4) {
-                                    showAdminHint = true
-                                }
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -113,73 +107,12 @@ fun LoginScreen(navController: NavController) {
                             contentDescription = "Tap N Chow Logo",
                             modifier = Modifier.size(150.dp)
                         )
-
-                        // Show click count hint (subtle visual feedback)
-                        if (logoClickCount in 1..4) {
-                            Box(
-                                modifier = Modifier
-                                    .matchParentSize()
-                                    .background(Color.Black.copy(alpha = 0.3f)),
-                                contentAlignment = Alignment.BottomCenter
-                            ) {
-                                Text(
-                                    text = "Admin: ${logoClickCount}/5",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                )
-                            }
-                        }
+                        // Removed the "Admin: X/5" overlay text here
                     }
 
-                    // Hidden admin hint (appears after first click)
-                    AnimatedVisibility(
-                        visible = showAdminHint,
-                        enter = fadeIn(animationSpec = tween(300)) + slideInVertically(
-                            animationSpec = tween(300),
-                            initialOffsetY = { -10 }
-                        ),
-                        exit = fadeOut(animationSpec = tween(300)) + slideOutVertically(
-                            animationSpec = tween(300),
-                            targetOffsetY = { -10 }
-                        )
-                    ) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = "Admin Access",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = when (logoClickCount) {
-                                        1 -> "Tap 4 more times for admin access"
-                                        2 -> "Tap 3 more times"
-                                        3 -> "Tap 2 more times"
-                                        4 -> "One more tap!"
-                                        else -> ""
-                                    },
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
+                    // Removed the AnimatedVisibility Hint Card here
+
+                    Spacer(modifier = Modifier.height(24.dp))
 
                     Text(
                         text = "Login",
