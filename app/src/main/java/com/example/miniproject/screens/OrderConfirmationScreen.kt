@@ -58,11 +58,14 @@ fun OrderConfirmationScreen(navController: NavController, orderId: String?) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+
                 Button(
                     onClick = {
-                        navController.navigate("order_screen") {
+
+                        navController.navigate("home") {
+                            //Clear the stack to prevent pressing the back button from returning to the confirmation page.
                             popUpTo("home") {
-                                inclusive = false
+                                inclusive = true
                             }
                             launchSingleTop = true
                         }
@@ -72,11 +75,13 @@ fun OrderConfirmationScreen(navController: NavController, orderId: String?) {
                     Text("View My Orders")
                 }
 
+
                 OutlinedButton(
                     onClick = {
-                        // Continue shopping 回到首頁
+
                         navController.navigate("home") {
                             popUpTo("home") { inclusive = true }
+                            launchSingleTop = true
                         }
                     },
                     modifier = Modifier.width(200.dp)

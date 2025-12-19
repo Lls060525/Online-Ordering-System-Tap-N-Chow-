@@ -1,6 +1,6 @@
 package com.example.miniproject.model
 
-// 這是一個單例對象，用於在屏幕之間暫存數據
+// This is a singleton object used to temporarily store data between screens.
 object CartRepository {
     private var currentCart: Cart? = null
 

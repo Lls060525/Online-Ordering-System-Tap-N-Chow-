@@ -552,13 +552,13 @@ fun PlatformEarningsBreakdown(
             Row(modifier = Modifier.fillMaxSize()) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(platformPercentage.toFloat() / 100f)
+                        .weight(platformPercentage.toFloat())
                         .fillMaxHeight()
                         .background(Color(0xFFFF9800), RoundedCornerShape(4.dp))
                 )
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(vendorPercentage.toFloat() / 100f)
+                        .weight(vendorPercentage.toFloat())
                         .fillMaxHeight()
                         .background(Color(0xFF4CAF50), RoundedCornerShape(4.dp))
                 )

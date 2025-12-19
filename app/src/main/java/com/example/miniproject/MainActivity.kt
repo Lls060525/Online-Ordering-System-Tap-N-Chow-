@@ -4,16 +4,26 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.fragment.app.FragmentActivity
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.miniproject.screens.AdminAnalyticsScreen
+import com.example.miniproject.screens.AdminDashboardScreen
+import com.example.miniproject.screens.AdminFeedbackListScreen
+import com.example.miniproject.screens.AdminLoginScreen
+import com.example.miniproject.screens.AdminOrderDetailsScreen
+import com.example.miniproject.screens.AdminOrderListScreen
+import com.example.miniproject.screens.AdminUserManagementScreen
+import com.example.miniproject.screens.AdminVendorListScreen
+import com.example.miniproject.screens.AdminVendorSalesReportScreen
 import com.example.miniproject.screens.CustomerAccountScreen
 import com.example.miniproject.screens.CustomerProfileScreen
+import com.example.miniproject.screens.CustomerVoucherScreen
 import com.example.miniproject.screens.FeedbackScreen
 import com.example.miniproject.screens.FoodMenuScreen
+import com.example.miniproject.screens.ForgotPasswordScreen
 import com.example.miniproject.screens.LoginScreen
 import com.example.miniproject.screens.OrderConfirmationScreen
 import com.example.miniproject.screens.PaymentGatewayScreen
@@ -29,30 +39,17 @@ import com.example.miniproject.screens.VendorLoginScreen
 import com.example.miniproject.screens.VendorProductsContent
 import com.example.miniproject.screens.VendorRegisterScreen
 import com.example.miniproject.screens.VendorReviewsScreen
-import com.example.miniproject.screens.AdminAnalyticsScreen
-import com.example.miniproject.screens.AdminDashboardScreen
-import com.example.miniproject.screens.AdminFeedbackListScreen
-import com.example.miniproject.screens.AdminOrderListScreen
-import com.example.miniproject.screens.AdminUserManagementScreen
-import com.example.miniproject.screens.AdminVendorListScreen
-import com.example.miniproject.screens.AdminVendorSalesReportScreen
-import com.example.miniproject.screens.AdminLoginScreen
-import com.example.miniproject.screens.AdminOrderDetailsScreen
-import com.example.miniproject.screens.ForgotPasswordScreen
-import com.example.miniproject.screens.order.OrderHistoryScreen
-import com.example.miniproject.ui.theme.MiniProjectTheme
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.fragment.app.FragmentActivity
-import com.example.miniproject.screens.CustomerVoucherScreen
 import com.example.miniproject.screens.VendorVoucherScreen
+import com.example.miniproject.screens.order.OrderHistoryScreen
 import com.example.miniproject.screens.order.OrderScreen
+import com.example.miniproject.ui.theme.MiniProjectTheme
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        actionBar?.hide()
 
         // Check for PayPal return with order ID
         val orderId = intent?.getStringExtra("ORDER_ID")
