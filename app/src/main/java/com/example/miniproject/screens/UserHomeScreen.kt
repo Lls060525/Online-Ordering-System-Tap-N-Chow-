@@ -30,9 +30,11 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,7 +50,7 @@ import com.example.miniproject.screens.order.OrderScreen
 import com.example.miniproject.service.AuthService
 import kotlinx.coroutines.launch
 
-// Fixed screen definitions to match your screenshot
+// Fixed screen definitions
 sealed class UserScreen(val title: String, val icon: ImageVector) {
     object Food : UserScreen("Vendor List", Icons.Default.Store)
     object Feedback : UserScreen("Feedback", Icons.Default.Feedback)
@@ -59,15 +61,27 @@ sealed class UserScreen(val title: String, val icon: ImageVector) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserHomeScreen(navController: NavController) {
-    var currentScreen by remember { mutableStateOf<UserScreen>(UserScreen.Food) }
+    // 1. Define the list of screens to preserve order
+    val screens = listOf(
+        UserScreen.Food,
+        UserScreen.Feedback,
+        UserScreen.MyOrder,
+        UserScreen.Account
+    )
 
-    // --- NEW: State for Spin Feature ---
+    // 2. Use rememberSaveable with an Integer to save the tab state across navigation
+    var currentScreenIndex by rememberSaveable { mutableIntStateOf(0) }
+
+    // 3. Get the current screen object based on the saved index
+    val currentScreen = screens[currentScreenIndex]
+
+    // --- State for Spin Feature ---
     var showSpinDialog by remember { mutableStateOf(false) }
     var currentCustomerId by remember { mutableStateOf<String?>(null) }
-    val authService = remember { AuthService() } // Use remember to avoid recreating
+    val authService = remember { AuthService() }
     val context = LocalContext.current
 
-    // --- NEW: Fetch Customer ID for the Spin Feature ---
+    // --- Fetch Customer ID for the Spin Feature ---
     LaunchedEffect(Unit) {
         val customer = authService.getCurrentCustomer()
         currentCustomerId = customer?.customerId
@@ -75,10 +89,9 @@ fun UserHomeScreen(navController: NavController) {
 
     Scaffold(
         topBar = {
-            // Green background with status bar padding
             Box(
                 modifier = Modifier
-                    .background(Color(0xFF4CAF50)) // Green color matching your app
+                    .background(Color(0xFF4CAF50))
                     .statusBarsPadding()
             ) {
                 TopAppBar(
@@ -99,13 +112,13 @@ fun UserHomeScreen(navController: NavController) {
                 )
             }
         },
-        // --- NEW: Floating Action Button for Daily Spin ---
+        // --- Floating Action Button for Daily Spin ---
         floatingActionButton = {
             // Only show FAB on the main Food/Vendor screen and if user is logged in
             if (currentScreen == UserScreen.Food && currentCustomerId != null) {
                 ExtendedFloatingActionButton(
                     onClick = { showSpinDialog = true },
-                    containerColor = Color(0xFFFFD700), // Gold Color for "Winning" feel
+                    containerColor = Color(0xFFFFD700), // Gold Color
                     contentColor = Color.Black,
                     icon = { Icon(Icons.Default.Star, contentDescription = "Win Prizes") },
                     text = { Text("Daily Spin", fontWeight = FontWeight.Bold) }
@@ -114,12 +127,8 @@ fun UserHomeScreen(navController: NavController) {
         },
         bottomBar = {
             NavigationBar {
-                listOf(
-                    UserScreen.Food,
-                    UserScreen.Feedback,
-                    UserScreen.MyOrder,
-                    UserScreen.Account
-                ).forEach { screen ->
+                // 4. Iterate using index to match the state
+                screens.forEachIndexed { index, screen ->
                     NavigationBarItem(
                         icon = {
                             Icon(
@@ -128,8 +137,8 @@ fun UserHomeScreen(navController: NavController) {
                             )
                         },
                         label = { Text(screen.title) },
-                        selected = currentScreen == screen,
-                        onClick = { currentScreen = screen }
+                        selected = currentScreenIndex == index, // Check if this index matches state
+                        onClick = { currentScreenIndex = index } // Update the integer state
                     )
                 }
             }
@@ -147,13 +156,12 @@ fun UserHomeScreen(navController: NavController) {
                 is UserScreen.Account -> AccountContent(navController)
             }
 
-            // --- NEW: The Spin Dialog Overlay ---
+            // --- The Spin Dialog Overlay ---
             if (showSpinDialog && currentCustomerId != null) {
                 DailySpinDialog(
                     customerId = currentCustomerId!!,
                     onDismiss = { showSpinDialog = false },
                     onCoinsWon = { amount ->
-                        // Show feedback and close
                         Toast.makeText(context, "You won $amount Coins!", Toast.LENGTH_LONG).show()
                         showSpinDialog = false
                     }
@@ -163,7 +171,8 @@ fun UserHomeScreen(navController: NavController) {
     }
 }
 
-// ... (Rest of your existing FoodContent, MyOrderContent, AccountContent code remains unchanged) ...
+// ... Rest of your existing content ...
+
 @Composable
 fun FoodContent(navController: NavController) {
     Column(
@@ -223,7 +232,6 @@ fun FoodContent(navController: NavController) {
     }
 }
 
-
 @Composable
 fun MyOrderContent(navController: NavController) {
     OrderScreen(navController)
@@ -250,10 +258,9 @@ fun AccountContent(navController: NavController) {
     }
 
     when (userType) {
-        "customer" -> CustomerAccountScreen(navController) // Use CustomerProfileScreen
-        "vendor" -> VendorAccountScreen(navController) // CORRECTED: Use VendorAccountScreen
+        "customer" -> CustomerAccountScreen(navController)
+        "vendor" -> VendorAccountScreen(navController)
         else -> {
-            // Show loading or redirect to login
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }

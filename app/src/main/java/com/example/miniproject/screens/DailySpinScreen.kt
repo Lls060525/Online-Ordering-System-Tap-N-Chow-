@@ -48,7 +48,6 @@ data class WheelSection(
     val weight: Double,
     val displayColor: Brush
 )
-
 @Composable
 fun DailySpinDialog(
     customerId: String,
@@ -66,36 +65,15 @@ fun DailySpinDialog(
     var spinState by remember { mutableStateOf<DatabaseService.SpinState?>(null) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // Define Sections
+    // Timer State
+    var timeRemainingString by remember { mutableStateOf("") }
+
+    // Define Sections (Keep your existing sections code here...)
     val sections = listOf(
-        WheelSection(
-            label = "3",
-            coinValue = 3,
-            color = Color(0xFFFFCC80),
-            weight = 0.5,
-            displayColor = Brush.radialGradient(listOf(Color(0xFFFFE0B2), Color(0xFFFFB74D)))
-        ),
-        WheelSection(
-            label = "10",
-            coinValue = 10,
-            color = Color(0xFFFFA726),
-            weight = 0.35,
-            displayColor = Brush.radialGradient(listOf(Color(0xFFFFCC80), Color(0xFFF57C00)))
-        ),
-        WheelSection(
-            label = "20",
-            coinValue = 20,
-            color = Color(0xFFFF7043),
-            weight = 0.05,
-            displayColor = Brush.radialGradient(listOf(Color(0xFFFFAB91), Color(0xFFD84315)))
-        ),
-        WheelSection(
-            label = "50",
-            coinValue = 50,
-            color = Color(0xFFEF5350),
-            weight = 0.0001,
-            displayColor = Brush.radialGradient(listOf(Color(0xFFE1BEE7), Color(0xFF8E24AA)))
-        )
+        WheelSection("3", 3, Color(0xFFFFCC80), 0.5, Brush.radialGradient(listOf(Color(0xFFFFE0B2), Color(0xFFFFB74D)))),
+        WheelSection("10", 10, Color(0xFFFFA726), 0.35, Brush.radialGradient(listOf(Color(0xFFFFCC80), Color(0xFFF57C00)))),
+        WheelSection("20", 20, Color(0xFFFF7043), 0.05, Brush.radialGradient(listOf(Color(0xFFFFAB91), Color(0xFFD84315)))),
+        WheelSection("50", 50, Color(0xFFEF5350), 0.0001, Brush.radialGradient(listOf(Color(0xFFE1BEE7), Color(0xFF8E24AA))))
     )
 
     val angle = remember { Animatable(0f) }
@@ -105,11 +83,33 @@ fun DailySpinDialog(
         isLoading = false
     }
 
+    // Countdown Timer Logic ---
+    LaunchedEffect(spinState) {
+        if (spinState != null && !spinState!!.canSpin) {
+            while (true) {
+                val now = System.currentTimeMillis()
+                val diff = spinState!!.nextSpinTimestamp - now
+
+                if (diff <= 0) {
+                    // Timer finished, refresh state to enable spin
+                    timeRemainingString = "00:00:00"
+                    spinState = databaseService.getSpinState(customerId)
+                } else {
+                    val hours = diff / (1000 * 60 * 60)
+                    val minutes = (diff % (1000 * 60 * 60)) / (1000 * 60)
+                    val seconds = (diff % (1000 * 60)) / 1000
+                    timeRemainingString = String.format("%02d:%02d:%02d", hours, minutes, seconds)
+                }
+                delay(1000L) // Update every second
+            }
+        }
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp), // Added padding to ensure it fits screen width
+                .padding(16.dp),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(12.dp)
@@ -118,7 +118,6 @@ fun DailySpinDialog(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // --- Header ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -144,6 +143,7 @@ fun DailySpinDialog(
                 if (isLoading) {
                     CircularProgressIndicator()
                 } else {
+
                     // --- Balance Display ---
                     if (spinState != null) {
                         Surface(
@@ -163,25 +163,20 @@ fun DailySpinDialog(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    Icons.Default.MonetizationOn,
-                                    null,
-                                    tint = Color(0xFFFFD700),
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Icon(Icons.Default.MonetizationOn, null, tint = Color(0xFFFFD700), modifier = Modifier.size(16.dp))
                             }
                         }
                     }
 
-                    // --- THE WHEEL UI ---
-                    // FIX: Use aspectRatio(1f) to enforce a perfect circle
+                    // --- WHEEL UI (Copy existing Wheel UI code here) ---
+
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.9f) // Take 90% of the available width
-                            .aspectRatio(1f),   // Force Height = Width (Perfect Square Container)
+                            .fillMaxWidth(0.9f)
+                            .aspectRatio(1f),
                         contentAlignment = Alignment.Center
                     ) {
-                        // 1. Pointer
+
                         Icon(
                             imageVector = Icons.Default.ArrowDropDown,
                             contentDescription = null,
@@ -297,7 +292,7 @@ fun DailySpinDialog(
 
                     Spacer(modifier = Modifier.height(32.dp))
 
-                    // --- Result / Button ---
+
                     if (winMessage != null) {
                         Text(
                             winMessage!!,
@@ -306,15 +301,14 @@ fun DailySpinDialog(
                             color = MaterialTheme.colorScheme.primary
                         )
                     } else {
-                        val isFree = spinState?.isFree == true
-                        val canAfford = spinState?.canAfford == true
-                        val cost = if (isFree) 0 else 5
+                        val canSpin = spinState?.canSpin == true
 
                         Button(
                             onClick = {
-                                if (!isSpinning && (isFree || canAfford)) {
+                                if (!isSpinning && canSpin) {
                                     isSpinning = true
                                     scope.launch {
+                                        // Random Logic
                                         val rand = Math.random()
                                         var cumulative = 0.0
                                         var winningIndex = 0
@@ -327,6 +321,7 @@ fun DailySpinDialog(
                                         }
                                         val wonSection = sections[winningIndex]
 
+                                        // Animation
                                         val sliceAngle = 360f / sections.size
                                         val targetAngle = (360f * 5) + (360f - (winningIndex * sliceAngle))
 
@@ -338,10 +333,10 @@ fun DailySpinDialog(
                                             )
                                         )
 
+                                        // Database Call (No cost passed)
                                         val success = databaseService.performDailySpin(
                                             customerId,
-                                            wonSection.coinValue,
-                                            cost
+                                            wonSection.coinValue
                                         )
 
                                         if (success.isSuccess) {
@@ -356,53 +351,44 @@ fun DailySpinDialog(
                                     }
                                 }
                             },
-                            enabled = !isSpinning && (isFree || canAfford),
+                            enabled = !isSpinning && canSpin,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(56.dp)
                                 .shadow(4.dp, RoundedCornerShape(12.dp)),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isFree) Color(0xFF4CAF50) else Color(0xFFFFD700),
-                                contentColor = if (isFree) Color.White else Color.Black
+                                containerColor = if (canSpin) Color(0xFF4CAF50) else Color.Gray,
+                                contentColor = Color.White,
+                                disabledContainerColor = Color.LightGray,
+                                disabledContentColor = Color.DarkGray
                             )
                         ) {
                             if (isSpinning) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(24.dp),
-                                    color = if (isFree) Color.White else Color.Black,
+                                    color = Color.White,
                                     strokeWidth = 3.dp
                                 )
                             } else {
-                                if (isFree) {
-                                    Text("SPIN FREE", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                if (canSpin) {
+                                    Text("SPIN NOW", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                                 } else {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("SPIN AGAIN ", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                                        Text("(-5 ", fontSize = 14.sp)
-                                        Icon(
-                                            Icons.Default.MonetizationOn,
-                                            null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Text(")", fontSize = 14.sp)
+                                    // Show Timer inside disabled button
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("NEXT SPIN IN", fontSize = 12.sp)
+                                        Text(timeRemainingString, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                     }
                                 }
                             }
                         }
 
-                        if (!isFree && canAfford) {
+                        // Helper text below button
+                        if (!canSpin) {
                             Text(
-                                "Spend 5 coins for another chance",
+                                "Come back tomorrow for another chance!",
                                 fontSize = 12.sp,
-                                color = Color.Gray,
-                                modifier = Modifier.padding(top = 12.dp)
-                            )
-                        } else if (!isFree && !canAfford) {
-                            Text(
-                                "Not enough coins to spin again",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.error,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 12.dp)
                             )
                         }

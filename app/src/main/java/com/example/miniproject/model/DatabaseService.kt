@@ -1452,9 +1452,9 @@ class DatabaseService {
     // --- Voucher Operations ---
 
     data class SpinState(
-        val isFree: Boolean,
+        val canSpin: Boolean,
         val currentCoins: Int,
-        val canAfford: Boolean
+        val nextSpinTimestamp: Long
     )
 
     suspend fun createVoucher(voucher: Voucher): Result<String> {
@@ -1470,37 +1470,44 @@ class DatabaseService {
         return try {
             val doc = db.collection("customer_accounts").document(customerId).get().await()
             val account = doc.toObject(CustomerAccount::class.java)
-
             val currentCoins = account?.tapNChowCoins ?: 0
 
+            // Calculate "Tomorrow Midnight" for the timer
+            val calendar = java.util.Calendar.getInstance()
+            calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+            calendar.set(java.util.Calendar.MINUTE, 0)
+            calendar.set(java.util.Calendar.SECOND, 0)
+            calendar.set(java.util.Calendar.MILLISECOND, 0)
+            val nextSpinTime = calendar.timeInMillis
+
             if (account?.lastSpinDate == null) {
-                // Never spun before -> FREE
-                return SpinState(isFree = true, currentCoins = currentCoins, canAfford = true)
+                // Never spun before -> Allow Spin
+                return SpinState(canSpin = true, currentCoins = currentCoins, nextSpinTimestamp = 0)
             }
 
             // Check if last spin was on a different calendar day
             val lastSpin = account.lastSpinDate.toDate()
-            val cal1 = java.util.Calendar.getInstance()
-            val cal2 = java.util.Calendar.getInstance()
-            cal1.time = lastSpin
-            cal2.time = java.util.Date()
+            val currentCal = java.util.Calendar.getInstance()
+            val lastSpinCal = java.util.Calendar.getInstance()
+            lastSpinCal.time = lastSpin
 
-            val sameDay = cal1.get(java.util.Calendar.DAY_OF_YEAR) == cal2.get(java.util.Calendar.DAY_OF_YEAR) &&
-                    cal1.get(java.util.Calendar.YEAR) == cal2.get(java.util.Calendar.YEAR)
+            val sameDay = currentCal.get(java.util.Calendar.DAY_OF_YEAR) == lastSpinCal.get(java.util.Calendar.DAY_OF_YEAR) &&
+                    currentCal.get(java.util.Calendar.YEAR) == lastSpinCal.get(java.util.Calendar.YEAR)
 
             if (!sameDay) {
-                // New day -> FREE
-                SpinState(isFree = true, currentCoins = currentCoins, canAfford = true)
+                // New day -> Allow Spin
+                SpinState(canSpin = true, currentCoins = currentCoins, nextSpinTimestamp = 0)
             } else {
-                // Same day -> PAID (Check if balance >= 5)
-                SpinState(isFree = false, currentCoins = currentCoins, canAfford = currentCoins >= 5)
+                // Same day -> Block Spin (Return nextSpinTime for the timer)
+                SpinState(canSpin = false, currentCoins = currentCoins, nextSpinTimestamp = nextSpinTime)
             }
         } catch (e: Exception) {
-            // Default to safe state on error
-            SpinState(isFree = false, currentCoins = 0, canAfford = false)
+            // Default safe state
+            SpinState(canSpin = false, currentCoins = 0, nextSpinTimestamp = System.currentTimeMillis() + 86400000)
         }
     }
-    suspend fun performDailySpin(customerId: String, coinsWon: Int, cost: Int): Result<Boolean> {
+    suspend fun performDailySpin(customerId: String, coinsWon: Int): Result<Boolean> {
         return try {
             db.runTransaction { transaction ->
                 val ref = db.collection("customer_accounts").document(customerId)
@@ -1508,13 +1515,8 @@ class DatabaseService {
 
                 val currentCoins = snapshot.getLong("tapNChowCoins")?.toInt() ?: 0
 
-                // Double check balance inside transaction for paid spins
-                if (cost > 0 && currentCoins < cost) {
-                    throw Exception("Insufficient coins")
-                }
-
-                // Calculate new balance: Old - Cost + Win
-                val newBalance = currentCoins - cost + coinsWon
+                // New balance: Old + Win (No cost deduction anymore)
+                val newBalance = currentCoins + coinsWon
 
                 transaction.update(ref, mapOf(
                     "tapNChowCoins" to newBalance,

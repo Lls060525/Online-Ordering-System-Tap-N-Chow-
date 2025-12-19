@@ -35,6 +35,9 @@ fun OrderHistoryScreen(navController: NavController) {
     var orderDetails by remember { mutableStateOf<List<OrderDetail>>(emptyList()) }
     var showOrderDetails by remember { mutableStateOf(false) }
 
+    // --- NEW: State to prevent double clicks ---
+    var lastBackClickTime by remember { mutableLongStateOf(0L) }
+
     LaunchedEffect(Unit) {
         coroutineScope.launch {
             try {
@@ -71,7 +74,15 @@ fun OrderHistoryScreen(navController: NavController) {
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    // --- UPDATED: Safe Back Button Logic ---
+                    IconButton(onClick = {
+                        val currentTime = System.currentTimeMillis()
+                        // 500ms delay: Prevents clicks closer than half a second
+                        if (currentTime - lastBackClickTime > 500) {
+                            lastBackClickTime = currentTime
+                            navController.popBackStack()
+                        }
+                    }) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back"
@@ -79,7 +90,7 @@ fun OrderHistoryScreen(navController: NavController) {
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    containerColor = Color(0xFF4CAF50), // Green Background
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )

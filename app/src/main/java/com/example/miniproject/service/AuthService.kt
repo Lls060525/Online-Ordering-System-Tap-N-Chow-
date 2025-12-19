@@ -22,47 +22,32 @@ class AuthService {
     private val ADMIN_EMAIL = "admin@admin.com.my"
     private val ADMIN_PASSWORD = "administrator"
 
+    // ... (Keep resetPasswordWithOTP and verifyOTP functions as they are) ...
+
     suspend fun resetPasswordWithOTP(email: String): Result<Boolean> {
         return try {
-            // First check if the email exists in our system
             val databaseService = DatabaseService()
-
-            // Check if it's a customer
             val customers = databaseService.getAllCustomers()
             val isCustomer = customers.any { it.email.equals(email, ignoreCase = true) }
-
-            // Check if it's a vendor
             val vendors = databaseService.getAllVendors()
             val isVendor = vendors.any { it.email.equals(email, ignoreCase = true) }
-
-            // Check if it's an admin
             val isAdmin = email == ADMIN_EMAIL
 
             if (!isCustomer && !isVendor && !isAdmin) {
                 return Result.failure(Exception("Email not found in our system"))
             }
 
-            // Generate OTP (6-digit code)
             val otp = (100000..999999).random().toString()
-
-            // Store OTP in Firestore with expiration (5 minutes)
             val otpData = hashMapOf(
                 "email" to email,
                 "otp" to otp,
                 "createdAt" to Timestamp.now(),
-                "expiresAt" to Timestamp(Date(Date().time + 5 * 60 * 1000)), // 5 minutes
+                "expiresAt" to Timestamp(Date(Date().time + 5 * 60 * 1000)),
                 "used" to false
             )
 
-            db.collection("password_reset_otps")
-                .document(email)
-                .set(otpData)
-                .await()
-
-            // In a real app, you would send the OTP via email/SMS
-            // For development, we'll just log it
+            db.collection("password_reset_otps").document(email).set(otpData).await()
             println("DEBUG: OTP for $email is: $otp")
-
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)
@@ -70,41 +55,25 @@ class AuthService {
     }
 
     suspend fun verifyOTP(email: String, otp: String): Result<Boolean> {
+        // ... (Keep existing implementation) ...
         return try {
-            val otpDoc = db.collection("password_reset_otps")
-                .document(email)
-                .get()
-                .await()
-
-            if (!otpDoc.exists()) {
-                return Result.failure(Exception("OTP not found or expired"))
-            }
+            val otpDoc = db.collection("password_reset_otps").document(email).get().await()
+            if (!otpDoc.exists()) return Result.failure(Exception("OTP not found or expired"))
 
             val data = otpDoc.data ?: return Result.failure(Exception("Invalid OTP"))
-
             val storedOTP = data["otp"] as? String
             val expiresAt = data["expiresAt"] as? Timestamp
             val used = data["used"] as? Boolean ?: false
 
-            // Check if OTP is used
-            if (used) {
-                return Result.failure(Exception("OTP has already been used"))
-            }
+            if (used) return Result.failure(Exception("OTP has already been used"))
 
-            // Check if OTP is expired
             val now = Timestamp.now()
             if (expiresAt == null || expiresAt.seconds < now.seconds) {
                 return Result.failure(Exception("OTP has expired"))
             }
 
-            // Verify OTP
             if (storedOTP == otp) {
-                // Mark OTP as used
-                db.collection("password_reset_otps")
-                    .document(email)
-                    .update("used", true)
-                    .await()
-
+                db.collection("password_reset_otps").document(email).update("used", true).await()
                 Result.success(true)
             } else {
                 Result.failure(Exception("Invalid OTP"))
@@ -115,38 +84,47 @@ class AuthService {
     }
 
     suspend fun resetPassword(email: String, newPassword: String, confirmPassword: String): Result<Boolean> {
+        // ... (Keep existing implementation) ...
         return try {
-            // Validate passwords
-            if (newPassword != confirmPassword) {
-                return Result.failure(Exception("Passwords do not match"))
-            }
+            if (newPassword != confirmPassword) return Result.failure(Exception("Passwords do not match"))
+            if (newPassword.length < 6) return Result.failure(Exception("Password must be at least 6 characters"))
 
-            if (newPassword.length < 6) {
-                return Result.failure(Exception("Password must be at least 6 characters"))
-            }
-
-            // Update password in Firebase Auth
             val currentUser = auth.currentUser
-
             if (currentUser?.email == email) {
-                // If user is currently logged in, update their password
                 currentUser.updatePassword(newPassword).await()
             } else {
-                // For password reset without login
-                // Note: Firebase Admin SDK is needed for this on server-side
-                // For client-side, we need to re-authenticate or use email link
                 return Result.failure(Exception("Please complete OTP verification first"))
             }
-
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // Add this function for sending password reset email (alternative method)
+    // --- UPDATED FUNCTION ---
     suspend fun sendPasswordResetEmail(email: String): Result<Boolean> {
         return try {
+            // 1. Check if email matches Admin
+            val isAdmin = email == ADMIN_EMAIL
+
+            // 2. Check if email exists in Customers collection
+            val customerQuery = db.collection("customers")
+                .whereEqualTo("email", email)
+                .get()
+                .await()
+
+            // 3. Check if email exists in Vendors collection
+            val vendorQuery = db.collection("vendors")
+                .whereEqualTo("email", email)
+                .get()
+                .await()
+
+            // If email is not found in any valid group, return specific error
+            if (customerQuery.isEmpty && vendorQuery.isEmpty && !isAdmin) {
+                return Result.failure(Exception("This email address is not registered."))
+            }
+
+            // 4. If registered, proceed to send Firebase reset email
             auth.sendPasswordResetEmail(email).await()
             Result.success(true)
         } catch (e: Exception) {
@@ -154,16 +132,15 @@ class AuthService {
         }
     }
 
-    suspend fun login(email: String, password: String): Result<String> {
-        return try {
-            // 1. Attempt to sign in with Firebase Auth
-            val result = auth.signInWithEmailAndPassword(email, password).await()
+    // ... (Keep the rest of the file: login, registerCustomer, registerVendor, etc. exactly as they are) ...
 
+    suspend fun login(email: String, password: String): Result<String> {
+        // ... (Existing login logic) ...
+        return try {
+            val result = auth.signInWithEmailAndPassword(email, password).await()
             if (result.user != null) {
                 val user = result.user!!
                 val uid = user.uid
-
-                // 2. Get user mapping to identify if Customer, Vendor, or Admin
                 val mapping = db.collection("user_mappings").document(uid).get().await()
                 val databaseService = DatabaseService()
 
@@ -172,18 +149,12 @@ class AuthService {
                     val customerId = mapping.getString("customerId")
                     val vendorId = mapping.getString("vendorId")
 
-                    // 3. ROLE SPECIFIC CHECKS
                     if (!customerId.isNullOrEmpty()) {
-                        // --- CUSTOMER LOGIC ---
-
-                        // A. Check Email Verification (ONLY FOR CUSTOMERS)
                         user.reload().await()
                         if (!user.isEmailVerified) {
                             auth.signOut()
                             return Result.failure(Exception("Please verify your email address. Check your inbox."))
                         }
-
-                        // B. Check Freeze Status
                         val customer = databaseService.getCustomerById(customerId)
                         if (customer == null) {
                             auth.signOut()
@@ -194,12 +165,7 @@ class AuthService {
                             return Result.failure(Exception("Your account has been frozen. Please contact support."))
                         }
                         databaseService.updateCustomerLoginActivity(customerId)
-
                     } else if (!vendorId.isNullOrEmpty()) {
-                        // --- VENDOR LOGIC ---
-                        // Note: Email verification check is SKIPPED here
-
-                        // Check if frozen
                         val vendor = databaseService.getVendorById(vendorId)
                         if (vendor == null) {
                             auth.signOut()
@@ -210,12 +176,8 @@ class AuthService {
                             return Result.failure(Exception("Your vendor account has been frozen. Please contact support."))
                         }
                         databaseService.updateVendorLoginActivity(vendorId)
-
-                    } else if (isAdmin) {
-                        println("Admin logged in successfully")
                     }
                 }
-
                 Result.success(uid)
             } else {
                 Result.failure(Exception("Login failed - no user returned"))
@@ -225,31 +187,24 @@ class AuthService {
             Result.failure(Exception("Login failed: ${e.message}"))
         }
     }
-    // HARDCODED ADMIN LOGIN - SEPARATE FUNCTION
+
     suspend fun adminLogin(email: String, password: String): Result<String> {
+        // ... (Existing adminLogin logic) ...
         return try {
-            // Check hardcoded credentials FIRST
             if (email != ADMIN_EMAIL || password != ADMIN_PASSWORD) {
                 return Result.failure(Exception("Invalid admin credentials"))
             }
-
-            // First check if admin exists in database
             val databaseService = DatabaseService()
             val adminExists = databaseService.adminExists()
-
             if (!adminExists) {
-                // Create admin if doesn't exist
                 databaseService.createAdmin()
             }
-
-            // Sign in with Firebase
             try {
                 val result = auth.signInWithEmailAndPassword(email, password).await()
                 val uid = result.user!!.uid
                 ensureAdminMapping(uid)
                 Result.success(uid)
             } catch (e: Exception) {
-                // If Firebase account doesn't exist, create it
                 try {
                     val createResult = auth.createUserWithEmailAndPassword(email, password).await()
                     val uid = createResult.user!!.uid
@@ -267,7 +222,6 @@ class AuthService {
 
     private suspend fun ensureAdminMapping(firebaseUid: String) {
         try {
-            // Create admin mapping without vendorId
             db.collection("user_mappings").document(firebaseUid).set(
                 mapOf(
                     "adminId" to ADMIN_ID,
@@ -300,32 +254,25 @@ class AuthService {
         phoneNumber: String,
         password: String
     ): Result<String> {
+        // ... (Existing registerCustomer logic) ...
         return try {
             try {
                 auth.signInWithEmailAndPassword(email, password).await()
                 return Result.failure(Exception("User already exists with this email"))
-            } catch (e: Exception) {
-                // Proceed
-            }
+            } catch (e: Exception) { }
 
             val authResult = auth.createUserWithEmailAndPassword(email, password).await()
             val user = authResult.user ?: throw Exception("Customer creation failed")
             val firebaseUserId = user.uid
 
-            // --- NEW: SEND VERIFICATION EMAIL ---
             try {
                 user.sendEmailVerification().await()
             } catch (e: Exception) {
-                // Log error but continue with registration logic so data isn't lost
                 println("Failed to send verification email: ${e.message}")
             }
-            // ------------------------------------
 
             val customerId = Customer.generateCustomerId(db)
-
-            val profileUpdates = UserProfileChangeRequest.Builder()
-                .setDisplayName(name)
-                .build()
+            val profileUpdates = UserProfileChangeRequest.Builder().setDisplayName(name).build()
             user.updateProfile(profileUpdates).await()
 
             val customer = Customer(
@@ -338,39 +285,27 @@ class AuthService {
             )
 
             db.collection("customers").document(customerId).set(customer).await()
-
             db.collection("user_mappings").document(firebaseUserId).set(
-                mapOf(
-                    "customerId" to customerId,
-                    "firebaseUid" to firebaseUserId
-                )
+                mapOf("customerId" to customerId, "firebaseUid" to firebaseUserId)
             ).await()
 
-            // --- NEW: SIGN OUT IMMEDIATELY ---
-            // Force them to login again after verifying
             auth.signOut()
-
             Result.success(customerId)
-
         } catch (e: Exception) {
-            // If registration fails halfway, try to clean up the auth user
             auth.currentUser?.delete()?.await()
             Result.failure(Exception("Registration failed: ${e.message}"))
         }
     }
 
     suspend fun resendVerificationEmail(email: String, password: String): Result<Boolean> {
+        // ... (Existing logic) ...
         return try {
-            // We must sign in to send the verification email
             val result = auth.signInWithEmailAndPassword(email, password).await()
             val user = result.user
-
             if (user != null) {
-                if (user.isEmailVerified) {
-                    return Result.failure(Exception("Email is already verified."))
-                }
+                if (user.isEmailVerified) return Result.failure(Exception("Email is already verified."))
                 user.sendEmailVerification().await()
-                auth.signOut() // Sign out again
+                auth.signOut()
                 Result.success(true)
             } else {
                 Result.failure(Exception("User not found"))
@@ -390,12 +325,11 @@ class AuthService {
         latitude: Double = 0.0,
         longitude: Double = 0.0
     ): Result<String> {
+        // ... (Existing logic) ...
         return try {
             val authResult = auth.createUserWithEmailAndPassword(email, password).await()
             val firebaseUserId = authResult.user?.uid ?: throw Exception("Vendor creation failed")
-
             val vendorId = Vendor.generateVendorId(db)
-
             val vendor = Vendor(
                 vendorId = vendorId,
                 vendorName = vendorName,
@@ -406,17 +340,10 @@ class AuthService {
                 latitude = latitude,
                 longitude = longitude
             )
-
             db.collection("vendors").document(vendorId).set(vendor).await()
-
             db.collection("user_mappings").document(firebaseUserId).set(
-                mapOf(
-                    "vendorId" to vendorId,
-                    "firebaseUid" to firebaseUserId,
-                    "isAdmin" to false
-                )
+                mapOf("vendorId" to vendorId, "firebaseUid" to firebaseUserId, "isAdmin" to false)
             ).await()
-
             Result.success(vendorId)
         } catch (e: Exception) {
             auth.currentUser?.delete()?.await()
@@ -428,85 +355,57 @@ class AuthService {
         return try {
             val doc = db.collection("user_mappings").document(firebaseUid).get().await()
             doc.getString("vendorId")
-        } catch (e: Exception) {
-            null
-        }
+        } catch (e: Exception) { null }
     }
 
     private suspend fun getCustomerIdFromFirebaseUid(firebaseUid: String): String? {
         return try {
             val doc = db.collection("user_mappings").document(firebaseUid).get().await()
             doc.getString("customerId")
-        } catch (e: Exception) {
-            null
-        }
+        } catch (e: Exception) { null }
     }
 
-    // Get current customer data
     suspend fun getCurrentCustomer(): Customer? {
         return try {
             val currentUser = auth.currentUser
             currentUser?.let { user ->
                 val customerId = getCustomerIdFromFirebaseUid(user.uid)
-                customerId?.let {
-                    db.collection("customers").document(it).get().await()
-                        .toObject(Customer::class.java)
-                }
+                customerId?.let { db.collection("customers").document(it).get().await().toObject(Customer::class.java) }
             }
-        } catch (e: Exception) {
-            null
-        }
+        } catch (e: Exception) { null }
     }
 
-    // Get current vendor data
     suspend fun getCurrentVendor(): Vendor? {
         return try {
             val currentUser = auth.currentUser
             currentUser?.let { user ->
                 val vendorId = getVendorIdFromFirebaseUid(user.uid)
-                vendorId?.let {
-                    db.collection("vendors").document(it).get().await()
-                        .toObject(Vendor::class.java)
-                }
+                vendorId?.let { db.collection("vendors").document(it).get().await().toObject(Vendor::class.java) }
             }
-        } catch (e: Exception) {
-            null
-        }
+        } catch (e: Exception) { null }
     }
 
-    // Add this function to DatabaseService.kt
     suspend fun getVendorByFirebaseUid(firebaseUid: String): Vendor? {
         return try {
             val mapping = db.collection("user_mappings").document(firebaseUid).get().await()
             val vendorId = mapping.getString("vendorId")
-            vendorId?.let {
-                db.collection("vendors").document(it).get().await()
-                    .toObject(Vendor::class.java)
-            }
-        } catch (e: Exception) {
-            null
-        }
+            vendorId?.let { db.collection("vendors").document(it).get().await().toObject(Vendor::class.java) }
+        } catch (e: Exception) { null }
     }
 
-    // Update existing getVendorById function to use the new ID format
     suspend fun getVendorById(vendorId: String): Vendor? {
         return try {
-            db.collection("vendors").document(vendorId).get().await()
-                .toObject(Vendor::class.java)
-        } catch (e: Exception) {
-            null
-        }
+            db.collection("vendors").document(vendorId).get().await().toObject(Vendor::class.java)
+        } catch (e: Exception) { null }
     }
 
     fun getCurrentUser() = auth.currentUser
     fun logout() = auth.signOut()
 
-    // Helper function to check if current user should see admin features
     suspend fun shouldShowAdminFeatures(): Boolean {
         return isAdminUser()
     }
 
-    // Get current user role
     suspend fun getCurrentUserRole(): String {
         return try {
             val currentUser = auth.currentUser
@@ -520,12 +419,9 @@ class AuthService {
                     else -> "unknown"
                 }
             } ?: "unknown"
-        } catch (e: Exception) {
-            "unknown"
-        }
+        } catch (e: Exception) { "unknown" }
     }
 
-    // Add function to check if user is frozen
     suspend fun isUserFrozen(): Boolean {
         return try {
             val currentUser = auth.currentUser ?: return false
@@ -533,7 +429,7 @@ class AuthService {
 
             if (mapping.exists()) {
                 val isAdmin = mapping.getBoolean("isAdmin") ?: false
-                if (isAdmin) return false // Admin cannot be frozen
+                if (isAdmin) return false
 
                 val customerId = mapping.getString("customerId")
                 val vendorId = mapping.getString("vendorId")
@@ -542,15 +438,12 @@ class AuthService {
                     val customer = DatabaseService().getCustomerById(customerId)
                     return customer?.isFrozen ?: false
                 }
-
                 if (!vendorId.isNullOrEmpty()) {
                     val vendor = DatabaseService().getVendorById(vendorId)
                     return vendor?.isFrozen ?: false
                 }
             }
             false
-        } catch (e: Exception) {
-            false
-        }
+        } catch (e: Exception) { false }
     }
 }

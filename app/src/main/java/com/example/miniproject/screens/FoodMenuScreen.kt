@@ -90,6 +90,9 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
     // --- Auto Filter Logic ---
     var selectedCategory by remember { mutableStateOf("All") }
 
+    // --- NEW: State to prevent double clicks ---
+    var lastBackClickTime by remember { mutableLongStateOf(0L) }
+
     val categories = remember(products) {
         val uniqueCategories = products
             .map { it.category }
@@ -147,7 +150,15 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    // --- UPDATED: Safe Back Button Logic ---
+                    IconButton(onClick = {
+                        val currentTime = System.currentTimeMillis()
+                        // 500ms delay: Prevents clicks closer than half a second
+                        if (currentTime - lastBackClickTime > 500) {
+                            lastBackClickTime = currentTime
+                            navController.popBackStack()
+                        }
+                    }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -412,6 +423,8 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
         }
     }
 }
+
+// ... (Rest of the file remains exactly the same: ProductMenuItem, CartDialog, VendorHeaderSection, etc.) ...
 
 @Composable
 fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {

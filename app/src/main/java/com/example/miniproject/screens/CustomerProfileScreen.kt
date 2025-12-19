@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -46,6 +47,9 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
     var phoneError by remember { mutableStateOf("") }
     var emailError by remember { mutableStateOf("") }
 
+    // --- NEW: State to prevent double clicks ---
+    var lastBackClickTime by remember { mutableLongStateOf(0L) }
+
     LaunchedEffect(Unit) {
         coroutineScope.launch {
             val currentCustomer = authService.getCurrentCustomer()
@@ -59,11 +63,10 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
         }
     }
 
-    // Validation functions
+    // Validation functions (Keep existing code...)
     fun validateForm(): Boolean {
         var isValid = true
 
-        // Name validation
         if (editableName.isBlank()) {
             nameError = "Name is required"
             isValid = false
@@ -74,7 +77,6 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
             nameError = ""
         }
 
-        // Email validation
         if (editableEmail.isBlank()) {
             emailError = "Email is required"
             isValid = false
@@ -85,7 +87,6 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
             emailError = ""
         }
 
-        // Phone validation
         if (editablePhone.isBlank()) {
             phoneError = "Phone number is required"
             isValid = false
@@ -112,7 +113,6 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
                     email = editableEmail.trim().lowercase()
                 )
 
-                // Update in Firestore
                 databaseService.updateCustomerProfile(updatedCustomer).let { result ->
                     if (result.isSuccess) {
                         customer = updatedCustomer
@@ -137,7 +137,15 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    // --- UPDATED: Safe Back Button Logic ---
+                    IconButton(onClick = {
+                        val currentTime = System.currentTimeMillis()
+                        // 500ms delay: Prevents clicks closer than half a second
+                        if (currentTime - lastBackClickTime > 500) {
+                            lastBackClickTime = currentTime
+                            navController.popBackStack()
+                        }
+                    }) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back"
@@ -162,7 +170,10 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
                             )
                         }
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF4CAF50),
+                )
             )
         }
     ) { paddingValues ->
@@ -205,22 +216,22 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
                 onDismissError = { showSaveError = false },
                 onCancelEdit = {
                     isEditing = false
-                    // Reset fields to original values
                     customer?.let {
                         editableName = it.name
                         editablePhone = it.phoneNumber
                         editableEmail = it.email
                     }
-                    // Clear errors
                     nameError = ""
                     phoneError = ""
                     emailError = ""
                 },
-                onSaveProfile = { saveProfile() } // Add this parameter
+                onSaveProfile = { saveProfile() }
             )
         }
     }
 }
+
+// ... (Rest of the file remains exactly the same: CustomerProfileContent, ProfileField, validation functions) ...
 
 @Composable
 fun CustomerProfileContent(
@@ -242,7 +253,7 @@ fun CustomerProfileContent(
     onDismissSuccess: () -> Unit,
     onDismissError: () -> Unit,
     onCancelEdit: () -> Unit,
-    onSaveProfile: () -> Unit // Add this parameter
+    onSaveProfile: () -> Unit
 ) {
     Column(
         modifier = modifier
@@ -339,7 +350,7 @@ fun CustomerProfileContent(
                 Spacer(modifier = Modifier.width(16.dp))
 
                 Button(
-                    onClick = onSaveProfile, // Use the passed parameter
+                    onClick = onSaveProfile,
                     modifier = Modifier.weight(1f),
                     enabled = nameError.isEmpty() && phoneError.isEmpty() && emailError.isEmpty() &&
                             editableName.isNotBlank() && editablePhone.isNotBlank() && editableEmail.isNotBlank()

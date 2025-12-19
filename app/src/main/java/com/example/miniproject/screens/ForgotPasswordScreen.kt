@@ -1,6 +1,5 @@
 package com.example.miniproject.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -14,12 +13,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.miniproject.components.CustomTextField
 import com.example.miniproject.service.AuthService
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,8 +28,26 @@ fun ForgotPasswordScreen(navController: NavController) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
 
+    // --- NEW: Cooldown State (3 minutes = 180 seconds) ---
+    var cooldownSeconds by remember { mutableIntStateOf(0) }
+
     val authService = AuthService()
     val scope = rememberCoroutineScope()
+
+    // --- NEW: Timer Logic ---
+    LaunchedEffect(cooldownSeconds) {
+        if (cooldownSeconds > 0) {
+            delay(1000L) // Wait 1 second
+            cooldownSeconds-- // Decrement timer
+        }
+    }
+
+    // Helper to format seconds into MM:SS
+    fun formatTime(seconds: Int): String {
+        val minutes = seconds / 60
+        val remainingSeconds = seconds % 60
+        return String.format("%02d:%02d", minutes, remainingSeconds)
+    }
 
     Scaffold(
         topBar = {
@@ -43,7 +59,6 @@ fun ForgotPasswordScreen(navController: NavController) {
                         fontSize = 20.sp
                     )
                 },
-
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -145,7 +160,9 @@ fun ForgotPasswordScreen(navController: NavController) {
                 placeholder = { Text("Enter your registered email") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                // Disable input during cooldown to prevent changing email while waiting
+                enabled = cooldownSeconds == 0 && !isLoading
             )
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -164,22 +181,19 @@ fun ForgotPasswordScreen(navController: NavController) {
 
                     isLoading = true
                     errorMessage = null
+                    successMessage = null
 
                     scope.launch {
-                        // This will actually send an email via Firebase
                         val result = authService.sendPasswordResetEmail(email)
                         isLoading = false
 
                         if (result.isSuccess) {
-                            successMessage = "Password reset link sent to $email. Check your inbox and spam folder."
+                            successMessage = "Link sent! Check your inbox."
+                            // --- START COOLDOWN (3 Minutes) ---
+                            cooldownSeconds = 180
 
-                            // Navigate back to login after delay
-                            scope.launch {
-                                kotlinx.coroutines.delay(3000)
-                                navController.navigate("login") {
-                                    popUpTo("forgotPassword") { inclusive = true }
-                                }
-                            }
+                            // NOTE: Removed auto-navigation so user can use the Resend button
+                            // after the timer expires if needed.
                         } else {
                             errorMessage = result.exceptionOrNull()?.message ?: "Failed to send reset email"
                         }
@@ -188,7 +202,11 @@ fun ForgotPasswordScreen(navController: NavController) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
-                enabled = !isLoading
+                // Disable button if loading OR if cooldown is active
+                enabled = !isLoading && cooldownSeconds == 0,
+                colors = ButtonDefaults.buttonColors(
+                    disabledContainerColor = if (cooldownSeconds > 0) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                )
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
@@ -197,7 +215,15 @@ fun ForgotPasswordScreen(navController: NavController) {
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    Text("Send Reset Link")
+                    // --- Change Text Based on Timer ---
+                    if (cooldownSeconds > 0) {
+                        Text(
+                            "Resend in ${formatTime(cooldownSeconds)}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text("Send Reset Link")
+                    }
                 }
             }
 

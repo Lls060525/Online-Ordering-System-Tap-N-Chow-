@@ -39,6 +39,9 @@ fun CustomerVoucherScreen(navController: NavController) {
     var vouchers by remember { mutableStateOf<List<Voucher>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
+    // --- NEW: State to prevent double clicks ---
+    var lastBackClickTime by remember { mutableLongStateOf(0L) }
+
     // Load Vouchers
     LaunchedEffect(Unit) {
         val customer = authService.getCurrentCustomer()
@@ -54,7 +57,15 @@ fun CustomerVoucherScreen(navController: NavController) {
             TopAppBar(
                 title = { Text("My Vouchers", color = Color.White, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    // --- UPDATED: Safe Back Button Logic ---
+                    IconButton(onClick = {
+                        val currentTime = System.currentTimeMillis()
+                        // 500ms delay: Prevents clicks closer than half a second
+                        if (currentTime - lastBackClickTime > 500) {
+                            lastBackClickTime = currentTime
+                            navController.popBackStack()
+                        }
+                    }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 },
