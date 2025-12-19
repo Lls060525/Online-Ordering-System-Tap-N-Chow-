@@ -267,7 +267,7 @@ fun AdminOrderDetailsScreen(
                     }
                 }
 
-                // 3. Customer & Vendor Info (Side by Side if on Tablet, but Stacked here for safety)
+                // 3. Customer & Vendor Info
                 item {
                     ModernSectionCard(title = "Customer Details", icon = Icons.Default.Person, iconColor = Color(0xFF2196F3)) {
                         if (customer != null) {
@@ -290,11 +290,23 @@ fun AdminOrderDetailsScreen(
                     }
                 }
 
-                // 4. Order Items
+                // 4. Order Items (已修復：合併重複項目)
                 if (orderDetails.isNotEmpty()) {
                     item {
                         ModernSectionCard(title = "Items Ordered", icon = Icons.Default.ShoppingBag, iconColor = Color(0xFFE91E63)) {
-                            orderDetails.forEachIndexed { index, detail ->
+
+                            // --- FIX START: Merge duplicate items visually ---
+                            val mergedDetails = remember(orderDetails) {
+                                orderDetails.groupBy { it.productId }.map { (_, items) ->
+                                    items.first().copy(
+                                        quantity = items.sumOf { it.quantity },
+                                        subtotal = items.sumOf { it.subtotal }
+                                    )
+                                }
+                            }
+                            // --- FIX END ---
+
+                            mergedDetails.forEachIndexed { index, detail ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -311,7 +323,7 @@ fun AdminOrderDetailsScreen(
                                         fontSize = 14.sp
                                     )
                                 }
-                                if (index < orderDetails.lastIndex) {
+                                if (index < mergedDetails.lastIndex) {
                                     HorizontalDivider(color = Color(0xFFF5F5F5))
                                 }
                             }

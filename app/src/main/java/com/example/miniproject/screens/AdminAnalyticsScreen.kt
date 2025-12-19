@@ -646,7 +646,6 @@ fun RevenueBreakdownCard(
                 Box(
                     modifier = Modifier
                         .size(120.dp)
-                        .weight(1f)
                 ) {
                     PieChartCanvas(
                         platformPercentage = platformPercentage.toFloat(),
@@ -656,7 +655,7 @@ fun RevenueBreakdownCard(
 
                 // Legend
                 Column(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).padding(start = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     RevenueLegendItem(
@@ -703,7 +702,7 @@ fun PieChartCanvas(
     val platformColor = Color(0xFFFF9800) // orange color
     val vendorColor = MaterialTheme.colorScheme.primary // Blue (usually dark blue/purple)
 
-    Canvas(modifier = Modifier.fillMaxSize()) {
+    Canvas(modifier = Modifier.size(220.dp)) {
         val strokeWidth = 40f
 
         // Calculate the angle
