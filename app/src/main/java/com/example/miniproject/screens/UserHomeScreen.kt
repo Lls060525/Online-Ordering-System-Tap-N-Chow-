@@ -2,6 +2,7 @@ package com.example.miniproject.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Store
+import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -24,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -114,17 +117,35 @@ fun UserHomeScreen(navController: NavController) {
         },
         // --- Floating Action Button for Daily Spin ---
         floatingActionButton = {
-            // Only show FAB on the main Food/Vendor screen and if user is logged in
+            // Only show on Food screen
             if (currentScreen == UserScreen.Food && currentCustomerId != null) {
-                ExtendedFloatingActionButton(
-                    onClick = { showSpinDialog = true },
-                    containerColor = Color(0xFFFFD700), // Gold Color
-                    contentColor = Color.Black,
-                    icon = { Icon(Icons.Default.Star, contentDescription = "Win Prizes") },
-                    text = { Text("Daily Spin", fontWeight = FontWeight.Bold) }
-                )
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // 1. Shake Button (Small)
+                    SmallFloatingActionButton(
+                        onClick = { navController.navigate("shakeToDecide") },
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ) {
+                        Icon(Icons.Default.Vibration, contentDescription = "Shake")
+                    }
+
+                    // 2. Daily Spin Button (Extended)
+                    ExtendedFloatingActionButton(
+                        onClick = { showSpinDialog = true },
+                        containerColor = Color(0xFFFFD700),
+                        contentColor = Color.Black,
+                        icon = { Icon(Icons.Default.Star, contentDescription = "Win Prizes") },
+                        text = { Text("Daily Spin", fontWeight = FontWeight.Bold) }
+                    )
+                }
             }
         },
+
+
+
         bottomBar = {
             NavigationBar {
                 // 4. Iterate using index to match the state

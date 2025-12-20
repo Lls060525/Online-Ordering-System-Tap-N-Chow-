@@ -40,6 +40,7 @@ import com.example.miniproject.screens.VendorProductsContent
 import com.example.miniproject.screens.VendorRegisterScreen
 import com.example.miniproject.screens.VendorReviewsScreen
 import com.example.miniproject.screens.VendorVoucherScreen
+import com.example.miniproject.screens.gamification.ShakeToDecideScreen
 import com.example.miniproject.screens.order.OrderHistoryScreen
 import com.example.miniproject.screens.order.OrderScreen
 import com.example.miniproject.screens.order.OrderTrackingScreen
@@ -95,6 +96,15 @@ class MainActivity : FragmentActivity() {
                     composable("tracking/{orderId}") { backStackEntry ->
                         val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
                         OrderTrackingScreen(navController, orderId)
+                    }
+
+                    composable("foodMenu/{vendorId}") { backStackEntry ->
+                        val vendorId = backStackEntry.arguments?.getString("vendorId")
+                        FoodMenuScreen(navController, vendorId)
+                    }
+
+                    composable("shakeToDecide") {
+                        ShakeToDecideScreen(navController)
                     }
 
                     // Admin routes
