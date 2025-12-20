@@ -42,6 +42,9 @@ fun AdminDashboardScreen(navController: NavController) {
     var totalRevenue by remember { mutableStateOf(0.0) }
     var isLoading by remember { mutableStateOf(true) }
 
+    // --- NEW: State for Logout Dialog ---
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
     // Load dashboard data
     LaunchedEffect(Unit) {
         coroutineScope.launch {
@@ -60,14 +63,13 @@ fun AdminDashboardScreen(navController: NavController) {
     }
 
     Scaffold(
-        // 移除默认 TopBar，我们自定义头部以获得更好的 UI
         bottomBar = {
             AdminBottomNavigation(navController)
         },
-        containerColor = Color(0xFFF5F6F9) // 浅灰白色背景，比纯白更有质感
+        containerColor = Color(0xFFF5F6F9)
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
-            // 1. 顶部渐变背景装饰
+            // 1. Top Gradient Background
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -94,7 +96,7 @@ fun AdminDashboardScreen(navController: NavController) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(bottom = paddingValues.calculateBottomPadding()), // 只应用底部 padding
+                        .padding(bottom = paddingValues.calculateBottomPadding()),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
@@ -119,13 +121,9 @@ fun AdminDashboardScreen(navController: NavController) {
                                         color = Color.White.copy(alpha = 0.8f)
                                     )
                                 }
-                                // Logout Button (Small)
+                                // --- UPDATED: Logout Button triggers dialog ---
                                 IconButton(
-                                    onClick = {
-                                        navController.navigate("adminLogin") {
-                                            popUpTo("adminDashboard") { inclusive = true }
-                                        }
-                                    },
+                                    onClick = { showLogoutDialog = true },
                                     modifier = Modifier
                                         .background(Color.White.copy(alpha = 0.2f), CircleShape)
                                         .size(40.dp)
@@ -221,7 +219,7 @@ fun AdminDashboardScreen(navController: NavController) {
                                     modifier = Modifier.weight(1f)
                                 )
                             }
-                            // Row 3 (Single item or split)
+                            // Row 3
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 ModernActionCard(
                                     title = "Feedback",
@@ -230,7 +228,6 @@ fun AdminDashboardScreen(navController: NavController) {
                                     onClick = { navController.navigate("adminFeedback") },
                                     modifier = Modifier.weight(1f)
                                 )
-                                // Spacer to keep grid balanced if odd number
                                 Spacer(modifier = Modifier.weight(1f))
                             }
                         }
@@ -261,10 +258,37 @@ fun AdminDashboardScreen(navController: NavController) {
                     }
                 }
             }
+
+            // --- NEW: Logout Confirmation Dialog ---
+            if (showLogoutDialog) {
+                AlertDialog(
+                    onDismissRequest = { showLogoutDialog = false },
+                    title = { Text(text = "Confirm Logout") },
+                    text = { Text("Are you sure you want to log out from the admin dashboard?") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showLogoutDialog = false
+                                navController.navigate("adminLogin") {
+                                    popUpTo("adminDashboard") { inclusive = true }
+                                }
+                            }
+                        ) {
+                            Text("Logout", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showLogoutDialog = false }
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
         }
     }
 }
-
 // --- Modern UI Components ---
 
 @Composable

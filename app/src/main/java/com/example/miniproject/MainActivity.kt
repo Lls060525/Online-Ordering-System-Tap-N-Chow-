@@ -4,42 +4,11 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.LaunchedEffect
 import androidx.fragment.app.FragmentActivity
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.miniproject.screens.AdminAnalyticsScreen
-import com.example.miniproject.screens.AdminDashboardScreen
-import com.example.miniproject.screens.AdminFeedbackListScreen
-import com.example.miniproject.screens.AdminLoginScreen
-import com.example.miniproject.screens.AdminOrderDetailsScreen
-import com.example.miniproject.screens.AdminOrderListScreen
-import com.example.miniproject.screens.AdminUserManagementScreen
-import com.example.miniproject.screens.AdminVendorListScreen
-import com.example.miniproject.screens.AdminVendorSalesReportScreen
-import com.example.miniproject.screens.CustomerAccountScreen
-import com.example.miniproject.screens.CustomerProfileScreen
-import com.example.miniproject.screens.CustomerVoucherScreen
-import com.example.miniproject.screens.FeedbackScreen
-import com.example.miniproject.screens.FoodMenuScreen
-import com.example.miniproject.screens.ForgotPasswordScreen
-import com.example.miniproject.screens.LoginScreen
-import com.example.miniproject.screens.OrderConfirmationScreen
-import com.example.miniproject.screens.PaymentGatewayScreen
-import com.example.miniproject.screens.RateOrderScreen
-import com.example.miniproject.screens.RegisterScreen
-import com.example.miniproject.screens.SalesAnalyticsScreen
-import com.example.miniproject.screens.UserHomeScreen
-import com.example.miniproject.screens.VendorAnalyticsContent
-import com.example.miniproject.screens.VendorFeedbackAnalyticsScreen
-import com.example.miniproject.screens.VendorFeedbackStatisticsScreen
-import com.example.miniproject.screens.VendorHomeScreen
-import com.example.miniproject.screens.VendorLoginScreen
-import com.example.miniproject.screens.VendorProductsContent
-import com.example.miniproject.screens.VendorRegisterScreen
-import com.example.miniproject.screens.VendorReviewsScreen
-import com.example.miniproject.screens.VendorVoucherScreen
+import com.example.miniproject.screens.*
 import com.example.miniproject.screens.gamification.ShakeToDecideScreen
 import com.example.miniproject.screens.order.OrderHistoryScreen
 import com.example.miniproject.screens.order.OrderScreen
@@ -75,8 +44,8 @@ class MainActivity : FragmentActivity() {
                 val navController = rememberNavController()
 
                 // If we have a successful PayPal payment with order ID, navigate to confirmation
-                if (paymentSuccess == true && !orderId.isNullOrEmpty()) {
-                    LaunchedEffect(Unit) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    if (paymentSuccess == true && !orderId.isNullOrEmpty()) {
                         navController.navigate("orderConfirmation/$orderId") {
                             popUpTo(0) // Clear back stack
                         }
@@ -87,49 +56,111 @@ class MainActivity : FragmentActivity() {
                     navController = navController,
                     startDestination = "login"
                 ) {
-                    // Add this route to your navigation setup
-                    composable("adminVendorSalesReport/{vendorId}") { backStackEntry ->
-                        val vendorId = backStackEntry.arguments?.getString("vendorId") ?: ""
-                        AdminVendorSalesReportScreen(navController, vendorId)
+                    // --- Authentication ---
+                    composable("login") {
+                        LoginScreen(navController = navController)
+                    }
+                    composable("register") {
+                        RegisterScreen(navController = navController)
+                    }
+                    composable("forgotPassword") {
+                        ForgotPasswordScreen(navController = navController)
                     }
 
-                    composable("tracking/{orderId}") { backStackEntry ->
-                        val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
-                        OrderTrackingScreen(navController, orderId)
+                    // --- Vendor Authentication ---
+                    composable("vendorLogin") {
+                        VendorLoginScreen(navController = navController)
+                    }
+                    composable("vendorRegister") {
+                        VendorRegisterScreen(navController = navController)
                     }
 
+                    // --- Admin Authentication ---
+                    composable("adminLogin") {
+                        AdminLoginScreen(navController)
+                    }
+
+                    // --- Customer Main Screens ---
+                    composable("home") {
+                        UserHomeScreen(navController = navController)
+                    }
                     composable("foodMenu/{vendorId}") { backStackEntry ->
                         val vendorId = backStackEntry.arguments?.getString("vendorId")
                         FoodMenuScreen(navController, vendorId)
                     }
-
+                    composable("customer_account") {
+                        CustomerAccountScreen(navController = navController)
+                    }
+                    composable("customerProfile") {
+                        CustomerProfileScreen(navController = navController)
+                    }
+                    composable("customer_vouchers") {
+                        CustomerVoucherScreen(navController)
+                    }
                     composable("shakeToDecide") {
                         ShakeToDecideScreen(navController)
                     }
 
-                    // Admin routes
-                    composable("adminLogin") {
-                        AdminLoginScreen(navController)
+                    // --- Ordering Flow ---
+                    composable("order_screen"){
+                        OrderScreen(navController = navController)
                     }
+                    composable("payment/{vendorId}") { backStackEntry ->
+                        val vendorId = backStackEntry.arguments?.getString("vendorId")
+                        PaymentGatewayScreen(navController, vendorId)
+                    }
+                    composable("orderConfirmation/{orderId}") { backStackEntry ->
+                        val orderId = backStackEntry.arguments?.getString("orderId")
+                        OrderConfirmationScreen(navController, orderId)
+                    }
+                    composable("orderHistory") {
+                        OrderHistoryScreen(navController = navController)
+                    }
+                    composable("tracking/{orderId}") { backStackEntry ->
+                        val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+                        OrderTrackingScreen(navController, orderId)
+                    }
+                    composable("rateOrder/{orderId}") { backStackEntry ->
+                        val orderId = backStackEntry.arguments?.getString("orderId")
+                        RateOrderScreen(navController, orderId)
+                    }
+                    composable("feedback") {
+                        FeedbackScreen(navController = navController)
+                    }
+
+                    // --- Vendor Screens ---
+                    composable("vendorHome") {
+                        VendorHomeScreen(navController = navController)
+                    }
+                    composable("vendorProduct") {
+                        VendorProductsContent(navController = navController)
+                    }
+                    composable("vendorAnalytics") {
+                        VendorAnalyticsContent(navController = navController)
+                    }
+                    composable("salesAnalytics") {
+                        SalesAnalyticsScreen(navController = navController)
+                    }
+                    composable("vendorReviews") {
+                        VendorReviewsScreen(navController = navController)
+                    }
+                    composable("vendorFeedbackAnalytics") {
+                        VendorFeedbackAnalyticsScreen(navController = navController)
+                    }
+                    composable("vendorFeedbackStatistics") {
+                        VendorFeedbackStatisticsScreen(navController = navController)
+                    }
+                    composable("vendorVouchers") {
+                        VendorVoucherScreen(navController)
+                    }
+
+                    // --- Admin Screens ---
                     composable("adminDashboard") {
                         AdminDashboardScreen(navController)
                     }
                     composable("adminVendors") {
                         AdminVendorListScreen(navController)
                     }
-
-                    composable("customer_vouchers") {
-                        CustomerVoucherScreen(navController)
-                    }
-
-                    composable("vendorVouchers") {
-                        VendorVoucherScreen(navController)
-                    }
-
-                    composable("forgotPassword") {
-                        ForgotPasswordScreen(navController = navController)
-                    }
-
                     composable("adminUserManagement") {
                         AdminUserManagementScreen(navController)
                     }
@@ -142,114 +173,11 @@ class MainActivity : FragmentActivity() {
                     composable("adminAnalytics") {
                         AdminAnalyticsScreen(navController)
                     }
-                    composable("adminVendorDetails/{vendorId}") { backStackEntry ->
-                        // You can create a detailed vendor view screen
-                    }
-                    composable("adminOrderDetails/{orderId}") { backStackEntry ->
-                        // You can create a detailed order view screen
-                    }
-                    composable("login") {
-                        LoginScreen(navController = navController)
-                    }
-                    composable("register") {
-                        RegisterScreen(navController = navController)
-                    }
-                    composable("vendorRegister") {
-                        VendorRegisterScreen(navController = navController)
-                    }
-                    composable("vendorLogin") {
-                        VendorLoginScreen(navController = navController)
-                    }
-                    composable("home") {
-                        UserHomeScreen(navController = navController)
-                    }
 
-                    composable("order_screen"){
-                        OrderScreen(navController = navController)
-                    }
-
-                    composable("vendorHome") {
-                        VendorHomeScreen(navController = navController)
-                    }
-                    // In your NavHost setup
-                    composable("customer_account") {
-                        CustomerAccountScreen(navController = navController)
-                    }
-
-                    composable("customerProfile") {
-                        CustomerProfileScreen(navController = navController)
-                    }
-
-                    composable("foodMenu/{vendorId}") { backStackEntry ->
-                        val vendorId = backStackEntry.arguments?.getString("vendorId")
-                        FoodMenuScreen(navController, vendorId)
-
-                    }
-
-                    composable("foodMenu/{vendorId}") { backStackEntry ->
-                        val vendorId = backStackEntry.arguments?.getString("vendorId")
-                        FoodMenuScreen(navController, vendorId)
-                    }
-
-                    composable("payment/{vendorId}") { backStackEntry ->
-                        val vendorId = backStackEntry.arguments?.getString("vendorId")
-                        // CHANGED: Removed cartJson argument extraction
-                        PaymentGatewayScreen(navController, vendorId)
-                    }
-
-                    composable("orderConfirmation/{orderId}") { backStackEntry ->
-                        val orderId = backStackEntry.arguments?.getString("orderId")
-                        OrderConfirmationScreen(navController, orderId)
-                    }
-
-                    // Add these composables to your NavHost in MainActivity.kt
-                    composable("feedback") {
-                        FeedbackScreen(navController = navController)
-                    }
-
-                    composable("rateOrder/{orderId}") { backStackEntry ->
-                        val orderId = backStackEntry.arguments?.getString("orderId")
-                        RateOrderScreen(navController, orderId)
-                    }
-
-                    composable("rateOrder/{orderId}") { backStackEntry ->
-                        val orderId = backStackEntry.arguments?.getString("orderId")
-                        RateOrderScreen(navController, orderId)
-                    }
-
-                    composable("orderConfirmation/{orderId}") { backStackEntry ->
-                        val orderId = backStackEntry.arguments?.getString("orderId")
-                        OrderConfirmationScreen(navController, orderId)
-                    }
-
-                    composable("home") {
-                        UserHomeScreen(navController = navController)
-                    }
-
-                    composable("vendorReviews") {
-                        VendorReviewsScreen(navController = navController)
-                    }
-                    composable("vendorFeedbackAnalytics") {
-                        VendorFeedbackAnalyticsScreen(navController = navController)
-                    }
-
-                    composable("orderHistory") {
-                        OrderHistoryScreen(navController = navController)
-                    }
-
-                    composable("vendorProduct") {
-                        VendorProductsContent(navController = navController)
-                    }
-
-                    composable("vendorAnalytics") {
-                        VendorAnalyticsContent(navController = navController)
-                    }
-                    composable("vendorFeedbackStatistics") {
-                        VendorFeedbackStatisticsScreen(navController = navController)
-                    }
-
-                    composable("salesAnalytics") {
-                        SalesAnalyticsScreen(navController = navController)
+                    // Detail Screens for Admin
+                    composable("adminVendorSalesReport/{vendorId}") { backStackEntry ->
+                        val vendorId = backStackEntry.arguments?.getString("vendorId") ?: ""
+                        AdminVendorSalesReportScreen(navController, vendorId)
                     }
 
                     composable("adminOrderDetails/{orderId}") { backStackEntry ->
@@ -257,6 +185,10 @@ class MainActivity : FragmentActivity() {
                         AdminOrderDetailsScreen(navController = navController, orderId = orderId)
                     }
 
+                    // Placeholders (only if you have screens for these, otherwise remove)
+                    composable("adminVendorDetails/{vendorId}") { backStackEntry ->
+                        // Add AdminVendorDetailsScreen here if you have it
+                    }
                 }
             }
         }

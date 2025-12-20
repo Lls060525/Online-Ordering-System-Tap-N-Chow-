@@ -42,6 +42,9 @@ fun AdminOrderListScreen(navController: NavController) {
     var searchQuery by remember { mutableStateOf("") }
     var filterStatus by remember { mutableStateOf("all") } // all, pending, confirmed, completed, cancelled
 
+    // --- NEW: Debounce state to prevent double-click crashes ---
+    var lastClickTime by remember { mutableLongStateOf(0L) }
+
     // Load orders function
     val loadOrders = {
         coroutineScope.launch {
@@ -73,7 +76,6 @@ fun AdminOrderListScreen(navController: NavController) {
     // Stats
     val totalRevenue = orders.sumOf { it.totalPrice }
     val platformRevenue = totalRevenue * 0.10
-    val activeOrdersCount = orders.count { it.status == "pending" || it.status == "preparing" || it.status == "confirmed" }
 
     Scaffold(
         bottomBar = { AdminBottomNavigation(navController) },
@@ -127,7 +129,7 @@ fun AdminOrderListScreen(navController: NavController) {
                     }
                 }
 
-                // Stats Row (Horizontal Scrollable if needed, or fixed)
+                // Stats Row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -159,7 +161,7 @@ fun AdminOrderListScreen(navController: NavController) {
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Filter Tabs (Scrollable)
+                // Filter Tabs
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -194,7 +196,12 @@ fun AdminOrderListScreen(navController: NavController) {
                             dateFormat = dateFormat,
                             decimalFormat = decimalFormat,
                             onViewClick = {
-                                navController.navigate("adminOrderDetails/${order.orderId}")
+                                // --- UPDATED: Safe Navigation Logic ---
+                                val currentTime = System.currentTimeMillis()
+                                if (currentTime - lastClickTime > 500) { // 500ms debounce
+                                    lastClickTime = currentTime
+                                    navController.navigate("adminOrderDetails/${order.orderId}")
+                                }
                             },
                             onUpdateStatus = { newStatus ->
                                 coroutineScope.launch {

@@ -10,9 +10,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -29,6 +29,12 @@ fun AdminLoginScreen(navController: NavController) {
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // --- NEW: State for Password Visibility ---
+    var isPasswordVisible by remember { mutableStateOf(false) }
+
+    // State to prevent double clicks (Crash Prevention)
+    var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     // Scroll state for the screen
     val scrollState = rememberScrollState()
@@ -66,7 +72,16 @@ fun AdminLoginScreen(navController: NavController) {
             CenterAlignedTopAppBar(
                 title = { Text("Admin Login", fontWeight = FontWeight.Bold, fontSize = 20.sp) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+
+                        val currentTime = System.currentTimeMillis()
+                        // 500ms delay: Prevents clicks closer than half a second
+                        if (currentTime - lastBackClickTime > 800) {
+                            lastBackClickTime = currentTime
+                            navController.popBackStack()
+
+                        }
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
@@ -150,14 +165,27 @@ fun AdminLoginScreen(navController: NavController) {
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Password field
+                    // Password field with Toggle Logic
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
                         label = { Text("Password") },
                         modifier = Modifier.fillMaxWidth(),
                         leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Password") },
-                        visualTransformation = PasswordVisualTransformation(),
+                        // Switch between None (visible) and Password (hidden)
+                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            val image = if (isPasswordVisible)
+                                Icons.Default.Visibility
+                            else
+                                Icons.Default.VisibilityOff
+
+                            val description = if (isPasswordVisible) "Hide password" else "Show password"
+
+                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                Icon(imageVector = image, contentDescription = description)
+                            }
+                        },
                         singleLine = true,
                         isError = errorMessage != null
                     )

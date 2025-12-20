@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.miniproject.model.*
 import com.example.miniproject.service.DatabaseService
-import com.example.miniproject.util.OrderStatusHelper
 import com.google.firebase.Timestamp
 import kotlinx.coroutines.launch
 import java.text.DecimalFormat
@@ -45,6 +44,9 @@ fun AdminOrderDetailsScreen(
     var vendor by remember { mutableStateOf<Vendor?>(null) }
     var payment by remember { mutableStateOf<Payment?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+
+    // --- NEW: State to prevent double clicks (Crash Prevention) ---
+    var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     // Load order data
     LaunchedEffect(orderId) {
@@ -102,7 +104,15 @@ fun AdminOrderDetailsScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+                        // --- UPDATED: Safe Back Button Logic ---
+                        val currentTime = System.currentTimeMillis()
+                        // Only allow action if 500ms has passed since last click
+                        if (currentTime - lastBackClickTime > 500) {
+                            lastBackClickTime = currentTime
+                            navController.popBackStack()
+                        }
+                    }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
@@ -284,18 +294,17 @@ fun AdminOrderDetailsScreen(
                     item {
                         ModernSectionCard(title = "Vendor Details", icon = Icons.Default.Store, iconColor = Color(0xFFFF9800)) {
                             ModernInfoRow(icon = Icons.Default.Storefront, label = "Name", value = vendor!!.vendorName)
-                            ModernInfoRow(icon = Icons.Default.Category, label = "Category", value = VendorCategory.getDisplayName(vendor!!.category))
+                            // FIX: Replaced VendorCategory.getDisplayName with simple string formatting to prevent crashes
+                            ModernInfoRow(icon = Icons.Default.Category, label = "Category", value = vendor!!.category.replaceFirstChar { it.uppercase() })
                             ModernInfoRow(icon = Icons.Default.Phone, label = "Contact", value = vendor!!.vendorContact)
                         }
                     }
                 }
 
-                // 4. Order Items (已修復：合併重複項目)
+                // 4. Order Items
                 if (orderDetails.isNotEmpty()) {
                     item {
                         ModernSectionCard(title = "Items Ordered", icon = Icons.Default.ShoppingBag, iconColor = Color(0xFFE91E63)) {
-
-                            // --- FIX START: Merge duplicate items visually ---
                             val mergedDetails = remember(orderDetails) {
                                 orderDetails.groupBy { it.productId }.map { (_, items) ->
                                     items.first().copy(
@@ -304,7 +313,6 @@ fun AdminOrderDetailsScreen(
                                     )
                                 }
                             }
-                            // --- FIX END ---
 
                             mergedDetails.forEachIndexed { index, detail ->
                                 Row(
@@ -377,14 +385,21 @@ fun AdminOrderDetailsScreen(
                                     onClick = {
                                         coroutineScope.launch {
                                             databaseService.updateOrderStatus(orderId, status)
-                                            // Refresh
                                             val updatedOrder = databaseService.getOrderById(orderId)
                                             if (updatedOrder != null) order = updatedOrder
                                             expanded = false
                                         }
                                     },
                                     leadingIcon = {
-                                        val color = OrderStatusHelper.getStatusColor(status)
+                                        // FIX: Replaced OrderStatusHelper with local logic
+                                        val color = when (status.lowercase()) {
+                                            "pending" -> Color(0xFFFF9800)
+                                            "confirmed" -> Color(0xFF2196F3)
+                                            "preparing" -> Color(0xFF9C27B0)
+                                            "completed" -> Color(0xFF4CAF50)
+                                            "cancelled" -> Color(0xFFF44336)
+                                            else -> Color.Gray
+                                        }
                                         Box(modifier = Modifier.size(12.dp).background(color, CircleShape))
                                     }
                                 )
@@ -399,7 +414,7 @@ fun AdminOrderDetailsScreen(
     }
 }
 
-// --- Modern Helper Components ---
+// --- Local Helpers (No external files required) ---
 
 @Composable
 fun ModernSectionCard(
@@ -506,9 +521,7 @@ fun ModernTimelineItem(
     }
 
     Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-        // Line Column
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(24.dp)) {
-            // Top Line
             if (!isFirst) {
                 Box(modifier = Modifier
                     .width(2.dp)
@@ -518,7 +531,6 @@ fun ModernTimelineItem(
                 Spacer(modifier = Modifier.weight(1f))
             }
 
-            // Dot
             Box(
                 modifier = Modifier
                     .size(14.dp)
@@ -526,7 +538,6 @@ fun ModernTimelineItem(
                     .then(if (state == TimelineState.PENDING) Modifier else Modifier.padding(3.dp).background(Color.White, CircleShape))
             )
 
-            // Bottom Line
             if (!isLast) {
                 Box(modifier = Modifier
                     .width(2.dp)
@@ -539,7 +550,6 @@ fun ModernTimelineItem(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // Content
         Column(modifier = Modifier.padding(vertical = 8.dp)) {
             Text(
                 title,
@@ -553,172 +563,3 @@ fun ModernTimelineItem(
         }
     }
 }
-
-@Composable
-fun OrderStatusBadgeLarge(status: String) {
-    val (backgroundColor, textColor) = when (status) {
-        "pending" -> Color(0xFFFF9800) to Color.White
-        "confirmed" -> Color(0xFF2196F3) to Color.White
-        "preparing" -> Color(0xFF9C27B0) to Color.White
-        "completed" -> Color(0xFF4CAF50) to Color.White // Changed from "delivered" to "completed"
-        "cancelled" -> Color(0xFFF44336) to Color.White
-        else -> Color(0xFF607D8B) to Color.White
-    }
-
-    Box(
-        modifier = Modifier
-            .background(backgroundColor, RoundedCornerShape(8.dp))
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-    ) {
-        Text(
-            when (status) {
-                "completed" -> "Completed" // Show "Completed" instead of "Delivered"
-                else -> status.replaceFirstChar { it.titlecase(Locale.getDefault()) }
-            },
-            fontSize = 12.sp,
-            color = textColor,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-@Composable
-fun InfoRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            label,
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            value,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.weight(1f, fill = false),
-            maxLines = 2
-        )
-    }
-}
-
-@Composable
-fun OrderItemRow(
-    detail: OrderDetail,
-    decimalFormat: DecimalFormat,
-    isLast: Boolean = false
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    detail.productName,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 2
-                )
-                Text(
-                    "Product ID: ${detail.productId}",
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Column(
-                horizontalAlignment = Alignment.End
-            ) {
-                Text(
-                    "RM${decimalFormat.format(detail.productPrice)} × ${detail.quantity}",
-                    fontSize = 14.sp
-                )
-                Text(
-                    "RM${decimalFormat.format(detail.subtotal)}",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-
-        if (!isLast) {
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
-        }
-    }
-}
-
-@Composable
-fun TimelineItem(
-    title: String,
-    date: Timestamp?,
-    isCompleted: Boolean,
-    isCurrent: Boolean = false,
-    isCancelled: Boolean = false
-) {
-    val dateFormat = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
-    ) {
-        // Timeline dot
-        Box(
-            modifier = Modifier
-                .size(16.dp)
-                .background(
-                    color = when {
-                        isCancelled -> Color.Red
-                        isCurrent -> Color(0xFFFF9800)
-                        isCompleted -> Color(0xFF4CAF50)
-                        else -> Color(0xFF9E9E9E)
-                    },
-                    shape = RoundedCornerShape(50)
-                )
-        )
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column {
-            Text(
-                title,
-                fontSize = 14.sp,
-                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                color = when {
-                    isCancelled -> Color.Red
-                    isCurrent -> MaterialTheme.colorScheme.primary
-                    isCompleted -> MaterialTheme.colorScheme.onSurface
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                }
-            )
-
-            if (date != null) {
-                Text(
-                    dateFormat.format(date.toDate()),
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else if (isCurrent) {
-                Text(
-                    "In progress",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            } else {
-                Text(
-                    "Pending",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-
