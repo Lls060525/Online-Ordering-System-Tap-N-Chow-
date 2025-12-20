@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -39,12 +38,10 @@ fun AdminVendorListScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // Dialog States
+    // Dialog States (Delete logic removed)
     var showFreezeDialog by remember { mutableStateOf(false) }
     var vendorToFreeze by remember { mutableStateOf<Vendor?>(null) }
     var freezeAction by remember { mutableStateOf(true) } // true = freeze, false = unfreeze
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var vendorToDelete by remember { mutableStateOf<Vendor?>(null) }
 
     // Snackbar State
     val snackbarHostState = remember { SnackbarHostState() }
@@ -116,7 +113,6 @@ fun AdminVendorListScreen(navController: NavController) {
                         onClick = {
                             coroutineScope.launch {
                                 isLoading = true
-                                // ... (refresh logic same as before)
                                 try {
                                     val allVendors = databaseService.getAllVendors().filter { it.vendorId != "ADMIN001" }
                                     vendors = allVendors.map { vendor ->
@@ -193,10 +189,7 @@ fun AdminVendorListScreen(navController: NavController) {
                         ModernVendorItem(
                             vendor = vendor,
                             decimalFormat = decimalFormat,
-                            onDeleteClick = {
-                                vendorToDelete = vendor
-                                showDeleteDialog = true
-                            },
+                            // Removed onDeleteClick parameter
                             onFreezeClick = {
                                 vendorToFreeze = vendor
                                 freezeAction = !vendor.isFrozen
@@ -211,8 +204,6 @@ fun AdminVendorListScreen(navController: NavController) {
             }
         }
     }
-
-    // --- Dialogs (Logic remains largely the same, just keeping it clean) ---
 
     // Freeze Dialog
     if (showFreezeDialog && vendorToFreeze != null) {
@@ -243,30 +234,6 @@ fun AdminVendorListScreen(navController: NavController) {
                 ) { Text("Confirm") }
             },
             dismissButton = { TextButton(onClick = { showFreezeDialog = false }) { Text("Cancel") } }
-        )
-    }
-
-    // Delete Dialog
-    if (showDeleteDialog && vendorToDelete != null) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Vendor", color = Color.Red, fontWeight = FontWeight.Bold) },
-            text = { Text("This action cannot be undone. Delete ${vendorToDelete?.vendorName}?") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            if (databaseService.deleteVendor(vendorToDelete!!.vendorId).isSuccess) {
-                                vendors = vendors.filter { it.vendorId != vendorToDelete!!.vendorId }
-                                snackbarHostState.showSnackbar("Vendor deleted")
-                            }
-                            showDeleteDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                ) { Text("Delete") }
-            },
-            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") } }
         )
     }
 }
@@ -330,7 +297,7 @@ fun VendorStatChip(
 fun ModernVendorItem(
     vendor: Vendor,
     decimalFormat: DecimalFormat,
-    onDeleteClick: () -> Unit,
+    // Removed onDeleteClick from parameters
     onFreezeClick: () -> Unit,
     onViewClick: () -> Unit
 ) {
@@ -339,7 +306,7 @@ fun ModernVendorItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onViewClick), // Entire card is clickable
+            .clickable(onClick = onViewClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -393,7 +360,7 @@ fun ModernVendorItem(
                     )
                 }
 
-                // Menu Button (The Cleaner Approach)
+                // Menu Button
                 Box {
                     IconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = Color.Gray)
@@ -425,15 +392,7 @@ fun ModernVendorItem(
                                 )
                             }
                         )
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text("Delete Vendor", color = Color.Red) },
-                            onClick = {
-                                showMenu = false
-                                onDeleteClick()
-                            },
-                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Red) }
-                        )
+                        // Removed Delete Vendor DropdownMenuItem and Divider
                     }
                 }
             }

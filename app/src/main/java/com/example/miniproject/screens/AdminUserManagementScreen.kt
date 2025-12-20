@@ -42,12 +42,10 @@ fun AdminUserManagementScreen(navController: NavController) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf(0) }
 
-    // Dialog States
+    // Dialog States (Delete Removed)
     var showFreezeDialog by remember { mutableStateOf(false) }
     var userToFreeze by remember { mutableStateOf<Any?>(null) }
     var freezeAction by remember { mutableStateOf(true) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var userToDelete by remember { mutableStateOf<Any?>(null) }
 
     // Snackbar
     val snackbarHostState = remember { SnackbarHostState() }
@@ -125,9 +123,9 @@ fun AdminUserManagementScreen(navController: NavController) {
                         color = Color(0xFF333333)
                     )
 
-                    // REFRESH BUTTON (Added here, Badges removed)
+                    // Refresh Button
                     IconButton(
-                        onClick = { loadData() }, // Call the load function
+                        onClick = { loadData() },
                         modifier = Modifier
                             .size(40.dp)
                             .background(Color(0xFFF5F6F9), CircleShape)
@@ -194,14 +192,11 @@ fun AdminUserManagementScreen(navController: NavController) {
                                 CustomerCard(
                                     customer = customer,
                                     dateFormat = dateFormat,
+                                    // Removed onDelete
                                     onFreeze = {
                                         userToFreeze = customer
                                         freezeAction = !customer.isFrozen
                                         showFreezeDialog = true
-                                    },
-                                    onDelete = {
-                                        userToDelete = customer
-                                        showDeleteDialog = true
                                     }
                                 )
                             }
@@ -213,14 +208,11 @@ fun AdminUserManagementScreen(navController: NavController) {
                                 VendorCard(
                                     vendor = vendor,
                                     dateFormat = dateFormat,
+                                    // Removed onDelete
                                     onFreeze = {
                                         userToFreeze = vendor
                                         freezeAction = !vendor.isFrozen
                                         showFreezeDialog = true
-                                    },
-                                    onDelete = {
-                                        userToDelete = vendor
-                                        showDeleteDialog = true
                                     }
                                 )
                             }
@@ -230,9 +222,6 @@ fun AdminUserManagementScreen(navController: NavController) {
             }
         }
     }
-
-    // --- Dialogs (Code unchanged from previous version, omitted for brevity but should be kept) ---
-    // ... [Paste the dialog code blocks here if you are replacing the entire file, otherwise they stay the same] ...
 
     // Freeze Dialog
     if (showFreezeDialog && userToFreeze != null) {
@@ -263,35 +252,6 @@ fun AdminUserManagementScreen(navController: NavController) {
                 ) { Text("Confirm") }
             },
             dismissButton = { TextButton(onClick = { showFreezeDialog = false }) { Text("Cancel") } }
-        )
-    }
-
-    // Delete Dialog
-    if (showDeleteDialog && userToDelete != null) {
-        val name = if (userToDelete is Customer) (userToDelete as Customer).name else (userToDelete as Vendor).vendorName
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Account", color = Color.Red, fontWeight = FontWeight.Bold) },
-            text = { Text("Permanently delete $name? This cannot be undone.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            if (userToDelete is Customer) {
-                                databaseService.deleteCustomer((userToDelete as Customer).customerId)
-                                customers = customers.filter { it.customerId != (userToDelete as Customer).customerId }
-                            } else {
-                                databaseService.deleteVendor((userToDelete as Vendor).vendorId)
-                                vendors = vendors.filter { it.vendorId != (userToDelete as Vendor).vendorId }
-                            }
-                            showDeleteDialog = false
-                            snackbarHostState.showSnackbar("Account deleted")
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                ) { Text("Delete") }
-            },
-            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") } }
         )
     }
 }
@@ -360,7 +320,7 @@ fun StatusChip(label: String, color: Color) {
 }
 
 @Composable
-fun CustomerCard(customer: Customer, dateFormat: SimpleDateFormat, onFreeze: () -> Unit, onDelete: () -> Unit) {
+fun CustomerCard(customer: Customer, dateFormat: SimpleDateFormat, onFreeze: () -> Unit) {
     var showMenu by remember { mutableStateOf(false) }
 
     Card(
@@ -395,12 +355,7 @@ fun CustomerCard(customer: Customer, dateFormat: SimpleDateFormat, onFreeze: () 
                             onClick = { showMenu = false; onFreeze() },
                             leadingIcon = { Icon(if (customer.isFrozen) Icons.Default.LockOpen else Icons.Default.Lock, null) }
                         )
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text("Delete", color = Color.Red) },
-                            onClick = { showMenu = false; onDelete() },
-                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Red) }
-                        )
+                        // Removed Delete Menu Item
                     }
                 }
             }
@@ -437,7 +392,7 @@ fun CustomerCard(customer: Customer, dateFormat: SimpleDateFormat, onFreeze: () 
 }
 
 @Composable
-fun VendorCard(vendor: Vendor, dateFormat: SimpleDateFormat, onFreeze: () -> Unit, onDelete: () -> Unit) {
+fun VendorCard(vendor: Vendor, dateFormat: SimpleDateFormat, onFreeze: () -> Unit) {
     var showMenu by remember { mutableStateOf(false) }
 
     Card(
@@ -471,12 +426,7 @@ fun VendorCard(vendor: Vendor, dateFormat: SimpleDateFormat, onFreeze: () -> Uni
                             onClick = { showMenu = false; onFreeze() },
                             leadingIcon = { Icon(if (vendor.isFrozen) Icons.Default.LockOpen else Icons.Default.Lock, null) }
                         )
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text("Delete", color = Color.Red) },
-                            onClick = { showMenu = false; onDelete() },
-                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Red) }
-                        )
+                        // Removed Delete Menu Item
                     }
                 }
             }
