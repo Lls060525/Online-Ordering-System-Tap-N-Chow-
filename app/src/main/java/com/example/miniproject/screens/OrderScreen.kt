@@ -75,46 +75,38 @@ fun OrderScreen(navController: NavController) {
     val databaseService = DatabaseService()
     val coroutineScope = rememberCoroutineScope()
 
-    // initialize Notification Helper
     val notificationHelper = remember { NotificationHelper(context) }
 
-    // Existing States
-    var orders by remember { mutableStateOf<List<Order>>(emptyList()) }
+    // States
+    var allOrders by remember { mutableStateOf<List<Order>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var selectedOrder by remember { mutableStateOf<Order?>(null) }
     var orderDetails by remember { mutableStateOf<List<OrderDetail>>(emptyList()) }
     var showOrderDetails by remember { mutableStateOf(false) }
 
-    // NEW: Alert Dialog States
+    // Filter State (Default to "Active")
+    var selectedFilter by remember { mutableStateOf("Active") }
+
+    // Alert Dialog States
     var showPickupDialog by remember { mutableStateOf(false) }
     var pickupOrderId by remember { mutableStateOf("") }
 
-    // --- NEW: Filter State and Logic ---
-    var selectedFilter by remember { mutableStateOf("All") }
-
     // Define status categories
-    // Note: Ensure these match the raw strings stored in your Firestore
     val activeStatuses = listOf("pending", "confirmed", "preparing", "ready", "delivered")
     val completedStatuses = listOf("completed")
     val cancelledStatuses = listOf("cancelled")
 
-    // Calculate Counts dynamically based on the full orders list
-    val allCount = orders.size
-    val activeCount = orders.count { it.status.lowercase() in activeStatuses }
-    val completedCount = orders.count { it.status.lowercase() in completedStatuses }
-    val cancelledCount = orders.count { it.status.lowercase() in cancelledStatuses }
-
-    // Create the filtered list to display
-    val filteredOrders = remember(orders, selectedFilter) {
+    // Derived State: Filtered Orders
+    val filteredOrders = remember(allOrders, selectedFilter) {
         when (selectedFilter) {
-            "Active" -> orders.filter { it.status.lowercase() in activeStatuses }
-            "Completed" -> orders.filter { it.status.lowercase() in completedStatuses }
-            "Cancelled" -> orders.filter { it.status.lowercase() in cancelledStatuses }
-            else -> orders // "All"
+            "Active" -> allOrders.filter { it.status.lowercase() in activeStatuses }
+            "Completed" -> allOrders.filter { it.status.lowercase() in completedStatuses }
+            "Cancelled" -> allOrders.filter { it.status.lowercase() in cancelledStatuses }
+            else -> allOrders
         }
     }
 
-    // Permission Launcher (For Android 13+)
+    // Permission Launcher
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
@@ -125,7 +117,6 @@ fun OrderScreen(navController: NavController) {
     )
 
     LaunchedEffect(Unit) {
-        // 1. Ask for permission immediately
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -138,21 +129,20 @@ fun OrderScreen(navController: NavController) {
                     return@launch
                 }
 
-                // 2. Initial Load of Orders
-                val customerOrders = databaseService.getCustomerOrders(customer.customerId)
-                // Sort by date descending (newest first)
-                orders = customerOrders.sortedByDescending { it.orderDate }
+                // 1. Get ALL orders
+                val fetchedOrders = databaseService.getCustomerOrders(customer.customerId)
+                allOrders = fetchedOrders.sortedByDescending { it.orderDate }
                 isLoading = false
 
-                // 3. IMMEDIATE CHECK: Check if any order is ALREADY "ready"
-                val alreadyReadyOrder = customerOrders.find { it.status.equals("ready", ignoreCase = true) }
+                // 2. Check for ready orders (for notification)
+                val alreadyReadyOrder = allOrders.find { it.status.equals("ready", ignoreCase = true) }
                 if (alreadyReadyOrder != null) {
                     pickupOrderId = alreadyReadyOrder.getDisplayOrderId()
                     showPickupDialog = true
                     notificationHelper.showOrderReadyNotification(pickupOrderId)
                 }
 
-                // 4. REAL-TIME LISTENER
+                // 3. Real-time listener
                 databaseService.listenToOrderUpdates(customer.customerId) { readyOrder ->
                     notificationHelper.showOrderReadyNotification(readyOrder.getDisplayOrderId())
                     pickupOrderId = readyOrder.getDisplayOrderId()
@@ -161,7 +151,7 @@ fun OrderScreen(navController: NavController) {
                     // Refresh list
                     coroutineScope.launch {
                         val updatedOrders = databaseService.getCustomerOrders(customer.customerId)
-                        orders = updatedOrders.sortedByDescending { it.orderDate }
+                        allOrders = updatedOrders.sortedByDescending { it.orderDate }
                     }
                 }
 
@@ -172,7 +162,7 @@ fun OrderScreen(navController: NavController) {
         }
     }
 
-    // --- ALERT DIALOG (Visible Pop-up) ---
+    // Pickup Dialog
     if (showPickupDialog) {
         AlertDialog(
             onDismissRequest = { showPickupDialog = false },
@@ -184,29 +174,15 @@ fun OrderScreen(navController: NavController) {
                     tint = MaterialTheme.colorScheme.primary
                 )
             },
-            title = {
-                Text(
-                    text = "Order Ready for Pickup!",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = "Order #$pickupOrderId is ready! Please collect your food at the counter.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
+            title = { Text("Order Ready for Pickup!", fontWeight = FontWeight.Bold) },
+            text = { Text("Order #$pickupOrderId is ready! Please collect your food at the counter.") },
             confirmButton = {
-                TextButton(
-                    onClick = { showPickupDialog = false }
-                ) {
-                    Text("OK, I'm Coming")
-                }
+                TextButton(onClick = { showPickupDialog = false }) { Text("OK, I'm Coming") }
             }
         )
     }
 
-    // --- ORDER DETAILS DIALOG ---
+    // Details Dialog
     if (showOrderDetails && selectedOrder != null) {
         OrderDetailDialog(
             order = selectedOrder!!,
@@ -218,7 +194,7 @@ fun OrderScreen(navController: NavController) {
             }
         )
     } else {
-        // --- MAIN SCREEN CONTENT ---
+        // Main Screen
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -231,7 +207,7 @@ fun OrderScreen(navController: NavController) {
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            // --- NEW: Filter Chips Row ---
+            // --- FILTER CHIPS ROW ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -240,62 +216,46 @@ fun OrderScreen(navController: NavController) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FilterChipItem(
-                    label = "All",
-                    count = allCount,
-                    selected = selectedFilter == "All",
-                    onClick = { selectedFilter = "All" }
-                )
-                FilterChipItem(
                     label = "Active",
-                    count = activeCount,
                     selected = selectedFilter == "Active",
                     onClick = { selectedFilter = "Active" }
                 )
                 FilterChipItem(
                     label = "Completed",
-                    count = completedCount,
                     selected = selectedFilter == "Completed",
                     onClick = { selectedFilter = "Completed" }
                 )
                 FilterChipItem(
                     label = "Cancelled",
-                    count = cancelledCount,
                     selected = selectedFilter == "Cancelled",
                     onClick = { selectedFilter = "Cancelled" }
                 )
             }
 
             if (isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator()
-                        Text(
-                            text = "Loading orders...",
-                            modifier = Modifier.padding(top = 16.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
                 }
             } else if (filteredOrders.isEmpty()) {
-                // Modified empty state to reflect current filter
-                val emptyMessage = if (orders.isNotEmpty()) "No $selectedFilter orders found" else "No orders yet"
-                EmptyOrderState(subtitle = emptyMessage)
+                EmptyOrderState(
+                    title = "No ${selectedFilter.lowercase()} orders",
+                    subtitle = "Orders will appear here"
+                )
             } else {
                 LazyColumn {
-                    // Iterate over filteredOrders instead of all orders
                     items(filteredOrders) { order ->
                         OrderCard(
                             order = order,
                             onClick = {
-                                coroutineScope.launch {
-                                    selectedOrder = order
-                                    orderDetails = databaseService.getOrderDetails(order.orderId)
-                                    showOrderDetails = true
+                                // Logic: If Active -> Go to Tracking. If History -> Show Dialog.
+                                if (order.status.lowercase() in activeStatuses) {
+                                    navController.navigate("tracking/${order.orderId}")
+                                } else {
+                                    coroutineScope.launch {
+                                        selectedOrder = order
+                                        orderDetails = databaseService.getOrderDetails(order.orderId)
+                                        showOrderDetails = true
+                                    }
                                 }
                             }
                         )
@@ -306,12 +266,11 @@ fun OrderScreen(navController: NavController) {
     }
 }
 
-// --- NEW: Helper Composable for Filter Chips ---
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilterChipItem(
     label: String,
-    count: Int,
     selected: Boolean,
     onClick: () -> Unit
 ) {
@@ -320,11 +279,10 @@ fun FilterChipItem(
         onClick = onClick,
         label = {
             Text(
-                text = "$label ($count)",
+                text = label,
                 style = MaterialTheme.typography.labelLarge
             )
         },
-        enabled = true, // Required
         colors = FilterChipDefaults.elevatedFilterChipColors(
             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -347,7 +305,6 @@ fun OrderCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            // Order Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -366,7 +323,6 @@ fun OrderCard(
                 )
             }
 
-            // Order Date
             Text(
                 text = "Placed on ${formatOrderDate(order.orderDate)}",
                 style = MaterialTheme.typography.bodyMedium,
@@ -374,7 +330,6 @@ fun OrderCard(
                 modifier = Modifier.padding(top = 4.dp)
             )
 
-            // Order Status
             Row(
                 modifier = Modifier.padding(top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -394,25 +349,10 @@ fun OrderCard(
                 )
             }
 
-            // Delivery Address (truncated)
+            // Hint Text varies based on status
+            val isHistory = order.status.lowercase() in listOf("completed", "cancelled")
             Text(
-                text = "Delivery to: ${order.shippingAddress.take(50)}${if (order.shippingAddress.length > 50) "..." else ""}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-
-            // Payment Method
-            Text(
-                text = "Payment: ${order.paymentMethod.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.padding(top = 4.dp)
-            )
-
-            // Tap to view details hint
-            Text(
-                text = "Tap to view details",
+                text = if (isHistory) "Tap to view details" else "Tap to track order",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
@@ -436,9 +376,7 @@ fun OrderDetailDialog(
     LaunchedEffect(order.orderId) {
         try {
             payment = databaseService.getPaymentByOrder(order.orderId)
-        } catch (e: Exception) {
-            // Handle error silently
-        }
+        } catch (e: Exception) { }
         isLoading = false
     }
 
@@ -451,7 +389,6 @@ fun OrderDetailDialog(
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
-                // Show status with color
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 4.dp)
@@ -474,228 +411,61 @@ fun OrderDetailDialog(
         },
         text = {
             if (isLoading) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             } else {
                 Column {
-                    // Order Information Section
-                    Text(
-                        text = "Order Information",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                    // INFO SECTION
+                    Text("Order Information", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
 
-                    // Order Date
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                         Text("Order Date:")
                         Text(formatOrderDate(order.orderDate))
                     }
 
-                    // Payment Status
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Payment Status:")
-                        Text(
-                            text = payment?.paymentStatus?.replaceFirstChar {
-                                if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
-                            } ?: "Unknown",
-                            color = when (payment?.paymentStatus?.lowercase()) {
-                                "completed" -> Color(0xFF4CAF50)
-                                "pending" -> Color(0xFFFF9800)
-                                "failed" -> Color(0xFFF44336)
-                                else -> MaterialTheme.colorScheme.onSurface
-                            },
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+                    Spacer(Modifier.height(8.dp))
 
-                    // Payment Method
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Payment Method:")
-                        Text(
-                            order.paymentMethod.replaceFirstChar {
-                                if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
-                            },
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    // Delivery Address
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                    ) {
-                        Text(
-                            "Delivery Address:",
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        Text(
-                            text = order.shippingAddress,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // Divider
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Divider()
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Order Items Section
-                    Text(
-                        text = "Order Items",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
+                    // ITEMS SECTION
+                    Text("Order Items", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
 
                     if (orderDetails.isEmpty()) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                Icons.Default.ShoppingCart,
-                                contentDescription = "No items",
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "No items found in this order",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                            Text(
-                                text = "Order ID: ${order.orderId}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
+                        Text("No items found", style = MaterialTheme.typography.bodyMedium)
                     } else {
-                        LazyColumn(
-                            modifier = Modifier.heightIn(max = 300.dp)
-                        ) {
+                        LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
                             items(orderDetails) { detail ->
-                                OrderItemRow(orderDetail = detail)
-                                if (orderDetails.indexOf(detail) < orderDetails.size - 1) {
-                                    Divider(modifier = Modifier.padding(vertical = 4.dp))
-                                }
+                                OrderItemRow(detail)
+                                if (orderDetails.indexOf(detail) < orderDetails.size - 1) Divider(Modifier.padding(vertical = 4.dp))
                             }
                         }
                     }
 
-                    // Total Amount Section
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Divider()
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Divider(Modifier.padding(vertical = 8.dp))
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Total Amount:",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "RM${"%.2f".format(order.totalPrice)}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    // Additional order information
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                    ) {
-                        Text(
-                            text = "Need help with this order?",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "Contact customer support with your order ID.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                        Text("Total Amount:", fontWeight = FontWeight.Bold)
+                        Text("RM${"%.2f".format(order.totalPrice)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.padding(8.dp)
-            ) {
-                Text("Close Order Details")
-            }
+            TextButton(onClick = onDismiss) { Text("Close") }
         }
     )
 }
-
 @Composable
 fun OrderItemRow(orderDetail: OrderDetail) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = orderDetail.productName,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = "RM${"%.2f".format(orderDetail.productPrice)} × ${orderDetail.quantity}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.padding(top = 2.dp)
-            )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = orderDetail.productName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(text = "RM${"%.2f".format(orderDetail.productPrice)} × ${orderDetail.quantity}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 2.dp))
         }
-        Text(
-            text = "RM${"%.2f".format(orderDetail.subtotal)}",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary
-        )
+        Text(text = "RM${"%.2f".format(orderDetail.subtotal)}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
     }
 }
 

@@ -42,6 +42,7 @@ import com.example.miniproject.screens.VendorReviewsScreen
 import com.example.miniproject.screens.VendorVoucherScreen
 import com.example.miniproject.screens.order.OrderHistoryScreen
 import com.example.miniproject.screens.order.OrderScreen
+import com.example.miniproject.screens.order.OrderTrackingScreen
 import com.example.miniproject.ui.theme.MiniProjectTheme
 
 class MainActivity : FragmentActivity() {
@@ -90,6 +91,12 @@ class MainActivity : FragmentActivity() {
                         val vendorId = backStackEntry.arguments?.getString("vendorId") ?: ""
                         AdminVendorSalesReportScreen(navController, vendorId)
                     }
+
+                    composable("tracking/{orderId}") { backStackEntry ->
+                        val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+                        OrderTrackingScreen(navController, orderId)
+                    }
+
                     // Admin routes
                     composable("adminLogin") {
                         AdminLoginScreen(navController)
