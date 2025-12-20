@@ -296,6 +296,7 @@ fun VendorAccountContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
+
         // Header Section with Edit Button
         HeaderSection(
             vendor = vendor,
