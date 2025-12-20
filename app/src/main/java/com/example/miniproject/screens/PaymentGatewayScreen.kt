@@ -69,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -96,6 +97,7 @@ import com.example.miniproject.service.PayPalService
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Date
+import androidx.compose.ui.graphics.graphicsLayer
 
 
 class PaymentImageConverter(private val context: android.content.Context) {
@@ -153,9 +155,9 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
     var vendorBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     // Payment State
-    var selectedPaymentMethod by remember { mutableStateOf("wallet") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var selectedPaymentMethod by remember { mutableStateOf("") }
 
     // Voucher State
     var availableVouchers by remember { mutableStateOf<List<Voucher>>(emptyList()) }
@@ -190,6 +192,21 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
                 vendor?.let { vendorData ->
                     if (!vendorData.profileImageBase64.isNullOrEmpty()) {
                         vendorBitmap = imageConverter.base64ToBitmap(vendorData.profileImageBase64)
+                    }
+// [Added Logic]: Automatically set the default payment method after the vendor loads.
+// If no method is currently selected, or the selected method is not supported by the vendor,
+// the first supported method will be automatically selected.
+                    val acceptedMethods = vendorData.acceptedPaymentMethods
+                    if (acceptedMethods.isNotEmpty()) {
+                        if (selectedPaymentMethod.isEmpty() || !acceptedMethods.contains(selectedPaymentMethod)) {
+                            // Priority: PayPal -> Card -> Cash (if all are supported)
+                            selectedPaymentMethod = when {
+                                acceptedMethods.contains("paypal") -> "paypal"
+                                acceptedMethods.contains("card") -> "card"
+                                acceptedMethods.contains("cash") -> "cash"
+                                else -> acceptedMethods.first()
+                            }
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -538,26 +555,72 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
                             Triple("cash", "Cash on Pickup", Icons.Default.Money)
                         )
 
+                        val supportedMethods = vendor?.acceptedPaymentMethods ?: emptyList()
+
                         methods.forEach { (id, name, icon) ->
+
+                            val isSupported = supportedMethods.contains(id)
+
+
+                            val alpha = if (isSupported) 1f else 0.4f
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .selectable(selected = selectedPaymentMethod == id, onClick = { selectedPaymentMethod = id })
-                                    .padding(vertical = 12.dp),
+                                    .then(
+                                        if (isSupported) {
+                                            Modifier.selectable(
+                                                selected = selectedPaymentMethod == id,
+                                                onClick = { selectedPaymentMethod = id }
+                                            )
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
+                                    .padding(vertical = 12.dp)
+
+                                    .graphicsLayer(alpha = alpha),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                RadioButton(selected = selectedPaymentMethod == id, onClick = { selectedPaymentMethod = id })
-                                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                RadioButton(
+                                    selected = selectedPaymentMethod == id,
+                                    onClick = {
+                                        if (isSupported) selectedPaymentMethod = id
+                                    },
+                                    enabled = isSupported
+                                )
+                                Icon(
+                                    icon,
+                                    contentDescription = null,
+                                    tint = if(isSupported) MaterialTheme.colorScheme.primary else Color.Gray
+                                )
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Text(name, fontSize = 16.sp)
+                                Column {
+                                    Text(name, fontSize = 16.sp, color = if(isSupported) Color.Unspecified else Color.Gray)
 
+                                    if (!isSupported) {
+                                        Text(
+                                            "Not accepted by vendor",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
                             }
+                        }
+
+                        if (supportedMethods.isEmpty() && !isFetchingVendor) {
+                            Text(
+                                "This vendor has not set up payment methods yet.",
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
                         }
                     }
                 }
 
                 // Card Form
-                if (showCardForm) {
+                if (showCardForm && selectedPaymentMethod == "card") {
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -634,11 +697,11 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
                         Text(msg, color = MaterialTheme.colorScheme.onErrorContainer, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     }
                 }
-
                 Button(
                     onClick = { initiatePayment() },
                     modifier = Modifier.fillMaxWidth().padding(16.dp).height(56.dp),
-                    enabled = !isLoading && (selectedPaymentMethod != "card" || isCardDetailsValid())
+                    // [修改]: 如果沒有選中任何付款方式 (selectedPaymentMethod 為空)，按鈕禁用
+                    enabled = !isLoading && selectedPaymentMethod.isNotEmpty() && (selectedPaymentMethod != "card" || isCardDetailsValid())
                 ) {
                     if (isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                     else Text("Pay RM ${"%.2f".format(finalTotal)}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
