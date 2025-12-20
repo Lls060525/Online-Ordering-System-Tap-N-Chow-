@@ -256,6 +256,7 @@ fun ShakeToDecideScreen(navController: NavController) {
                         }
                     ) {
                         Text("Check it out")
+
                     }
                 },
                 dismissButton = {
