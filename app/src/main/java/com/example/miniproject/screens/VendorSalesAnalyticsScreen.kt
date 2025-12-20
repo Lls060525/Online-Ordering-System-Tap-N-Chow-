@@ -1,4 +1,3 @@
-// [file]: com/example/miniproject/screens/VendorSalesAnalyticsScreen.kt
 package com.example.miniproject.screens
 
 import android.content.Intent
@@ -52,6 +51,9 @@ fun SalesAnalyticsScreen(navController: NavController) {
     var currentVendor by remember { mutableStateOf<Vendor?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // --- NEW: State to prevent double clicks (Crash Prevention) ---
+    var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     // --- PDF SAVING LOGIC (Storage Access Framework) ---
     val createDocumentLauncher = rememberLauncherForActivityResult(
@@ -127,8 +129,18 @@ fun SalesAnalyticsScreen(navController: NavController) {
         topBar = {
             TopAppBar(
                 title = { Text("Sales Analytics") },
+
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(
+                        onClick = {
+                            // --- UPDATED: Safe Back Button Logic ---
+                            val currentTime = System.currentTimeMillis()
+                            // Only allow click if 500ms have passed since the last click
+                            if (currentTime - lastBackClickTime > 500) {
+                                lastBackClickTime = currentTime
+                                navController.popBackStack()
+                            }
+                        }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -139,11 +151,16 @@ fun SalesAnalyticsScreen(navController: NavController) {
                             Icon(
                                 imageVector = Icons.Default.Download,
                                 contentDescription = "Download Report",
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFFFFA500), // Orange Background
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
             )
         }
     ) { paddingValues ->

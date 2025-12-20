@@ -73,6 +73,9 @@ fun VendorVoucherScreen(navController: NavController) {
     // Store the full vendor object to pass name/image to the voucher
     var currentVendor by remember { mutableStateOf<Vendor?>(null) }
 
+    // --- NEW: State to prevent double clicks (Crash Prevention) ---
+    var lastBackClickTime by remember { mutableLongStateOf(0L) }
+
     // Load Vouchers and Vendor Details
     LaunchedEffect(Unit) {
         val vendor = authService.getCurrentVendor()
@@ -96,7 +99,15 @@ fun VendorVoucherScreen(navController: NavController) {
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+                        // --- UPDATED: Safe Back Button Logic ---
+                        val currentTime = System.currentTimeMillis()
+                        // Only allow click if 500ms have passed since the last click
+                        if (currentTime - lastBackClickTime > 500) {
+                            lastBackClickTime = currentTime
+                            navController.popBackStack()
+                        }
+                    }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -371,12 +382,9 @@ fun AddVoucherDialog(
     calendar.add(Calendar.DAY_OF_YEAR, 1)
     var selectedDate by remember { mutableStateOf(calendar.timeInMillis) }
 
-    // --- FIX: REMOVED THE COMPLEX "SelectableDates" BLOCK ---
     val dateState = rememberDatePickerState(
         initialSelectedDateMillis = selectedDate
-        // We removed the 'selectableDates' parameter entirely to avoid errors
     )
-    // --------------------------------------------------------
 
     val dateFormatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
 
@@ -387,7 +395,6 @@ fun AddVoucherDialog(
                 TextButton(onClick = {
                     val pickedDate = dateState.selectedDateMillis ?: return@TextButton
 
-                    // --- NEW VALIDATION HERE INSTEAD ---
                     val today = Calendar.getInstance()
                     today.set(Calendar.HOUR_OF_DAY, 0)
                     today.set(Calendar.MINUTE, 0)
@@ -401,7 +408,6 @@ fun AddVoucherDialog(
                         selectedDate = pickedDate
                         showDatePicker = false
                     }
-                    // -----------------------------------
                 }) {
                     Text("OK")
                 }
@@ -424,7 +430,6 @@ fun AddVoucherDialog(
         }
     }
 
-    // ... (The rest of your Alert Dialog code remains EXACTLY the same) ...
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Create New Voucher", fontWeight = FontWeight.Bold) },
@@ -443,8 +448,6 @@ fun AddVoucherDialog(
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters)
                 )
-
-
 
                 // Discount Type Selector
                 Column {

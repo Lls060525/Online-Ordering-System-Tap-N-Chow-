@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +28,7 @@ import com.example.miniproject.util.OrderStatusHelper
 import kotlinx.coroutines.launch
 
 object VendorOrdersScreen {
+    @OptIn(ExperimentalMaterial3Api::class) // Opt-in for PullToRefreshBox
     @Composable
     fun VendorOrdersContent() {
         val authService = AuthService()
@@ -35,58 +37,72 @@ object VendorOrdersScreen {
 
         var orders by remember { mutableStateOf<List<Order>>(emptyList()) }
         var isLoading by remember { mutableStateOf(true) }
+        var isRefreshing by remember { mutableStateOf(false) } // State for pull-to-refresh
         var selectedOrder by remember { mutableStateOf<Order?>(null) }
         var orderDetails by remember { mutableStateOf<List<OrderDetail>>(emptyList()) }
         var showOrderDetails by remember { mutableStateOf(false) }
         var selectedTab by remember { mutableStateOf(0) } // 0: Active, 1: Completed
 
-        // Function to refresh orders
-        fun refreshOrders() {
-            coroutineScope.launch {
-                val currentVendor = authService.getCurrentVendor()
-                currentVendor?.let { vendor ->
-                    val allOrders = databaseService.getAllOrders()
-                    val vendorOrders = mutableListOf<Order>()
+        // --- Extracted Data Fetching Logic ---
+        suspend fun fetchOrdersData() {
+            val currentVendor = authService.getCurrentVendor()
+            currentVendor?.let { vendor ->
+                val allOrders = databaseService.getAllOrders()
+                val vendorOrders = mutableListOf<Order>()
 
-                    for (order in allOrders) {
-                        val details = databaseService.getOrderDetails(order.orderId)
-                        val hasVendorProducts = details.any { detail ->
-                            val product = databaseService.getProductById(detail.productId)
-                            product?.vendorId == vendor.vendorId
-                        }
-                        if (hasVendorProducts) {
-                            vendorOrders.add(order)
-                        }
+                for (order in allOrders) {
+                    val details = databaseService.getOrderDetails(order.orderId)
+                    val hasVendorProducts = details.any { detail ->
+                        val product = databaseService.getProductById(detail.productId)
+                        product?.vendorId == vendor.vendorId
                     }
-
-                    // Sort by date and status priority
-                    orders = vendorOrders.sortedWith(compareBy(
-                        { when (it.status) {
-                            "pending" -> 0
-                            "confirmed" -> 1
-                            "preparing" -> 2
-                            "ready" -> 3
-                            "completed" -> 4
-                            "cancelled" -> 5
-                            else -> 6
-                        } },
-                        { -it.orderDate.seconds }
-                    ))
+                    if (hasVendorProducts) {
+                        vendorOrders.add(order)
+                    }
                 }
-                isLoading = false
+
+                // Sort by date and status priority
+                orders = vendorOrders.sortedWith(compareBy(
+                    { when (it.status) {
+                        "pending" -> 0
+                        "confirmed" -> 1
+                        "preparing" -> 2
+                        "ready" -> 3
+                        "completed" -> 4
+                        "cancelled" -> 5
+                        else -> 6
+                    } },
+                    { -it.orderDate.seconds }
+                ))
             }
         }
 
-        // Load orders on startup
+        // --- Initial Load ---
         LaunchedEffect(Unit) {
-            refreshOrders()
+            fetchOrdersData()
+            isLoading = false
         }
 
-        // Load order details when an order is selected
+        // --- Load Order Details ---
         LaunchedEffect(selectedOrder) {
             selectedOrder?.let { order ->
                 orderDetails = databaseService.getOrderDetails(order.orderId)
                 showOrderDetails = true
+            }
+        }
+
+        // --- Helper to handle status update ---
+        fun handleStatusUpdate(newStatus: String) {
+            coroutineScope.launch {
+                selectedOrder?.let { order ->
+                    databaseService.updateOrderStatus(order.orderId, newStatus)
+                    // Refresh list after update
+                    isLoading = true // Optional: show loading while refreshing
+                    fetchOrdersData()
+                    isLoading = false
+                    showOrderDetails = false
+                    selectedOrder = null
+                }
             }
         }
 
@@ -105,72 +121,74 @@ object VendorOrdersScreen {
                     showOrderDetails = false
                     selectedOrder = null
                 },
-                onUpdateStatus = { newStatus ->
-                    coroutineScope.launch {
-                        selectedOrder?.let { order ->
-                            databaseService.updateOrderStatus(order.orderId, newStatus)
-                            refreshOrders()
-                            showOrderDetails = false
-                            selectedOrder = null
-                        }
-                    }
-                }
+                onUpdateStatus = { newStatus -> handleStatusUpdate(newStatus) }
             )
         } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-            ) {
-                Text(
-                    "Customer Orders",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Status Tabs
-                TabRow(selectedTabIndex = selectedTab) {
-                    Tab(
-                        text = { Text("Active Orders") },
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 }
-                    )
-                    Tab(
-                        text = { Text("Order History") },
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Filter orders based on tab
-                val filteredOrders = when (selectedTab) {
-                    0 -> orders.filter { it.status in listOf("pending", "confirmed", "preparing", "ready") }
-                    1 -> orders.filter { it.status in listOf("completed", "cancelled") }
-                    else -> emptyList()
-                }
-
-                if (filteredOrders.isEmpty()) {
-                    when (selectedTab) {
-                        0 -> EmptyActiveOrdersState()
-                        1 -> EmptyOrderHistoryState()
+            // --- MAIN CONTENT WITH PULL TO REFRESH ---
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    isRefreshing = true
+                    coroutineScope.launch {
+                        fetchOrdersData()
+                        isRefreshing = false
                     }
-                } else {
-                    OrdersList(
-                        orders = filteredOrders,
-                        onOrderClick = { order ->
-                            selectedOrder = order
-                        }
+                },
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        "Customer Orders",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Status Tabs
+                    TabRow(selectedTabIndex = selectedTab) {
+                        Tab(
+                            text = { Text("Active Orders") },
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 }
+                        )
+                        Tab(
+                            text = { Text("Order History") },
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Filter orders based on tab
+                    val filteredOrders = when (selectedTab) {
+                        0 -> orders.filter { it.status in listOf("pending", "confirmed", "preparing", "ready") }
+                        1 -> orders.filter { it.status in listOf("completed", "cancelled") }
+                        else -> emptyList()
+                    }
+
+                    if (filteredOrders.isEmpty()) {
+                        when (selectedTab) {
+                            0 -> EmptyActiveOrdersState()
+                            1 -> EmptyOrderHistoryState()
+                        }
+                    } else {
+                        // Pass scrollable content properly inside PullToRefreshBox
+                        OrdersList(
+                            orders = filteredOrders,
+                            onOrderClick = { order -> selectedOrder = order }
+                        )
+                    }
                 }
             }
         }
     }
-
     @Composable
     private fun EmptyActiveOrdersState() {
         Box(

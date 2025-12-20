@@ -1,3 +1,4 @@
+// [file]: com/example/miniproject/screens/VendorReviewsScreen.kt
 package com.example.miniproject.screens
 
 import androidx.compose.foundation.layout.*
@@ -8,9 +9,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,6 +32,9 @@ fun VendorReviewsScreen(navController: NavController) {
     var vendor by remember { mutableStateOf<com.example.miniproject.model.Vendor?>(null) }
     var reviews by remember { mutableStateOf<List<com.example.miniproject.model.Feedback>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+
+    // --- NEW: State to prevent double clicks (Crash Prevention) ---
+    var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
         coroutineScope.launch {
@@ -53,10 +59,26 @@ fun VendorReviewsScreen(navController: NavController) {
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(
+                        onClick = {
+                            // --- UPDATED: Safe Back Button Logic ---
+                            val currentTime = System.currentTimeMillis()
+                            // Only allow click if 500ms have passed since the last click
+                            if (currentTime - lastBackClickTime > 600) {
+                                lastBackClickTime = currentTime
+                                navController.popBackStack()
+                            }
+                        }
+                    ) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFFFFA500), // Orange Background
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+
             )
         }
     ) { paddingValues ->
@@ -133,7 +155,7 @@ fun VendorReviewsScreen(navController: NavController) {
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "${"%.1f".format(averageRating)}",
+                                "%.1f".format(averageRating),
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold
                             )

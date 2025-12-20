@@ -1,3 +1,4 @@
+// [file]: com/example/miniproject/screens/VendorFeedbackAnalyticsScreen.kt
 package com.example.miniproject.screens
 
 import androidx.compose.foundation.layout.*
@@ -10,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,6 +35,9 @@ fun VendorFeedbackAnalyticsScreen(navController: NavController) {
     var selectedFeedback by remember { mutableStateOf<com.example.miniproject.model.Feedback?>(null) }
     var showReplyDialog by remember { mutableStateOf(false) }
     var lastRefreshTime by remember { mutableStateOf(System.currentTimeMillis()) }
+
+    // --- NEW: State to prevent double clicks (Crash Prevention) ---
+    var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     // Function to load feedbacks
     fun loadFeedbacks() {
@@ -58,20 +63,6 @@ fun VendorFeedbackAnalyticsScreen(navController: NavController) {
 
                 println("DEBUG: Retrieved ${vendorFeedbacks.size} feedbacks from database")
 
-                // Detailed feedback analysis
-                vendorFeedbacks.forEachIndexed { index, feedback ->
-                    println("DEBUG: Feedback $index Details:")
-                    println("   - Feedback ID: ${feedback.feedbackId}")
-                    println("   - Customer: ${feedback.customerName} (${feedback.customerId})")
-                    println("   - Vendor: ${feedback.vendorName} (${feedback.vendorId})")
-                    println("   - Order ID: ${feedback.orderId}")
-                    println("   - Rating: ${feedback.rating}")
-                    println("   - Comment: ${feedback.comment}")
-                    println("   - Date: ${feedback.feedbackDate?.toDate()}")
-                    println("   - Visible: ${feedback.isVisible}")
-                    println("   - Has Reply: ${feedback.isReplied}")
-                }
-
                 feedbacks = vendorFeedbacks
                 lastRefreshTime = System.currentTimeMillis()
 
@@ -95,12 +86,8 @@ fun VendorFeedbackAnalyticsScreen(navController: NavController) {
             val currentVendor = authService.getCurrentVendor()
             if (currentVendor == null) {
                 println("DEBUG: No vendor logged in!")
-                println("DEBUG: This might be the issue - user is not authenticated as vendor")
             } else {
-                println("DEBUG: Vendor authenticated:")
-                println("DEBUG: - Vendor ID: ${currentVendor.vendorId}")
-                println("DEBUG: - Vendor Name: ${currentVendor.vendorName}")
-                println("DEBUG: - Email: ${currentVendor.email}")
+                println("DEBUG: Vendor authenticated: ${currentVendor.vendorId}")
             }
         }
     }
@@ -121,8 +108,23 @@ fun VendorFeedbackAnalyticsScreen(navController: NavController) {
                         fontSize = 20.sp
                     )
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFFFFA500), // Orange Background
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(
+                        onClick = {
+                            // --- UPDATED: Safe Back Button Logic ---
+                            val currentTime = System.currentTimeMillis()
+                            // Only allow click if 500ms have passed since the last click
+                            if (currentTime - lastBackClickTime > 500) {
+                                lastBackClickTime = currentTime
+                                navController.popBackStack()
+                            }
+                        }
+                    ) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back to Analytics")
                     }
                 },
@@ -141,7 +143,6 @@ fun VendorFeedbackAnalyticsScreen(navController: NavController) {
                 }
             )
         }
-        // REMOVED: bottomBar navigation
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -149,8 +150,6 @@ fun VendorFeedbackAnalyticsScreen(navController: NavController) {
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            // REMOVED: DEBUG INFO panel
-
             // Header with stats and refresh info
             Row(
                 modifier = Modifier.fillMaxWidth(),

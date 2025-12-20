@@ -326,7 +326,6 @@ fun VendorAccountContent(
             contactError = contactError,
             addressError = addressError
         )
-        NavigationCards(navController)
         LogoutButton(onLogout)
         Spacer(modifier = Modifier.height(32.dp))
     }
@@ -894,33 +893,6 @@ fun EditableAddressRow(
     }
 }
 
-@Composable
-fun NavigationCards(navController: NavController) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // 1. My Retail Card -> Navigates to Product Management
-        NavigationCard(
-            title = "My Retail",
-            description = "Manage your products and inventory",
-            onClick = {
-                // Navigates to the Product screen
-                navController.navigate("vendorProduct")
-            }
-        )
-
-        // 2. Report Card -> Navigates to Analytics Dashboard
-        NavigationCard(
-            title = "Report",
-            description = "View sales reports and analytics",
-            onClick = {
-                // Navigates to the Analytics screen
-                navController.navigate("vendorAnalytics")
-            }
-        )
-
-    }
-}
 @Composable
 fun NavigationCard(
     title: String,

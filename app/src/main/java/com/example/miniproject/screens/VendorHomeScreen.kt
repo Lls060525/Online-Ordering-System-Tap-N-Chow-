@@ -1,5 +1,6 @@
 package com.example.miniproject.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -73,6 +74,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.Color
 
 sealed class VendorScreen(val title: String, val icon: ImageVector) {
@@ -86,43 +89,56 @@ sealed class VendorScreen(val title: String, val icon: ImageVector) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VendorHomeScreen(navController: NavController) {
-    var currentScreen by remember { mutableStateOf<VendorScreen>(VendorScreen.Dashboard) }
+    // 1. Define the list of screens to preserve order
+    val screens = listOf(
+        VendorScreen.Dashboard,
+        VendorScreen.Products,
+        VendorScreen.Orders,
+        VendorScreen.Analytics,
+        VendorScreen.Account
+    )
 
-    Scaffold(topBar = {
-        // Orange background with status bar padding
-        Box(
-            modifier = Modifier
-                .background(Color(0xFFFFA500)) // Orange color
-                .statusBarsPadding()
-        ) {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Tap N Chow - Vendor",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        color = Color.White // White text for better contrast on orange
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent, // Make the TopAppBar transparent
-                    titleContentColor = Color.White,
-                    actionIconContentColor = Color.White
-                ),
-                modifier = Modifier.background(Color.Transparent)
-            )
-        }
-    },
+    // 2. Use rememberSaveable with an INT index to persist state across rotations/navigation
+    // This fixes the issue of the tab resetting to Dashboard unexpectedly
+    var currentScreenIndex by rememberSaveable { mutableIntStateOf(0) }
+    val currentScreen = screens[currentScreenIndex]
 
+    // 3. Handle System Back Button
+    // If we are NOT on Dashboard, pressing Back takes us to Dashboard first.
+    // If we ARE on Dashboard, the system handles Back (usually exits/pops activity).
+    BackHandler(enabled = currentScreen != VendorScreen.Dashboard) {
+        currentScreenIndex = 0 // 0 is the index of Dashboard
+    }
+
+    Scaffold(
+        topBar = {
+            // Orange background with status bar padding
+            Box(
+                modifier = Modifier
+                    .background(Color(0xFFFFA500)) // Orange color
+                    .statusBarsPadding()
+            ) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            "Tap N Chow - Vendor",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = Color.White
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = Color.White,
+                        actionIconContentColor = Color.White
+                    ),
+                    modifier = Modifier.background(Color.Transparent)
+                )
+            }
+        },
         bottomBar = {
             NavigationBar {
-                listOf(
-                    VendorScreen.Dashboard,
-                    VendorScreen.Products,
-                    VendorScreen.Orders,
-                    VendorScreen.Analytics,
-                    VendorScreen.Account
-                ).forEach { screen ->
+                screens.forEachIndexed { index, screen ->
                     NavigationBarItem(
                         icon = {
                             Icon(
@@ -132,8 +148,8 @@ fun VendorHomeScreen(navController: NavController) {
                             )
                         },
                         label = { Text(screen.title) },
-                        selected = currentScreen == screen,
-                        onClick = { currentScreen = screen }
+                        selected = currentScreenIndex == index,
+                        onClick = { currentScreenIndex = index }
                     )
                 }
             }

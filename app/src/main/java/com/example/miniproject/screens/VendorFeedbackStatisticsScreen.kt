@@ -1,4 +1,3 @@
-// [file name]: VendorFeedbackStatisticsScreen.kt
 package com.example.miniproject.screens
 
 import androidx.compose.foundation.Canvas
@@ -35,9 +34,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -72,6 +73,9 @@ fun VendorFeedbackStatisticsScreen(navController: NavController) {
     var allFeedbacks by remember { mutableStateOf<List<Feedback>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var selectedTimeRange by remember { mutableStateOf("current") } // current, week, month, year
+
+    // --- NEW: State to prevent double clicks (Crash Prevention) ---
+    var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     // Function to load feedbacks
     fun loadFeedbacks() {
@@ -118,10 +122,20 @@ fun VendorFeedbackStatisticsScreen(navController: NavController) {
                         fontSize = 20.sp
                     )
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFFFFA500), // Orange Background
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
                 navigationIcon = {
                     IconButton(onClick = {
-                        // Navigate back to Analytics screen
-                        navController.popBackStack()
+                        // --- UPDATED: Safe Back Button Logic ---
+                        val currentTime = System.currentTimeMillis()
+                        // Only allow click if 500ms have passed since the last click
+                        if (currentTime - lastBackClickTime > 500) {
+                            lastBackClickTime = currentTime
+                            navController.popBackStack()
+                        }
                     }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back to Analytics")
                     }
