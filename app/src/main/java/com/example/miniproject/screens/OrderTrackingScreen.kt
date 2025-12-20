@@ -57,6 +57,9 @@ fun OrderTrackingScreen(
     var cancellationTimeRemaining by remember { mutableLongStateOf(0L) } // In Seconds
     var isCancelling by remember { mutableStateOf(false) }
 
+    // --- NEW: State to prevent double clicks (Crash Prevention) ---
+    var lastBackClickTime by remember { mutableLongStateOf(0L) }
+
     // Initial Load & Real-time Listener
     DisposableEffect(orderId) {
         val detailsJob = kotlinx.coroutines.GlobalScope.launch {
@@ -67,7 +70,7 @@ fun OrderTrackingScreen(
             order = updatedOrder
             isLoading = false
 
-            // Calculate remaining time for cancellation (5 mins = 300s)
+            // Calculate remaining time for cancellation (1 min = 60s)
             val orderTimeSeconds = updatedOrder.orderDate.seconds
             val nowSeconds = Timestamp.now().seconds
             val elapsed = nowSeconds - orderTimeSeconds
@@ -134,12 +137,21 @@ fun OrderTrackingScreen(
             TopAppBar(
                 title = { Text("Track Order", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+
+                        val currentTime = System.currentTimeMillis()
+                        // 500ms delay: Prevents clicks closer than half a second
+                        if (currentTime - lastBackClickTime > 500) {
+                            lastBackClickTime = currentTime
+                            navController.popBackStack()
+
+                        }
+                    }) {
                         Icon(Icons.Default.ArrowBack, "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
+                    containerColor = Color(0xFF4CAF50),
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
@@ -160,7 +172,6 @@ fun OrderTrackingScreen(
                 OrderHeader(order!!)
 
                 // 2. Cancellation Button (Only if time > 0 and status is valid)
-                // We check active statuses to ensure we don't show cancel on "Completed" orders even if < 5 mins (rare edge case)
                 val activeStatuses = listOf("pending", "confirmed", "preparing")
 
                 AnimatedVisibility(

@@ -139,11 +139,13 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
                 navigationIcon = {
                     // --- UPDATED: Safe Back Button Logic ---
                     IconButton(onClick = {
+
                         val currentTime = System.currentTimeMillis()
                         // 500ms delay: Prevents clicks closer than half a second
                         if (currentTime - lastBackClickTime > 500) {
                             lastBackClickTime = currentTime
                             navController.popBackStack()
+
                         }
                     }) {
                         Icon(

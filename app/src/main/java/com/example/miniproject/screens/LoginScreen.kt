@@ -7,6 +7,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -29,6 +33,9 @@ import kotlinx.coroutines.launch
 fun LoginScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    // NEW: State for password visibility
+    var isPasswordVisible by remember { mutableStateOf(false) }
+
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -41,10 +48,10 @@ fun LoginScreen(navController: NavController) {
     // Create AuthService instance once
     val authService = remember { AuthService() }
 
-    // Logic: Reset click count if user stops tapping for 1 second (Requires rapid tapping)
+    // Logic: Reset click count if user stops tapping for 1 second
     LaunchedEffect(logoClickCount) {
         if (logoClickCount > 0) {
-            kotlinx.coroutines.delay(1000) // 1 second reset timer
+            kotlinx.coroutines.delay(1000)
             if (logoClickCount < 10) {
                 logoClickCount = 0
             }
@@ -90,13 +97,12 @@ fun LoginScreen(navController: NavController) {
                     verticalArrangement = Arrangement.Center
                 ) {
                     // --- Logo Section (Hidden Trigger) ---
-                    // No visual feedback (ripple removed) to make it look like a static image
                     Box(
                         modifier = Modifier
                             .size(150.dp)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
-                                indication = null // Removes the ripple effect to make it "Hidden"
+                                indication = null
                             ) {
                                 logoClickCount++
                             },
@@ -107,10 +113,7 @@ fun LoginScreen(navController: NavController) {
                             contentDescription = "Tap N Chow Logo",
                             modifier = Modifier.size(150.dp)
                         )
-                        // Removed the "Admin: X/5" overlay text here
                     }
-
-                    // Removed the AnimatedVisibility Hint Card here
 
                     Spacer(modifier = Modifier.height(24.dp))
 
@@ -131,12 +134,25 @@ fun LoginScreen(navController: NavController) {
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // MODIFIED PASSWORD FIELD
                     CustomTextField(
                         value = password,
                         onValueChange = { password = it },
                         label = "Password",
                         placeholder = "Type here",
-                        visualTransformation = PasswordVisualTransformation()
+                        // Logic to switch between Text and Dots
+                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        // Eye Icon Button
+                        trailingIcon = {
+                            val image = if (isPasswordVisible)
+                                Icons.Filled.Visibility
+                            else
+                                Icons.Filled.VisibilityOff
+
+                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                Icon(imageVector = image, contentDescription = "Toggle password visibility")
+                            }
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -157,21 +173,17 @@ fun LoginScreen(navController: NavController) {
                                     val result = authService.login(email, password)
 
                                     if (result.isSuccess) {
-                                        // LOGIN SUCCESSFUL - Now check Role
                                         val role = authService.getCurrentUserRole()
 
                                         if (role == "vendor") {
-                                            // BLOCKED: Vendor trying to log in as Customer
                                             authService.logout()
                                             isLoading = false
                                             errorMessage = "Invalid account type. Please use Vendor Login."
                                         } else if (role == "admin") {
-                                            // BLOCKED: Admin trying to log in as Customer
                                             authService.logout()
                                             isLoading = false
                                             errorMessage = "Invalid account type. Please use Admin Login."
                                         } else {
-                                            // SUCCESS: Customer allowed
                                             isLoading = false
                                             navController.navigate("home") {
                                                 popUpTo("login") { inclusive = true }
@@ -182,7 +194,6 @@ fun LoginScreen(navController: NavController) {
                                         val errorMsg = result.exceptionOrNull()?.message ?: "Login failed"
                                         errorMessage = errorMsg
 
-                                        // Show snackbar if account is frozen
                                         if (errorMsg.contains("frozen", ignoreCase = true)) {
                                             scope.launch {
                                                 snackbarHostState.showSnackbar(
