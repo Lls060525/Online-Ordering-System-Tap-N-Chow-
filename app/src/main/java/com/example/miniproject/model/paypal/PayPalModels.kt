@@ -23,7 +23,14 @@ data class PurchaseUnit(
     val amount: Amount,
     val description: String = "Food Order",
     val custom_id: String = "",
-    val invoice_id: String = ""
+    val invoice_id: String = "",
+    val payee: Payee? = null
+)
+
+@Serializable
+data class Payee(
+    val email_address: String? = null,
+    val merchant_id: String? = null
 )
 
 @Serializable
