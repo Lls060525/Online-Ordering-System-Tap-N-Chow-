@@ -285,6 +285,22 @@ class DatabaseService {
         }
     }
 
+    suspend fun getActiveVendors(): List<Vendor> {
+        return try {
+            // Reuse getAllVendors to benefit from the manual field mapping logic
+            val allVendors = getAllVendors()
+
+            // Filter out any vendor where isFrozen is true
+            val activeVendors = allVendors.filter { !it.isFrozen }
+
+            println("DEBUG: getActiveVendors - Filtered ${allVendors.size} vendors down to ${activeVendors.size}")
+            activeVendors
+        } catch (e: Exception) {
+            println("ERROR in getActiveVendors: ${e.message}")
+            emptyList()
+        }
+    }
+
     // Update user activity on login
     suspend fun updateCustomerLoginActivity(customerId: String): Result<Unit> {
         return try {

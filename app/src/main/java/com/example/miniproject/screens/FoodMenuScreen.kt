@@ -866,11 +866,15 @@ fun FoodContentWithVendors(navController: NavController) {
     LaunchedEffect(Unit) {
         // Load all vendors from Firebase
         val allVendors = databaseService.getAllVendors()
-        vendors = allVendors
+
+        // --- NEW VALIDATION: Filter out frozen vendors ---
+        // This ensures frozen accounts do not show up in the card list
+        vendors = allVendors.filter { !it.isFrozen }
+
         isLoading = false
     }
 
-    // Filter vendors
+    // Filter vendors (Search & Category logic)
     val filteredVendors = vendors.filter { vendor ->
         val isRestaurantType = vendor.category == VendorCategory.RESTAURANT ||
                 vendor.category == VendorCategory.CAFE ||
@@ -881,6 +885,8 @@ fun FoodContentWithVendors(navController: NavController) {
 
         val matchesCategory = selectedCategory == null || vendor.category == selectedCategory
 
+        // Note: We don't need to check isFrozen here because we already
+        // filtered them out in the LaunchedEffect above.
         isRestaurantType && matchesSearch && matchesCategory
     }
 
