@@ -2,6 +2,7 @@ package com.example.miniproject.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -220,21 +221,27 @@ private fun VendorTimeRangeSelector(
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 "Time Range",
-                fontSize = 16.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()), // Enable horizontal scrolling
+                horizontalArrangement = Arrangement.spacedBy(8.dp) // Increase spacing for better look
             ) {
                 timeRanges.forEach { (key, displayName) ->
                     FilterChip(
                         selected = selectedTimeRange == key,
                         onClick = { onTimeRangeSelected(key) },
-                        label = { Text(displayName) },
-                        modifier = Modifier.weight(1f)
+                        label = {
+                            Text(
+                                text = displayName,
+                                maxLines = 1
+                            )
+                        }
                     )
                 }
             }

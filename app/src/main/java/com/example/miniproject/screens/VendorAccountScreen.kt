@@ -31,6 +31,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import com.example.miniproject.R
@@ -677,26 +679,30 @@ fun VendorInfoCard(
                 onValueChange = onAddressChange,
                 errorMessage = addressError
             )
+
             Spacer(modifier = Modifier.height(16.dp))
             Divider()
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
+            // --- FIXED PAYMENT METHODS SECTION ---
+            // Changed from Row to Column to prevent layout squashing
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     text = "Accepted Payment Methods",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    fontWeight = FontWeight.Bold
                 )
 
                 if (vendor != null && vendor.acceptedPaymentMethods.isNotEmpty()) {
+                    // Use a scrollable Row for chips in case there are many
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()) // Allow scrolling if chips overflow
                     ) {
                         vendor.acceptedPaymentMethods.forEach { method ->
                             val (label, color) = when (method) {
@@ -707,7 +713,7 @@ fun VendorInfoCard(
                             }
 
                             AssistChip(
-                                onClick = { /* 純展示，不做動作 */ },
+                                onClick = { /* Display only */ },
                                 label = { Text(label, fontSize = 12.sp) },
                                 leadingIcon = {
                                     if (method == "paypal") {
@@ -732,19 +738,44 @@ fun VendorInfoCard(
                             )
                         }
                     }
+
+                    // Display PayPal Link clearly below the chips
                     if (vendor.acceptedPaymentMethods.contains("paypal") && vendor.paypalLink.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Link: ${vendor.paypalLink}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Link,
+                                    contentDescription = "Link",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = vendor.paypalLink,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                     }
                 } else {
                     Text(
-                        "No payment methods set. Click above to add.",
+                        "No payment methods set. Click 'Payment Methods' above to add.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
+                        color = Color.Gray,
+                        modifier = Modifier.padding(top = 4.dp)
                     )
                 }
             }
