@@ -642,15 +642,16 @@ fun AddEditProductDialog(
                     Button(onClick = { imagePicker.pickImageFromGallery() }) { Text("Choose Image") }
                 }
 
-                // --- Basic Fields (Same as before) ---
-                OutlinedTextField(value = productName, onValueChange = { productName = it }, label = { Text("Product Name *") }, modifier = Modifier.fillMaxWidth())
+                // --- Basic Fields
+                OutlinedTextField(value = productName, onValueChange = { productName = it }, singleLine = true, label = { Text("Product Name *") }, modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = productPrice,
                     onValueChange = { if (it.isEmpty() || it.toDoubleOrNull() != null) productPrice = it },
                     label = { Text("Price (RM) *") },
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
@@ -658,12 +659,13 @@ fun AddEditProductDialog(
                     onValueChange = { if (it.isEmpty() || it.toIntOrNull() != null) stock = it },
                     label = { Text("Stock *") },
                     modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Category") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Category") }, modifier = Modifier.fillMaxWidth(),singleLine = true,)
                 Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), maxLines = 3)
+                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), maxLines = 3,singleLine = true,)
 
                 // --- NEW CUSTOMIZATION EDITOR ---
                 Spacer(modifier = Modifier.height(16.dp))
@@ -735,7 +737,8 @@ fun CustomizationEditor(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    // Header: Remove Group Button
+
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -751,7 +754,7 @@ fun CustomizationEditor(
                         }
                     }
 
-                    // Title Input (e.g., "Size")
+                    // Title Input
                     OutlinedTextField(
                         value = customization.title,
                         onValueChange = { newTitle ->
@@ -760,7 +763,8 @@ fun CustomizationEditor(
                             onUpdate(newList)
                         },
                         label = { Text("Title (e.g. Size, Spiciness)") },
-                        modifier = Modifier.fillMaxWidth()
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                     )
 
                     // Settings: Required & Single Selection
@@ -794,6 +798,7 @@ fun CustomizationEditor(
                             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Option Name (Takes 60% of space)
                             OutlinedTextField(
                                 value = option.name,
                                 onValueChange = { name ->
@@ -804,28 +809,40 @@ fun CustomizationEditor(
                                     onUpdate(newList)
                                 },
                                 placeholder = { Text("Option Name") },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(0.6f),
                                 singleLine = true
                             )
+
                             Spacer(modifier = Modifier.width(8.dp))
+
+                            // Price Field
                             OutlinedTextField(
-                                value = option.price.toString(),
+                                // Logic: If 0, show empty string so user sees placeholder. Remove ".0" for cleaner look.
+                                value = if (option.price == 0.0) "" else option.price.toString().removeSuffix(".0"),
                                 onValueChange = { priceStr ->
-                                    // Allow numbers and one decimal point
-                                    if (priceStr.isEmpty() || priceStr.matches(Regex("^\\d*\\.?\\d*$"))) {
+                                    val newOptions = customization.options.toMutableList()
+
+                                    if (priceStr.isEmpty()) {
+                                        // Handle empty input as 0.0
+                                        newOptions[optIndex] = option.copy(price = 0.0)
+                                    } else if (priceStr.matches(Regex("^\\d*\\.?\\d*$"))) {
+                                        // Only update if input is a valid number
                                         val newPrice = priceStr.toDoubleOrNull() ?: 0.0
-                                        val newOptions = customization.options.toMutableList()
                                         newOptions[optIndex] = option.copy(price = newPrice)
-                                        val newList = customizations.toMutableList()
-                                        newList[index] = customization.copy(options = newOptions)
-                                        onUpdate(newList)
                                     }
+
+                                    val newList = customizations.toMutableList()
+                                    newList[index] = customization.copy(options = newOptions)
+                                    onUpdate(newList)
                                 },
-                                label = { Text("+RM") },
-                                modifier = Modifier.width(80.dp),
+                                label = { Text("+ RM") },
+                                placeholder = { Text("Free") }, // Shows "Free" when empty
+                                modifier = Modifier.weight(0.5f),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 singleLine = true
                             )
+
+                            // Delete Button
                             IconButton(onClick = {
                                 val newOptions = customization.options.toMutableList()
                                 newOptions.removeAt(optIndex)
@@ -833,7 +850,7 @@ fun CustomizationEditor(
                                 newList[index] = customization.copy(options = newOptions)
                                 onUpdate(newList)
                             }) {
-                                Icon(Icons.Default.Delete, null, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Delete, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -852,7 +869,7 @@ fun CustomizationEditor(
             }
         }
 
-        // Add Customization Group Button
+
         Button(
             onClick = {
                 onUpdate(customizations + ProductCustomization("", required = false, singleSelection = true, options = listOf(CustomizationOption("", 0.0))))
@@ -866,7 +883,6 @@ fun CustomizationEditor(
         }
     }
 }
-
 @Composable
 fun DeleteProductDialog(
     product: Product?,

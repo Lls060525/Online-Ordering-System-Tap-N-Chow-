@@ -459,6 +459,57 @@ class DatabaseService {
         }
     }
 
+    suspend fun cancelOrderWithinTimeLimit(orderId: String): Result<String> {
+        return try {
+            val orderRef = db.collection("orders").document(orderId)
+
+            // Run in transaction to ensure atomic read-and-write
+            db.runTransaction { transaction ->
+                val snapshot = transaction.get(orderRef)
+                val orderDate = snapshot.getTimestamp("orderDate") ?: throw Exception("Invalid order date")
+                val status = snapshot.getString("status") ?: ""
+
+                // 1. Check if already processed to a point of no return
+                if (status == "cancelled") throw Exception("Order is already cancelled")
+                if (status == "delivered" || status == "completed") throw Exception("Cannot cancel a completed order")
+
+                // 2. Check 5-minute window (300 seconds)
+                val createdAt = orderDate.seconds
+                val now = Timestamp.now().seconds
+                val diff = now - createdAt
+
+                if (diff > 60) {
+                    throw Exception("Cancellation period (5 minutes) has expired")
+                }
+
+                // 3. Update status
+                transaction.update(orderRef, "status", "cancelled")
+            }.await()
+
+            Result.success("Order cancelled successfully")
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    fun listenToOrder(orderId: String, onUpdate: (Order) -> Unit): ListenerRegistration {
+        return db.collection("orders").document(orderId)
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    println("Listen failed: $e")
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null && snapshot.exists()) {
+                    val order = snapshot.toObject(Order::class.java)
+                    if (order != null) {
+                        onUpdate(order)
+                    }
+                }
+            }
+    }
+
+
     suspend fun createOrderWithDetails(orderRequest: OrderRequest): Result<String> {
         return try {
             // FIRST: Validate stock availability
