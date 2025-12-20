@@ -16,6 +16,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -39,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -60,20 +63,20 @@ fun RegisterScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // NEW: State for showing success dialog
+    // NEW: States for password visibility
+    var isPasswordVisible by remember { mutableStateOf(false) }
+    var isConfirmPasswordVisible by remember { mutableStateOf(false) }
+
     var showSuccessDialog by remember { mutableStateOf(false) }
 
-    // Individual field errors
     var nameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
     var confirmPasswordError by remember { mutableStateOf<String?>(null) }
 
-    // Scroll state
     val scrollState = rememberScrollState()
 
-    // Clear errors when user starts typing
     LaunchedEffect(name) { if (name.isNotEmpty()) nameError = null }
     LaunchedEffect(email) { if (email.isNotEmpty()) emailError = null }
     LaunchedEffect(phoneNumber) { if (phoneNumber.isNotEmpty()) phoneError = null }
@@ -83,7 +86,6 @@ fun RegisterScreen(navController: NavController) {
     fun validateForm(): Boolean {
         var isValid = true
 
-        // Name validation
         if (name.isEmpty()) {
             nameError = "Full name is required"
             isValid = false
@@ -94,7 +96,6 @@ fun RegisterScreen(navController: NavController) {
             nameError = null
         }
 
-        // Email validation
         if (email.isEmpty()) {
             emailError = "Email is required"
             isValid = false
@@ -105,7 +106,6 @@ fun RegisterScreen(navController: NavController) {
             emailError = null
         }
 
-        // Phone number validation
         if (phoneNumber.isEmpty()) {
             phoneError = "Phone number is required"
             isValid = false
@@ -116,7 +116,6 @@ fun RegisterScreen(navController: NavController) {
             phoneError = null
         }
 
-        // Password validation
         if (password.isEmpty()) {
             passwordError = "Password is required"
             isValid = false
@@ -130,7 +129,6 @@ fun RegisterScreen(navController: NavController) {
             passwordError = null
         }
 
-        // Confirm password validation
         if (confirmPassword.isEmpty()) {
             confirmPasswordError = "Please confirm your password"
             isValid = false
@@ -171,13 +169,9 @@ fun RegisterScreen(navController: NavController) {
         }
     ) { paddingValues ->
 
-        // NEW: Success Dialog Implementation
         if (showSuccessDialog) {
             AlertDialog(
-                onDismissRequest = {
-                    // Optional: decide if clicking outside dismisses it.
-                    // Usually better to force them to click the button.
-                },
+                onDismissRequest = { },
                 title = { Text("Verification Sent") },
                 text = {
                     Text("Account created successfully! We have sent a verification email to $email. Please verify your email before logging in.")
@@ -211,7 +205,6 @@ fun RegisterScreen(navController: NavController) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
             ) {
-                // Logo Section
                 Image(
                     painter = painterResource(id = R.drawable.logo),
                     contentDescription = "App Logo",
@@ -238,7 +231,6 @@ fun RegisterScreen(navController: NavController) {
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Form Section
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -271,24 +263,38 @@ fun RegisterScreen(navController: NavController) {
                         supportingText = phoneError
                     )
 
+                    // MODIFIED: Password Field
                     CustomTextField(
                         value = password,
                         onValueChange = { password = it },
                         label = "Password",
                         placeholder = "Enter password (min. 6 characters)",
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         isError = passwordError != null,
-                        supportingText = passwordError
+                        supportingText = passwordError,
+                        trailingIcon = {
+                            val image = if (isPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                Icon(imageVector = image, contentDescription = "Toggle password visibility")
+                            }
+                        }
                     )
 
+                    // MODIFIED: Confirm Password Field
                     CustomTextField(
                         value = confirmPassword,
                         onValueChange = { confirmPassword = it },
                         label = "Confirm Password",
                         placeholder = "Confirm your password",
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (isConfirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         isError = confirmPasswordError != null,
-                        supportingText = confirmPasswordError
+                        supportingText = confirmPasswordError,
+                        trailingIcon = {
+                            val image = if (isConfirmPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                            IconButton(onClick = { isConfirmPasswordVisible = !isConfirmPasswordVisible }) {
+                                Icon(imageVector = image, contentDescription = "Toggle confirm password visibility")
+                            }
+                        }
                     )
                 }
 
@@ -310,7 +316,6 @@ fun RegisterScreen(navController: NavController) {
                                     )
                                     isLoading = false
                                     if (result.isSuccess) {
-                                        // MODIFIED: Show dialog instead of direct navigation
                                         showSuccessDialog = true
                                     } else {
                                         val exception = result.exceptionOrNull()
@@ -365,7 +370,6 @@ fun RegisterScreen(navController: NavController) {
                     )
                 }
 
-                // Add extra space at the bottom for better scrolling
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }
