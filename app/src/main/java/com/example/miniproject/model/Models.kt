@@ -81,7 +81,10 @@ data class Vendor(
     val rating: Double = 0.0,
     val reviewCount: Int = 0,
     val latitude: Double = 0.0,
-    val longitude: Double = 0.0
+    val longitude: Double = 0.0,
+
+    val acceptedPaymentMethods: List<String> = listOf("cash"),
+    val paypalLink: String = ""
 ) {
     companion object {
         suspend fun generateVendorId(db: FirebaseFirestore): String {

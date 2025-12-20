@@ -31,6 +31,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import com.example.miniproject.R
 import com.example.miniproject.model.Vendor
@@ -53,6 +54,7 @@ fun VendorAccountScreen(navController: NavController) {
     var showLogoutDialog by remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
     var showImageSourceDialog by remember { mutableStateOf(false) }
+
 
     // Image picker launcher
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -193,6 +195,8 @@ fun VendorAccountContent(
     var contactError by remember { mutableStateOf("") }
     var addressError by remember { mutableStateOf("") }
 
+    var showPaymentDialog by remember { mutableStateOf(false) }
+
     // Update fields when vendor changes
     LaunchedEffect(vendor) {
         vendor?.let {
@@ -301,6 +305,9 @@ fun VendorAccountContent(
             onCancel = { cancelEdit() },
             onEditProfilePicture = onEditProfilePicture
         )
+        PaymentMethodActionCard(
+            onClick = { showPaymentDialog = true }
+        )
 
         // Vendor Information Card
         VendorInfoCard(
@@ -319,13 +326,84 @@ fun VendorAccountContent(
             contactError = contactError,
             addressError = addressError
         )
+        NavigationCards(navController)
+        LogoutButton(onLogout)
+        Spacer(modifier = Modifier.height(32.dp))
+    }
 
-        if (!isEditing) {
-            // Navigation Cards (only show when not editing)
-            NavigationCards(navController = navController)
+        if (showPaymentDialog && vendor != null) {
+            PaymentMethodsDialog(
+                currentMethods = vendor.acceptedPaymentMethods,
+                currentPayPalLink = vendor.paypalLink,
+                onDismiss = { showPaymentDialog = false },
+                onConfirm = { methods, link ->
+                    // 更新本地 Vendor 對象並觸發保存
+                    val updatedVendor = vendor.copy(
+                        acceptedPaymentMethods = methods,
+                        paypalLink = link
+                    )
+                    onVendorUpdate(updatedVendor) // 這裡會調用 DatabaseService.updateVendorProfile
+                    showPaymentDialog = false
+                }
+            )
+        }
+    }
 
-            // Logout Button
-            LogoutButton(onLogout = onLogout)
+@Composable
+fun PaymentMethodActionCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        onClick = onClick // 讓整張卡片可點擊
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 左側圖標
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Payments, // 使用 Payments 圖標
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+
+                // 文字標題
+                Column {
+                    Text(
+                        text = "Payment Methods",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Add or manage accepted payments",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // 右側箭頭
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "Open",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -599,10 +677,80 @@ fun VendorInfoCard(
                 onValueChange = onAddressChange,
                 errorMessage = addressError
             )
+            Spacer(modifier = Modifier.height(16.dp))
+            Divider()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Accepted Payment Methods",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                if (vendor != null && vendor.acceptedPaymentMethods.isNotEmpty()) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        vendor.acceptedPaymentMethods.forEach { method ->
+                            val (label, color) = when (method) {
+                                "paypal" -> "PayPal" to Color(0xFF003087)
+                                "card" -> "Card" to MaterialTheme.colorScheme.secondary
+                                "cash" -> "Cash" to MaterialTheme.colorScheme.tertiary
+                                else -> method to Color.Gray
+                            }
+
+                            AssistChip(
+                                onClick = { /* 純展示，不做動作 */ },
+                                label = { Text(label, fontSize = 12.sp) },
+                                leadingIcon = {
+                                    if (method == "paypal") {
+                                        Icon(
+                                            Icons.Default.Payment,
+                                            null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    } else if (method == "cash") {
+                                        Icon(
+                                            Icons.Default.Money,
+                                            null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = color.copy(alpha = 0.1f),
+                                    labelColor = color
+                                ),
+                                border = null
+                            )
+                        }
+                    }
+                    if (vendor.acceptedPaymentMethods.contains("paypal") && vendor.paypalLink.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Link: ${vendor.paypalLink}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    Text(
+                        "No payment methods set. Click above to add.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+            }
         }
     }
 }
-
 @Composable
 fun InfoRow(
     icon: ImageVector,
@@ -842,6 +990,132 @@ fun LogoutButton(onLogout: () -> Unit) {
             fontWeight = FontWeight.Bold
         )
     }
+}
+
+// [file name]: VendorAccountScreen.kt
+
+@Composable
+fun PaymentMethodsDialog(
+    currentMethods: List<String>,
+    currentPayPalLink: String,
+    onDismiss: () -> Unit,
+    onConfirm: (List<String>, String) -> Unit
+) {
+
+    var selectedMethods by remember { mutableStateOf(currentMethods) }
+    var payPalLink by remember { mutableStateOf(currentPayPalLink) }
+
+    // 定義選項
+    val options = listOf(
+        Triple("paypal", "PayPal", Icons.Default.Payment),
+        Triple("card", "Credit / Debit Card", Icons.Default.CreditCard),
+        Triple("cash", "Cash on Pickup", Icons.Default.Money)
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Manage Payment Methods", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                options.forEach { (id, label, icon) ->
+                    val isSelected = selectedMethods.contains(id)
+
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedMethods = if (isSelected) {
+                                    selectedMethods - id
+                                } else {
+                                    selectedMethods + id
+                                }
+                            },
+                        colors = CardDefaults.cardColors(
+
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = label,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = "Selected",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+
+
+                            if (id == "paypal" && isSelected) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Divider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                OutlinedTextField(
+                                    value = payPalLink,
+                                    onValueChange = { payPalLink = it },
+                                    label = { Text("Your PayPal.me Link") },
+                                    placeholder = { Text("e.g. paypal.me/yourstore") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    leadingIcon = {
+                                        Text("Link:", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
+                                    }
+                                )
+                                Text(
+                                    text = "Customers will use this link to pay you directly.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+
+                    onConfirm(selectedMethods, payPalLink)
+                }
+            ) {
+                Text("Save Methods")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 // Validation functions

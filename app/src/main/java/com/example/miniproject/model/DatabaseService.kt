@@ -910,6 +910,8 @@ class DatabaseService {
                         "email" to vendor.email,
                         "vendorContact" to vendor.vendorContact,
                         "address" to vendor.address,
+                        "acceptedPaymentMethods" to vendor.acceptedPaymentMethods,
+                        "paypalLink" to vendor.paypalLink,
                         "updatedAt" to Timestamp.now()
                     )
                 ).await()
@@ -1399,7 +1401,9 @@ class DatabaseService {
                     orderCount = (data["orderCount"] as? Long)?.toInt() ?: 0,
                     totalRevenue = (data["totalRevenue"] as? Double) ?: 0.0,
                     rating = (data["rating"] as? Double) ?: 0.0,
-                    reviewCount = (data["reviewCount"] as? Long)?.toInt() ?: 0
+                    reviewCount = (data["reviewCount"] as? Long)?.toInt() ?: 0,
+                    acceptedPaymentMethods = (data["acceptedPaymentMethods"] as? List<String>) ?: listOf("cash"),
+                    paypalLink = data["paypalLink"] as? String ?: ""
                 )
             } else {
                 null
