@@ -291,11 +291,11 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
                                     try {
                                         val customer = authService.getCurrentCustomer()
                                         if (customer == null) {
-                                            println("🔴 DEBUG: No customer found!")
+                                            println("DEBUG: No customer found!")
                                             return@launch
                                         }
 
-                                        println("🟢 DEBUG: Customer found: ${customer.customerId}, ${customer.name}")
+                                        println("DEBUG: Customer found: ${customer.customerId}, ${customer.name}")
 
                                         // Get vendor information
                                         val vendorId = if (orderDetails.isNotEmpty()) {
@@ -305,12 +305,12 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
                                             ""
                                         }
 
-                                        println("🟢 DEBUG: Vendor ID from products: $vendorId")
+                                        println("DEBUG: Vendor ID from products: $vendorId")
 
                                         val vendor = if (vendorId.isNotEmpty()) databaseService.getVendorById(vendorId) else null
                                         val vendorName = vendor?.vendorName ?: "Unknown Vendor"
 
-                                        println("🟢 DEBUG: Vendor Name: $vendorName")
+                                        println("DEBUG: Vendor Name: $vendorName")
 
                                         // Create feedback object
                                         val vendorFeedback = Feedback(
@@ -328,18 +328,18 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
                                             isVisible = true
                                         )
 
-                                        println("🟢 DEBUG: Saving feedback: $vendorFeedback")
+                                        println("DEBUG: Saving feedback: $vendorFeedback")
 
                                         // Save to Firebase
                                         val result = databaseService.addFeedback(vendorFeedback)
                                         if (result.isSuccess) {
-                                            println("🟢 DEBUG: Feedback saved successfully! ID: ${result.getOrNull()}")
+                                            println("DEBUG: Feedback saved successfully! ID: ${result.getOrNull()}")
                                             showSuccessDialog = true
                                         } else {
-                                            println("🔴 DEBUG: Failed to save feedback: ${result.exceptionOrNull()?.message}")
+                                            println("DEBUG: Failed to save feedback: ${result.exceptionOrNull()?.message}")
                                         }
                                     } catch (e: Exception) {
-                                        println("🔴 DEBUG: Error in submit: ${e.message}")
+                                        println("DEBUG: Error in submit: ${e.message}")
                                         e.printStackTrace()
                                     } finally {
                                         isSubmitting = false
