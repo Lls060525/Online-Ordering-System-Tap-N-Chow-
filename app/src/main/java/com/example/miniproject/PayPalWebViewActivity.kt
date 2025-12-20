@@ -24,8 +24,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.miniproject.service.DatabaseService
+import com.example.miniproject.service.EmailService // 確保引入了 EmailService
 import com.example.miniproject.service.PayPalService
 import com.example.miniproject.ui.theme.MiniProjectTheme
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope // 引入 GlobalScope
 import kotlinx.coroutines.launch
 
 class PayPalWebViewActivity : ComponentActivity() {
@@ -55,6 +58,7 @@ class PayPalWebViewActivity : ComponentActivity() {
     }
 }
 
+@OptIn(DelicateCoroutinesApi::class)
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun PayPalWebView(url: String, orderId: String) {
@@ -114,10 +118,8 @@ fun PayPalWebView(url: String, orderId: String) {
                                             if (captureResponse.status == "COMPLETED") {
                                                 isPaymentCompleted = true
 
-
                                                 val purchaseUnit = captureResponse.purchase_units.firstOrNull()
                                                 val captureId = purchaseUnit?.payments?.captures?.firstOrNull()?.id
-
                                                 val finalCaptureId = captureId ?: captureResponse.id
 
                                                 Log.d("PayPalSuccess", "Extracted Capture ID: $finalCaptureId")
@@ -127,10 +129,30 @@ fun PayPalWebView(url: String, orderId: String) {
                                                     finalCaptureId,
                                                     captureResponse.payer?.payer_id ?: ""
                                                 )
-
                                                 databaseService.updatePaymentStatus(orderId, "completed")
                                                 databaseService.updateOrderStatus(orderId, "confirmed")
 
+                                                GlobalScope.launch {
+                                                    try {
+                                                        Log.d("ReceiptSystem", "Background: Preparing to send receipt for $orderId")
+                                                        val order = databaseService.getOrderById(orderId)
+                                                        if (order != null) {
+                                                            val customer = databaseService.getCustomerById(order.customerId)
+                                                            val items = databaseService.getOrderDetails(orderId)
+
+                                                            if (customer != null && items.isNotEmpty()) {
+
+                                                                EmailService.sendReceiptEmail(customer, order, items)
+                                                                Log.d("ReceiptSystem", "Background: Receipt sent!")
+                                                            }
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        Log.e("ReceiptSystem", "Background Error: ${e.message}")
+                                                    }
+                                                }
+                                                // ----------------------------------------
+
+                                                // 頁面跳轉
                                                 (context as? PayPalWebViewActivity)?.run {
                                                     val intent = android.content.Intent(this, MainActivity::class.java).apply {
                                                         putExtra("ORDER_ID", orderId)
@@ -179,7 +201,6 @@ fun PayPalWebView(url: String, orderId: String) {
         },
         modifier = Modifier.fillMaxSize()
     )
-
 
     if (isLoading) {
         Box(
