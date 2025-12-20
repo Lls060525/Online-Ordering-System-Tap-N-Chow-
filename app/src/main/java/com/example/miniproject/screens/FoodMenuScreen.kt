@@ -1009,6 +1009,7 @@ fun FoodContentWithVendors(navController: NavController) {
                 LazyColumn {
                     items(filteredVendors) { vendor ->
                         RestaurantCard(
+
                             vendor = vendor,
                             onClick = {
                                 navController.navigate("foodMenu/${vendor.vendorId}")
