@@ -32,10 +32,12 @@ import androidx.navigation.NavController
 import com.example.miniproject.model.Order
 import com.example.miniproject.model.OrderDetail
 import com.example.miniproject.service.DatabaseService
+import com.example.miniproject.service.PayPalService
 import com.example.miniproject.util.OrderStatusHelper.formatOrderDate
 import com.google.firebase.Timestamp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,6 +61,8 @@ fun OrderTrackingScreen(
 
     // --- NEW: State to prevent double clicks (Crash Prevention) ---
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
+
+    val payPalService = remember { PayPalService() }
 
     // Initial Load & Real-time Listener
     DisposableEffect(orderId) {
@@ -94,16 +98,55 @@ fun OrderTrackingScreen(
     fun performCancellation() {
         scope.launch {
             isCancelling = true
-            val result = databaseService.cancelOrderWithinTimeLimit(orderId)
-            isCancelling = false
-            showCancelDialog = false
 
-            if (result.isSuccess) {
-                Toast.makeText(context, "Order cancelled", Toast.LENGTH_SHORT).show()
-                // Navigating back is optional; staying on screen shows "Cancelled" status updates
-            } else {
-                Toast.makeText(context, "Failed: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+            val docSnapshot = try {
+                databaseService.db.collection("orders").document(orderId).get().await()
+            } catch (e: Exception) {
+                null
             }
+
+            val captureId = docSnapshot?.getString("paypalOrderId") ?: ""
+
+            android.util.Log.d("RefundDebug", "Retrieved Capture ID from DB: $captureId")
+
+
+            val cancelResult = databaseService.cancelOrderWithinTimeLimit(orderId)
+
+            if (cancelResult.isSuccess) {
+                if (order?.paymentMethod == "paypal") {
+
+                    if (captureId.isNotEmpty()) {
+                        Toast.makeText(context, "Processing Refund...", Toast.LENGTH_SHORT).show()
+
+                        val refundResult = payPalService.refundPayment(captureId)
+
+                        if (refundResult.isSuccess) {
+                            Toast.makeText(context, "✅ Order Cancelled & Refunded!", Toast.LENGTH_LONG).show()
+                            databaseService.updatePaymentStatus(orderId, "refunded")
+
+
+                            android.util.Log.d("RefundDebug", "Refund Success: ${refundResult.getOrThrow().id}")
+                        } else {
+                            val error = refundResult.exceptionOrNull()?.message ?: "Unknown error"
+                            Toast.makeText(context, "⚠️ Cancelled but Refund Failed: $error", Toast.LENGTH_LONG).show()
+                            android.util.Log.e("RefundDebug", "Refund Failed: $error")
+                        }
+                    } else {
+                        Toast.makeText(context, "⚠️ Cancelled but Refund ID missing. Contact Admin.", Toast.LENGTH_LONG).show()
+                        android.util.Log.e("RefundDebug", "Capture ID is empty!")
+                    }
+                } else {
+                    Toast.makeText(context, "Order cancelled successfully", Toast.LENGTH_SHORT).show()
+                }
+
+                showCancelDialog = false
+                navController.navigate("home") { popUpTo(0) }
+
+            } else {
+                val errorMsg = cancelResult.exceptionOrNull()?.message
+                Toast.makeText(context, "Failed: $errorMsg", Toast.LENGTH_LONG).show()
+            }
+            isCancelling = false
         }
     }
 

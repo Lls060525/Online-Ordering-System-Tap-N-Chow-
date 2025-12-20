@@ -167,3 +167,9 @@ data class ErrorDetail(
     val issue: String,
     val description: String? = null
 )
+
+@Serializable
+data class PayPalRefundResponse(
+    val id: String,
+    val status: String
+)

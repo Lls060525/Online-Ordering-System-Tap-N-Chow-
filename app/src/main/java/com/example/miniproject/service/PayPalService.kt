@@ -201,4 +201,44 @@ class PayPalService {
             Result.failure(e)
         }
     }
+
+    suspend fun refundPayment(captureId: String): Result<PayPalRefundResponse> = withContext(Dispatchers.IO) {
+
+        android.util.Log.d("PayPalRefund", "Attempting refund for Capture ID: $captureId")
+
+        return@withContext try {
+            val tokenResult = getAccessToken()
+            if (tokenResult.isFailure) {
+                android.util.Log.e("PayPalRefund", "Token failed")
+                return@withContext Result.failure(tokenResult.exceptionOrNull()!!)
+            }
+            val accessToken = tokenResult.getOrThrow()
+
+            val requestBody = "{}".toRequestBody("application/json".toMediaType())
+
+            val request = Request.Builder()
+                .url("${PayPalConfig.SANDBOX_BASE_URL}/v2/payments/captures/$captureId/refund")
+                .header("Authorization", "Bearer $accessToken")
+                .header("Content-Type", "application/json")
+                .post(requestBody)
+                .build()
+
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string()
+
+            android.util.Log.d("PayPalRefund", "Response Code: ${response.code}")
+            android.util.Log.d("PayPalRefund", "Response Body: $responseBody")
+
+            if (response.isSuccessful) {
+                val refundResponse = gson.fromJson(responseBody, PayPalRefundResponse::class.java)
+                Result.success(refundResponse)
+            } else {
+                Result.failure(Exception("Refund failed: ${response.code} - $responseBody"))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("PayPalRefund", "Exception: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
 }

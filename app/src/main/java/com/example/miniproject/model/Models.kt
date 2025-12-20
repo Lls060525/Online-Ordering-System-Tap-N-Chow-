@@ -164,6 +164,8 @@ data class Order(
     val totalPrice: Double = 0.0,
     val shippingAddress: String = "",
     val paymentMethod: String = "",
+    val paypalOrderId: String = "",
+    val paypalPayerId: String = "",
     val createdAt: Timestamp = Timestamp.now(),
     val updatedAt: Timestamp = Timestamp.now()
 ) {

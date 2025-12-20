@@ -73,7 +73,6 @@ fun PayPalWebView(url: String, orderId: String) {
             if (event == Lifecycle.Event.ON_DESTROY) {
                 if (!isPaymentCompleted) {
                     Log.d("PayPalWebView", "User closed activity. Deleting order $orderId")
-                    // [修改] 調用刪除函數
                     kotlinx.coroutines.GlobalScope.launch {
                         databaseService.deleteOrderAndRestoreStock(orderId)
                     }
@@ -85,13 +84,13 @@ fun PayPalWebView(url: String, orderId: String) {
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
+
     AndroidView(
         factory = { ctx ->
             WebView(ctx).apply {
                 settings.apply {
                     javaScriptEnabled = true
                     domStorageEnabled = true
-
                     userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile; rv:88.0) Gecko/88.0 Firefox/88.0"
                     useWideViewPort = true
                     loadWithOverviewMode = true
@@ -115,9 +114,22 @@ fun PayPalWebView(url: String, orderId: String) {
                                             if (captureResponse.status == "COMPLETED") {
                                                 isPaymentCompleted = true
 
+
+                                                val purchaseUnit = captureResponse.purchase_units.firstOrNull()
+                                                val captureId = purchaseUnit?.payments?.captures?.firstOrNull()?.id
+
+                                                val finalCaptureId = captureId ?: captureResponse.id
+
+                                                Log.d("PayPalSuccess", "Extracted Capture ID: $finalCaptureId")
+
+                                                databaseService.updateOrderWithPayPalId(
+                                                    orderId,
+                                                    finalCaptureId,
+                                                    captureResponse.payer?.payer_id ?: ""
+                                                )
+
                                                 databaseService.updatePaymentStatus(orderId, "completed")
                                                 databaseService.updateOrderStatus(orderId, "confirmed")
-                                                databaseService.updateOrderWithPayPalId(orderId, captureResponse.id, captureResponse.payer?.payer_id ?: "")
 
                                                 (context as? PayPalWebViewActivity)?.run {
                                                     val intent = android.content.Intent(this, MainActivity::class.java).apply {
@@ -130,12 +142,12 @@ fun PayPalWebView(url: String, orderId: String) {
                                                     finish()
                                                 }
                                             } else {
-                                                errorMessage = "Payment not completed"
+                                                errorMessage = "Payment not completed. Status: ${captureResponse.status}"
                                                 isLoading = false
                                                 databaseService.deleteOrderAndRestoreStock(orderId)
                                             }
                                         } else {
-                                            errorMessage = "Capture Failed"
+                                            errorMessage = "Capture Failed: ${captureResult.exceptionOrNull()?.message}"
                                             isLoading = false
                                             databaseService.deleteOrderAndRestoreStock(orderId)
                                         }
@@ -150,7 +162,6 @@ fun PayPalWebView(url: String, orderId: String) {
                         }
                         return false
                     }
-
 
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)

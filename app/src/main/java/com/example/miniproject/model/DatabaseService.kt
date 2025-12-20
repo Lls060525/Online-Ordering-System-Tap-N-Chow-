@@ -478,7 +478,7 @@ class DatabaseService {
                 val now = Timestamp.now().seconds
                 val diff = now - createdAt
 
-                if (diff > 60) {
+                if (diff > 120) {
                     throw Exception("Cancellation period (5 minutes) has expired")
                 }
 
