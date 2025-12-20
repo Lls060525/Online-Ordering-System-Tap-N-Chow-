@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,6 +40,9 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
     var vendorId by remember { mutableStateOf("") }
     var vendorName by remember { mutableStateOf("Unknown Vendor") }
 
+    // --- NEW: State to prevent double clicks (Crash Prevention) ---
+    var lastBackClickTime by remember { mutableLongStateOf(0L) }
+
     LaunchedEffect(orderId) {
         if (orderId != null) {
             order = databaseService.getOrderById(orderId)
@@ -60,7 +64,6 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
     }
 
     // Success Dialog
-// Success Dialog - Option 2: Go back to Feedback screen
     if (showSuccessDialog) {
         AlertDialog(
             onDismissRequest = { /* Don't allow dismiss by clicking outside */ },
@@ -70,9 +73,8 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
                 Button(
                     onClick = {
                         showSuccessDialog = false
-                        // FIXED: Navigate back to Feedback tab within the main app
+                        // Navigate back to Home
                         navController.navigate("home") {
-                            // This will take user back to main app with bottom nav
                             popUpTo("home") { inclusive = false }
                             launchSingleTop = true
                         }
@@ -96,14 +98,19 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
                 },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (!isSubmitting) {
-                            // FIXED: Go back to previous screen (should be Feedback screen)
+                        // --- UPDATED: Safe Back Button Logic ---
+                        val currentTime = System.currentTimeMillis()
+                        if (currentTime - lastBackClickTime > 500) {
+                            lastBackClickTime = currentTime
                             navController.popBackStack()
                         }
                     }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF4CAF50),
+                )
             )
         }
     ) { paddingValues ->
@@ -273,8 +280,12 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
                     // Cancel Button
                     OutlinedButton(
                         onClick = {
-                            // FIXED: Simply go back to previous screen
-                            navController.popBackStack()
+                            // --- UPDATED: Safe Back Navigation ---
+                            val currentTime = System.currentTimeMillis()
+                            if (currentTime - lastBackClickTime > 500) {
+                                lastBackClickTime = currentTime
+                                navController.popBackStack()
+                            }
                         },
                         modifier = Modifier.weight(1f),
                         enabled = !isSubmitting
@@ -282,7 +293,7 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
                         Text("Cancel")
                     }
 
-// Submit Button
+                    // Submit Button
                     Button(
                         onClick = {
                             if (vendorRating > 0) {
@@ -290,37 +301,28 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
                                 coroutineScope.launch {
                                     try {
                                         val customer = authService.getCurrentCustomer()
-                                        if (customer == null) {
-                                            println("DEBUG: No customer found!")
-                                            return@launch
-                                        }
-
-                                        println("DEBUG: Customer found: ${customer.customerId}, ${customer.name}")
+                                        if (customer == null) return@launch
 
                                         // Get vendor information
-                                        val vendorId = if (orderDetails.isNotEmpty()) {
+                                        val vId = if (orderDetails.isNotEmpty()) {
                                             val firstProduct = databaseService.getProductById(orderDetails[0].productId)
                                             firstProduct?.vendorId ?: ""
                                         } else {
                                             ""
                                         }
 
-                                        println("DEBUG: Vendor ID from products: $vendorId")
-
-                                        val vendor = if (vendorId.isNotEmpty()) databaseService.getVendorById(vendorId) else null
-                                        val vendorName = vendor?.vendorName ?: "Unknown Vendor"
-
-                                        println("DEBUG: Vendor Name: $vendorName")
+                                        val vendor = if (vId.isNotEmpty()) databaseService.getVendorById(vId) else null
+                                        val vName = vendor?.vendorName ?: "Unknown Vendor"
 
                                         // Create feedback object
                                         val vendorFeedback = Feedback(
                                             customerId = customer.customerId,
                                             customerName = customer.name,
-                                            vendorId = vendorId, // Use the stored vendorId
-                                            vendorName = vendorName, // Use the stored vendorName
+                                            vendorId = vId,
+                                            vendorName = vName,
                                             orderId = orderId ?: "",
-                                            productId = "", // Empty for vendor feedback
-                                            productName = "", // Empty for vendor feedback
+                                            productId = "",
+                                            productName = "",
                                             rating = vendorRating.toDouble(),
                                             comment = overallComment,
                                             feedbackDate = com.google.firebase.Timestamp.now(),
@@ -328,18 +330,12 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
                                             isVisible = true
                                         )
 
-                                        println("DEBUG: Saving feedback: $vendorFeedback")
-
                                         // Save to Firebase
                                         val result = databaseService.addFeedback(vendorFeedback)
                                         if (result.isSuccess) {
-                                            println("DEBUG: Feedback saved successfully! ID: ${result.getOrNull()}")
                                             showSuccessDialog = true
-                                        } else {
-                                            println("DEBUG: Failed to save feedback: ${result.exceptionOrNull()?.message}")
                                         }
                                     } catch (e: Exception) {
-                                        println("DEBUG: Error in submit: ${e.message}")
                                         e.printStackTrace()
                                     } finally {
                                         isSubmitting = false
@@ -361,40 +357,6 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun ProductRatingItem(
-    orderDetail: com.example.miniproject.model.OrderDetail,
-    currentRating: Int,
-    onRatingChanged: (Int) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                orderDetail.productName,
-                fontWeight = FontWeight.Medium,
-                fontSize = 16.sp
-            )
-
-            Text(
-                "Quantity: ${orderDetail.quantity} • RM${"%.2f".format(orderDetail.subtotal)}",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            StarRating(
-                rating = currentRating.toDouble(),
-                size = 30.dp,
-                onRatingChanged = onRatingChanged
-            )
         }
     }
 }

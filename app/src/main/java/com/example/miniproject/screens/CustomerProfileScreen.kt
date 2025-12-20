@@ -37,17 +37,15 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
     var showSaveError by remember { mutableStateOf(false) }
     var saveErrorMessage by remember { mutableStateOf("") }
 
-    // Editable fields
+    // Editable fields (Email removed from here)
     var editableName by remember { mutableStateOf("") }
     var editablePhone by remember { mutableStateOf("") }
-    var editableEmail by remember { mutableStateOf("") }
 
     // Validation states
     var nameError by remember { mutableStateOf("") }
     var phoneError by remember { mutableStateOf("") }
-    var emailError by remember { mutableStateOf("") }
 
-    // --- NEW: State to prevent double clicks ---
+    // Safe Back Button State
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
@@ -57,13 +55,12 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
             currentCustomer?.let {
                 editableName = it.name
                 editablePhone = it.phoneNumber
-                editableEmail = it.email
             }
             isLoading = false
         }
     }
 
-    // Validation functions (Keep existing code...)
+    // Validation functions
     fun validateForm(): Boolean {
         var isValid = true
 
@@ -75,16 +72,6 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
             isValid = false
         } else {
             nameError = ""
-        }
-
-        if (editableEmail.isBlank()) {
-            emailError = "Email is required"
-            isValid = false
-        } else if (!isValidEmail(editableEmail)) {
-            emailError = "Please enter a valid email address"
-            isValid = false
-        } else {
-            emailError = ""
         }
 
         if (editablePhone.isBlank()) {
@@ -101,16 +88,15 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
     }
 
     fun saveProfile() {
-        if (!validateForm()) {
-            return
-        }
+        if (!validateForm()) return
 
         coroutineScope.launch {
             customer?.let { currentCustomer ->
+                // Only update name and phone number
                 val updatedCustomer = currentCustomer.copy(
                     name = editableName.trim(),
-                    phoneNumber = editablePhone.trim(),
-                    email = editableEmail.trim().lowercase()
+                    phoneNumber = editablePhone.trim()
+                    // Email is NOT updated
                 )
 
                 databaseService.updateCustomerProfile(updatedCustomer).let { result ->
@@ -137,15 +123,11 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
                     )
                 },
                 navigationIcon = {
-                    // --- UPDATED: Safe Back Button Logic ---
                     IconButton(onClick = {
-
                         val currentTime = System.currentTimeMillis()
-                        // 500ms delay: Prevents clicks closer than half a second
                         if (currentTime - lastBackClickTime > 500) {
                             lastBackClickTime = currentTime
                             navController.popBackStack()
-
                         }
                     }) {
                         Icon(
@@ -163,9 +145,7 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
                             )
                         }
                     } else {
-                        IconButton(
-                            onClick = { saveProfile() }
-                        ) {
+                        IconButton(onClick = { saveProfile() }) {
                             Icon(
                                 imageVector = Icons.Default.Save,
                                 contentDescription = "Save Profile"
@@ -180,12 +160,7 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
         }
     ) { paddingValues ->
         if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
         } else {
@@ -195,7 +170,6 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
                 isEditing = isEditing,
                 editableName = editableName,
                 editablePhone = editablePhone,
-                editableEmail = editableEmail,
                 onNameChange = {
                     editableName = it
                     if (nameError.isNotEmpty()) nameError = ""
@@ -204,13 +178,8 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
                     editablePhone = it
                     if (phoneError.isNotEmpty()) phoneError = ""
                 },
-                onEmailChange = {
-                    editableEmail = it
-                    if (emailError.isNotEmpty()) emailError = ""
-                },
                 nameError = nameError,
                 phoneError = phoneError,
-                emailError = emailError,
                 showSaveSuccess = showSaveSuccess,
                 showSaveError = showSaveError,
                 saveErrorMessage = saveErrorMessage,
@@ -221,19 +190,15 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
                     customer?.let {
                         editableName = it.name
                         editablePhone = it.phoneNumber
-                        editableEmail = it.email
                     }
                     nameError = ""
                     phoneError = ""
-                    emailError = ""
                 },
                 onSaveProfile = { saveProfile() }
             )
         }
     }
 }
-
-// ... (Rest of the file remains exactly the same: CustomerProfileContent, ProfileField, validation functions) ...
 
 @Composable
 fun CustomerProfileContent(
@@ -242,13 +207,10 @@ fun CustomerProfileContent(
     isEditing: Boolean,
     editableName: String,
     editablePhone: String,
-    editableEmail: String,
     onNameChange: (String) -> Unit,
     onPhoneChange: (String) -> Unit,
-    onEmailChange: (String) -> Unit,
     nameError: String,
     phoneError: String,
-    emailError: String,
     showSaveSuccess: Boolean,
     showSaveError: Boolean,
     saveErrorMessage: String,
@@ -299,14 +261,15 @@ fun CustomerProfileContent(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Email Field
+                // Email Field (READ-ONLY)
+                // We pass the customer's email directly and force isEditable to false
                 ProfileField(
-                    label = "Email Address *",
-                    value = if (isEditing) editableEmail else customer?.email ?: "N/A",
-                    isEditable = isEditing,
-                    onValueChange = onEmailChange,
-                    errorMessage = emailError,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                    label = "Email Address",
+                    value = customer?.email ?: "N/A",
+                    isEditable = false, // Always false
+                    onValueChange = {},
+                    errorMessage = "",
+                    keyboardOptions = KeyboardOptions.Default
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -354,8 +317,8 @@ fun CustomerProfileContent(
                 Button(
                     onClick = onSaveProfile,
                     modifier = Modifier.weight(1f),
-                    enabled = nameError.isEmpty() && phoneError.isEmpty() && emailError.isEmpty() &&
-                            editableName.isNotBlank() && editablePhone.isNotBlank() && editableEmail.isNotBlank()
+                    enabled = nameError.isEmpty() && phoneError.isEmpty() &&
+                            editableName.isNotBlank() && editablePhone.isNotBlank()
                 ) {
                     Text("Save Changes")
                 }
@@ -378,11 +341,7 @@ fun CustomerProfileContent(
             onDismissRequest = onDismissSuccess,
             title = { Text("Profile Updated") },
             text = { Text("Your profile has been updated successfully.") },
-            confirmButton = {
-                Button(onClick = onDismissSuccess) {
-                    Text("OK")
-                }
-            }
+            confirmButton = { Button(onClick = onDismissSuccess) { Text("OK") } }
         )
     }
 
@@ -392,11 +351,7 @@ fun CustomerProfileContent(
             onDismissRequest = onDismissError,
             title = { Text("Update Failed") },
             text = { Text(saveErrorMessage) },
-            confirmButton = {
-                Button(onClick = onDismissError) {
-                    Text("OK")
-                }
-            }
+            confirmButton = { Button(onClick = onDismissError) { Text("OK") } }
         )
     }
 }
@@ -436,7 +391,7 @@ fun ProfileField(
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (label == "Email Address") Color.Gray else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
@@ -446,13 +401,6 @@ fun ProfileField(
 }
 
 // Validation functions
-private fun isValidEmail(email: String): Boolean {
-    val emailRegex = Pattern.compile(
-        "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\$"
-    )
-    return emailRegex.matcher(email).matches()
-}
-
 private fun isValidPhone(phone: String): Boolean {
     // Malaysian phone number format: starts with 01, 10-11 digits
     val cleanedPhone = phone.replace("[^0-9]".toRegex(), "")
