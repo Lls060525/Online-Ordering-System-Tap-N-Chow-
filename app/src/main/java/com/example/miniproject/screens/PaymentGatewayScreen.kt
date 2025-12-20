@@ -97,7 +97,6 @@ import com.example.miniproject.service.PayPalService
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Date
-import androidx.compose.ui.graphics.graphicsLayer
 
 
 class PaymentImageConverter(private val context: android.content.Context) {
@@ -138,7 +137,7 @@ val malaysianBanks = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // CHANGED: removed cartJson
+fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
     val authService = AuthService()
     val databaseService = DatabaseService()
     val payPalService = PayPalService()
@@ -180,7 +179,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
     var isExpiryDateValid by remember { mutableStateOf(true) }
     var isCVVValid by remember { mutableStateOf(true) }
 
-    // CHANGED: Retrieve Cart from Singleton Repository
+    // Retrieve Cart from Singleton Repository
     val cart = remember { CartRepository.getCart() }
 
     // --- FETCH DATA ---
@@ -193,13 +192,12 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
                     if (!vendorData.profileImageBase64.isNullOrEmpty()) {
                         vendorBitmap = imageConverter.base64ToBitmap(vendorData.profileImageBase64)
                     }
-// [Added Logic]: Automatically set the default payment method after the vendor loads.
-// If no method is currently selected, or the selected method is not supported by the vendor,
-// the first supported method will be automatically selected.
+
+                    // Logic to auto-select payment method based on vendor settings
                     val acceptedMethods = vendorData.acceptedPaymentMethods
                     if (acceptedMethods.isNotEmpty()) {
                         if (selectedPaymentMethod.isEmpty() || !acceptedMethods.contains(selectedPaymentMethod)) {
-                            // Priority: PayPal -> Card -> Cash (if all are supported)
+                            // Priority: PayPal -> Card -> Cash
                             selectedPaymentMethod = when {
                                 acceptedMethods.contains("paypal") -> "paypal"
                                 acceptedMethods.contains("card") -> "card"
@@ -260,7 +258,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
         else (cart.total - discountAmount).coerceAtLeast(0.0)
     }
 
-    // ... (Validation Helpers - Same as before) ...
+    // Validation Helpers
     LaunchedEffect(selectedPaymentMethod) { showCardForm = selectedPaymentMethod == "card" }
     val validateExpiryMonth = { month: String -> if (month.isNotEmpty()) { val m = month.toIntOrNull(); isExpiryMonthValid = m in 1..12; isExpiryMonthValid } else { isExpiryMonthValid = true; true } }
     val validateExpiryYear = { year: String -> if (year.isNotEmpty()) { val cy = Calendar.getInstance().get(Calendar.YEAR) % 100; val y = year.toIntOrNull(); isExpiryYearValid = y != null && y >= cy; isExpiryYearValid } else { isExpiryYearValid = true; true } }
@@ -293,10 +291,16 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
                         databaseService.trackVoucherUsage(customer!!.customerId, selectedVoucher!!.voucherId)
                     }
 
+                    // --- KEY CHANGE HERE ---
+                    // Get vendor email from the loaded vendor object
+                    // We treat the 'paypalLink' field as the storage for the PayPal Business Email
+                    val vendorEmail = vendor?.paypalLink
+
                     val paypalResult = payPalService.createOrder(
                         amount = finalTotal,
                         orderId = orderId,
-                        description = "Order from ${cart.vendorName}"
+                        description = "Order from ${cart.vendorName}",
+                        vendorPayPalEmail = vendorEmail // Pass the vendor's email as payee
                     )
 
                     if (paypalResult.isSuccess) {
@@ -345,7 +349,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
                         databaseService.trackVoucherUsage(customer!!.customerId, selectedVoucher!!.voucherId)
                     }
 
-                    // CHANGED: Clear cart after successful payment
+                    // Clear cart after successful payment
                     CartRepository.clear()
 
                     navController.navigate("orderConfirmation/${orderId}") {
@@ -362,7 +366,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
         if (customer == null) { errorMessage = "Please log in"; return }
         if (cart == null) { errorMessage = "Cart is empty"; return }
         if (selectedPaymentMethod == "card" && !isCardDetailsValid()) { errorMessage = "Check card details"; return }
-
+        isLoading = true
         coroutineScope.launch {
             val status = biometricAuthService.checkBiometricAvailability()
 
@@ -374,6 +378,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
                     else processRegularPayment()
                 } else {
                     Toast.makeText(context, "Authentication Cancelled", Toast.LENGTH_SHORT).show()
+                    isLoading = false
                 }
             } else {
                 if (selectedPaymentMethod == "paypal") processPayPalPayment()
@@ -400,7 +405,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
             )
         }
     ) { paddingValues ->
-        // Check if cart is null (either from Repo or invalid state)
         if (cart == null) {
             Box(Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
                 Text("No cart data found. Please go back to menu.")
@@ -412,11 +416,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
                     .padding(paddingValues)
                     .verticalScroll(rememberScrollState())
             ) {
-                // ... (Rest of UI code remains identical, relying on 'cart') ...
-                // I am omitting the repeating UI code here for brevity as it relies
-                // on the 'cart' variable which is now correctly sourced.
-                // You can copy the exact UI code from your previous file.
-
                 // --- Vendor Info Card ---
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -453,8 +452,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
                         }
                     }
                 }
-
-                // ... And so on for other cards ...
 
                 // Order Summary Card
                 Card(
@@ -558,10 +555,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
                         val supportedMethods = vendor?.acceptedPaymentMethods ?: emptyList()
 
                         methods.forEach { (id, name, icon) ->
-
                             val isSupported = supportedMethods.contains(id)
-
-
                             val alpha = if (isSupported) 1f else 0.4f
 
                             Row(
@@ -578,7 +572,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
                                         }
                                     )
                                     .padding(vertical = 12.dp)
-
                                     .graphicsLayer(alpha = alpha),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -697,10 +690,12 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
                         Text(msg, color = MaterialTheme.colorScheme.onErrorContainer, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     }
                 }
+
+                // Payment Button
                 Button(
                     onClick = { initiatePayment() },
                     modifier = Modifier.fillMaxWidth().padding(16.dp).height(56.dp),
-                    // [修改]: 如果沒有選中任何付款方式 (selectedPaymentMethod 為空)，按鈕禁用
+                    // Check if a valid payment method is selected
                     enabled = !isLoading && selectedPaymentMethod.isNotEmpty() && (selectedPaymentMethod != "card" || isCardDetailsValid())
                 ) {
                     if (isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
@@ -712,7 +707,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) { // C
         }
     }
 
-    // ... (Voucher Dialog - Same as previous) ...
+    // Voucher Dialog
     if (showVoucherDialog) {
         AlertDialog(
             onDismissRequest = { showVoucherDialog = false },

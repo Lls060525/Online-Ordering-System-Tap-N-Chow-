@@ -56,7 +56,12 @@ class PayPalService {
         }
     }
 
-    suspend fun createOrder(amount: Double, orderId: String, description: String = "Food Order"): Result<PayPalCreateOrderResponse> = withContext(Dispatchers.IO) {
+    suspend fun createOrder(
+        amount: Double,
+        orderId: String,
+        description: String = "Food Order",
+        vendorPayPalEmail: String? = null
+    ): Result<PayPalCreateOrderResponse> = withContext(Dispatchers.IO) {
         return@withContext try {
             val tokenResult = getAccessToken()
             if (tokenResult.isFailure) {
@@ -65,13 +70,20 @@ class PayPalService {
 
             val accessToken = tokenResult.getOrThrow()
 
+            val payeeData = if (!vendorPayPalEmail.isNullOrEmpty()) {
+                Payee(email_address = vendorPayPalEmail)
+            } else {
+                null
+            }
+
             val createOrderRequest = PayPalCreateOrderRequest(
                 purchase_units = listOf(
                     PurchaseUnit(
                         amount = Amount(value = "%.2f".format(amount)),
                         description = description,
                         custom_id = orderId,
-                        invoice_id = orderId
+                        invoice_id = orderId,
+                        payee = payeeData
                     )
                 )
             )
