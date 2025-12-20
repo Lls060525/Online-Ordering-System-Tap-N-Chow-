@@ -2,19 +2,16 @@ package com.example.miniproject
 
 import android.annotation.SuppressLint
 import android.os.Bundle
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.util.Log
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge // 確保引入這個
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,17 +20,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.service.PayPalService
 import com.example.miniproject.ui.theme.MiniProjectTheme
 import kotlinx.coroutines.launch
 
 class PayPalWebViewActivity : ComponentActivity() {
-    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // 1. 啟用 Edge-to-Edge，讓畫面鋪滿，但我們會在 Compose 中處理避讓
         enableEdgeToEdge()
 
         val url = intent.getStringExtra("PAYPAL_URL") ?: ""
@@ -41,12 +38,10 @@ class PayPalWebViewActivity : ComponentActivity() {
 
         setContent {
             MiniProjectTheme {
-                // 2. 使用 Scaffold 並利用 contentWindowInsets 來自動處理系統欄高度
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
-                    contentWindowInsets = WindowInsets.systemBars // 關鍵：自動計算狀態欄和導航欄的高度
+                    contentWindowInsets = WindowInsets.systemBars
                 ) { innerPadding ->
-                    // 3. 將 innerPadding 傳遞給 WebView 容器
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -68,36 +63,42 @@ fun PayPalWebView(url: String, orderId: String) {
     val payPalService = PayPalService()
     val coroutineScope = rememberCoroutineScope()
 
+    val lifecycleOwner = LocalLifecycleOwner.current
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isPaymentCompleted by remember { mutableStateOf(false) }
 
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_DESTROY) {
+                if (!isPaymentCompleted) {
+                    Log.d("PayPalWebView", "User closed activity. Deleting order $orderId")
+                    // [修改] 調用刪除函數
+                    kotlinx.coroutines.GlobalScope.launch {
+                        databaseService.deleteOrderAndRestoreStock(orderId)
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
     AndroidView(
         factory = { ctx ->
             WebView(ctx).apply {
-                // --- 4. WebView 設置優化 (關鍵部分) ---
                 settings.apply {
                     javaScriptEnabled = true
                     domStorageEnabled = true
-                    // 設置 UserAgent，確保加載移動版網頁
-                    userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile; rv:88.0) Gecko/88.0 Firefox/88.0"
 
-                    // 讓網頁適配手機屏幕寬度
+                    userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile; rv:88.0) Gecko/88.0 Firefox/88.0"
                     useWideViewPort = true
                     loadWithOverviewMode = true
-
-                    // 允許縮放 (可選，通常支付頁面不需要)
-                    setSupportZoom(true)
-                    builtInZoomControls = true
-                    displayZoomControls = false
                 }
 
                 webViewClient = object : WebViewClient() {
-                    override fun shouldOverrideUrlLoading(
-                        view: WebView?,
-                        url: String
-                    ): Boolean {
-                        Log.d("PayPalWebView", "Loading URL: $url")
-
+                    override fun shouldOverrideUrlLoading(view: WebView?, url: String): Boolean {
                         if (url.contains("com.example.miniproject.paypeltest")) {
                             val uri = android.net.Uri.parse(url)
                             val token = uri.getQueryParameter("token")
@@ -112,8 +113,11 @@ fun PayPalWebView(url: String, orderId: String) {
                                             val captureResponse = captureResult.getOrThrow()
 
                                             if (captureResponse.status == "COMPLETED") {
+                                                isPaymentCompleted = true
+
                                                 databaseService.updatePaymentStatus(orderId, "completed")
                                                 databaseService.updateOrderStatus(orderId, "confirmed")
+                                                databaseService.updateOrderWithPayPalId(orderId, captureResponse.id, captureResponse.payer?.payer_id ?: "")
 
                                                 (context as? PayPalWebViewActivity)?.run {
                                                     val intent = android.content.Intent(this, MainActivity::class.java).apply {
@@ -126,50 +130,45 @@ fun PayPalWebView(url: String, orderId: String) {
                                                     finish()
                                                 }
                                             } else {
-                                                errorMessage = "PayPal payment not completed. Status: ${captureResponse.status}"
+                                                errorMessage = "Payment not completed"
                                                 isLoading = false
+                                                databaseService.deleteOrderAndRestoreStock(orderId)
                                             }
                                         } else {
-                                            errorMessage = "Failed to capture PayPal payment: ${captureResult.exceptionOrNull()?.message}"
+                                            errorMessage = "Capture Failed"
                                             isLoading = false
+                                            databaseService.deleteOrderAndRestoreStock(orderId)
                                         }
                                     } catch (e: Exception) {
                                         errorMessage = "Error: ${e.message}"
                                         isLoading = false
+                                        databaseService.deleteOrderAndRestoreStock(orderId)
                                     }
                                 }
-                            } else {
-                                errorMessage = "No payment token found in return URL"
-                                isLoading = false
                             }
                             return true
                         }
                         return false
                     }
 
+
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
                         isLoading = false
                     }
 
-                    override fun onReceivedError(
-                        view: WebView?,
-                        request: WebResourceRequest?,
-                        error: WebResourceError?
-                    ) {
+                    override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                         super.onReceivedError(view, request, error)
-                        // 忽略一些無關緊要的網絡錯誤，避免用戶體驗中斷
-                        // errorMessage = "Failed to load PayPal: ${error?.description}"
-                        // isLoading = false
                         Log.e("PayPalWebView", "WebView Error: ${error?.description}")
+                        isLoading = false
                     }
                 }
-
                 loadUrl(url)
             }
         },
         modifier = Modifier.fillMaxSize()
     )
+
 
     if (isLoading) {
         Box(
@@ -178,25 +177,21 @@ fun PayPalWebView(url: String, orderId: String) {
                 .background(Color.Black.copy(alpha = 0.5f)),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 CircularProgressIndicator(color = Color.White)
-                Text(
-                    "Redirecting to PayPal...",
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyLarge
-                )
+                Text("Processing PayPal...", color = Color.White, modifier = Modifier.padding(top = 8.dp))
             }
         }
     }
 
     if (errorMessage != null) {
         AlertDialog(
-            onDismissRequest = { errorMessage = null },
+            onDismissRequest = {
+                errorMessage = null
+                (context as? PayPalWebViewActivity)?.finish()
+            },
             title = { Text("Payment Error") },
-            text = { Text(errorMessage ?: "Unknown error occurred") },
+            text = { Text(errorMessage ?: "Unknown error") },
             confirmButton = {
                 Button(onClick = {
                     (context as? PayPalWebViewActivity)?.finish()

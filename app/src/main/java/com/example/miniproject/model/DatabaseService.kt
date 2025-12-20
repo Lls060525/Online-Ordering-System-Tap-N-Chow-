@@ -486,7 +486,7 @@ class DatabaseService {
                 totalPrice = orderRequest.totalAmount,
                 shippingAddress = orderRequest.deliveryAddress,
                 paymentMethod = orderRequest.paymentMethod,
-                status = "pending",
+                status = "initializing",
                 orderDate = Timestamp.now()
             )
 
@@ -1767,4 +1767,47 @@ class DatabaseService {
         }
     }
 
+    suspend fun deleteOrderAndRestoreStock(orderId: String): Result<Boolean> {
+        return try {
+            println("DEBUG: Deleting failed order: $orderId")
+
+            val orderDetails = getOrderDetails(orderId)
+            val order = getOrderById(orderId)
+
+
+            db.runTransaction { transaction ->
+
+                for (detail in orderDetails) {
+                    val productRef = db.collection("products").document(detail.productId)
+                    val snapshot = transaction.get(productRef)
+                    if (snapshot.exists()) {
+                        val currentStock = snapshot.getLong("stock")?.toInt() ?: 0
+                        transaction.update(productRef, "stock", currentStock + detail.quantity)
+                    }
+                }
+                if (order != null) {
+                    val coinsToDeduct = order.totalPrice.toInt()
+                    val accountRef = db.collection("customer_accounts").document(order.customerId)
+                    transaction.update(accountRef, "tapNChowCoins", FieldValue.increment(-coinsToDeduct.toLong()))
+                }
+            }.await()
+            val detailsQuery = db.collection("order_details").whereEqualTo("orderId", orderId).get().await()
+            for (doc in detailsQuery.documents) {
+                db.collection("order_details").document(doc.id).delete()
+            }
+
+            val paymentQuery = db.collection("payments").whereEqualTo("orderId", orderId).get().await()
+            for (doc in paymentQuery.documents) {
+                db.collection("payments").document(doc.id).delete()
+            }
+
+            db.collection("orders").document(orderId).delete().await()
+
+            println("DEBUG: Order $orderId completely deleted.")
+            Result.success(true)
+        } catch (e: Exception) {
+            println("Error deleting order: ${e.message}")
+            Result.failure(e)
+        }
+    }
 }
