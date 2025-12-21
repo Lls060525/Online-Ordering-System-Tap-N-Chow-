@@ -99,19 +99,12 @@ fun AdminAnalyticsScreen(navController: NavController) {
     LaunchedEffect(Unit) {
         coroutineScope.launch {
             try {
-                // 1. Get raw vendors and calculate actual stats for each
                 val rawVendors = databaseService.getAllVendors().filter { it.vendorId != "ADMIN001" }
-                vendors = rawVendors.map { vendor ->
-                    val stats = databaseService.calculateVendorActualStats(vendor.vendorId)
-                    vendor.copy(
-                        orderCount = stats.first,
-                        totalRevenue = stats.second,
-                        rating = stats.third
-                    )
-                }
+                vendors = databaseService.calculateAllVendorsStatsBatch(rawVendors)
 
                 orders = databaseService.getAllOrders()
                 platformRevenueData = generatePlatformRevenueData(orders, selectedTimeRange)
+
                 isLoading = false
             } catch (_: Exception) {
                 isLoading = false

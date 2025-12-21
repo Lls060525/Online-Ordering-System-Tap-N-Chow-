@@ -24,6 +24,7 @@ import androidx.navigation.NavController
 import com.example.miniproject.model.Customer
 import com.example.miniproject.model.Vendor
 import com.example.miniproject.service.DatabaseService
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -55,25 +56,32 @@ fun AdminUserManagementScreen(navController: NavController) {
         coroutineScope.launch {
             isLoading = true
             try {
-                // Get customers
-                val allCustomers = databaseService.getAllCustomers()
-                customers = allCustomers.map { customer ->
-                    val stats = databaseService.calculateCustomerActualStats(customer.customerId)
-                    customer.copy(orderCount = stats.first, totalSpent = stats.second)
-                }
+                val customersDeferred = async { databaseService.getAllCustomers() }
+                val vendorsDeferred = async { databaseService.getAllVendors().filter { it.vendorId != "ADMIN001" } }
+                val ordersDeferred = async { databaseService.getAllOrders() } // 一次性獲取所有訂單
 
-                // Get vendors
-                val allVendors = databaseService.getAllVendors().filter { it.vendorId != "ADMIN001" }
-                vendors = allVendors.map { vendor ->
-                    val stats = databaseService.calculateVendorActualStats(vendor.vendorId)
-                    vendor.copy(
-                        orderCount = stats.first,
-                        totalRevenue = stats.second,
-                        rating = stats.third
+                val allCustomers = customersDeferred.await()
+                val allVendors = vendorsDeferred.await()
+                val allOrders = ordersDeferred.await()
+
+                val customerOrdersMap = allOrders.groupBy { it.customerId }
+
+                customers = allCustomers.map { customer ->
+                    val userOrders = customerOrdersMap[customer.customerId] ?: emptyList()
+
+                    val validOrders = userOrders.filter { it.status != "cancelled" }
+
+                    customer.copy(
+                        orderCount = validOrders.size,
+                        totalSpent = validOrders.sumOf { it.totalPrice }
                     )
                 }
+
+                vendors = allVendors
+
                 isLoading = false
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                e.printStackTrace()
                 isLoading = false
             }
         }

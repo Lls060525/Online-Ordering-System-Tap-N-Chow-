@@ -50,19 +50,16 @@ fun AdminVendorListScreen(navController: NavController) {
     LaunchedEffect(Unit) {
         coroutineScope.launch {
             try {
-                val allVendors = databaseService.getAllVendors().filter { it.vendorId != "ADMIN001" }
-                vendors = allVendors.map { vendor ->
-                    val stats = databaseService.calculateVendorActualStats(vendor.vendorId)
-                    // Create a copy with updated stats
-                    vendor.copy(
-                        orderCount = stats.first,
-                        totalRevenue = stats.second,
-                        rating = stats.third
-                    )
-                }
+                isLoading = true
+
+                val rawVendors = databaseService.getAllVendors().filter { it.vendorId != "ADMIN001" }
+
+                vendors = databaseService.calculateAllVendorsStatsBatch(rawVendors)
+
                 isLoading = false
             } catch (e: Exception) {
                 isLoading = false
+                e.printStackTrace()
             }
         }
     }

@@ -1881,4 +1881,79 @@ class DatabaseService {
             Result.failure(e)
         }
     }
+
+    suspend fun calculateAllVendorsStatsBatch(allVendors: List<Vendor>): List<Vendor> {
+        return try {
+            println("DEBUG: Starting Batch Calculation...")
+
+            // 1. 一次性獲取所有訂單 (1次網路請求)
+            val allOrders = getAllOrders()
+
+
+            val allOrderDetails = db.collection("order_details").get().await().toObjects(OrderDetail::class.java)
+
+            println("DEBUG: Fetched ${allOrders.size} orders and ${allOrderDetails.size} details")
+
+            val detailsMap = allOrderDetails.groupBy { it.orderId }
+
+            val vendorStats = mutableMapOf<String, Triple<Int, Double, Double>>() // Count, Rev, Rating
+            val vendorOrderCounts = mutableMapOf<String, Int>()
+            val vendorRevenues = mutableMapOf<String, Double>()
+
+
+            for (order in allOrders) {
+                val details = detailsMap[order.orderId] ?: emptyList()
+
+                for (detail in details) {
+                }
+            }
+
+            val allProducts = getAllProducts()
+            val productVendorMap = allProducts.associate { it.productId to it.vendorId }
+
+            for (order in allOrders) {
+                val details = detailsMap[order.orderId] ?: continue
+
+                for (detail in details) {
+                    val vendorId = productVendorMap[detail.productId] ?: continue
+
+                    val subtotal = detail.subtotal
+                    val tax = subtotal * 0.06
+                    val total = subtotal + tax
+                    val currentRev = vendorRevenues.getOrDefault(vendorId, 0.0)
+                    vendorRevenues[vendorId] = currentRev + total
+                    val currentCount = vendorOrderCounts.getOrDefault(vendorId, 0)
+
+                }
+            }
+
+            val vendorOrderSets = mutableMapOf<String, MutableSet<String>>() // VendorId -> Set<OrderId>
+
+            for (order in allOrders) {
+                val details = detailsMap[order.orderId] ?: continue
+                for (detail in details) {
+                    val vendorId = productVendorMap[detail.productId] ?: continue
+                    vendorOrderSets.getOrPut(vendorId) { mutableSetOf() }.add(order.orderId)
+                }
+            }
+
+            allVendors.map { vendor ->
+                val vid = vendor.vendorId
+                val realOrderCount = vendorOrderSets[vid]?.size ?: 0
+                val realRevenue = vendorRevenues[vid] ?: 0.0
+
+                val realRating = vendor.rating
+
+                vendor.copy(
+                    orderCount = realOrderCount,
+                    totalRevenue = realRevenue,
+                    rating = realRating
+                )
+            }
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            allVendors
+        }
+    }
 }
