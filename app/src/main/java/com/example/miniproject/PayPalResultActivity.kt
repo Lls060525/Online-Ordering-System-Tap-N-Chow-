@@ -1,7 +1,6 @@
 // [file name]: PayPalResultActivity.kt
 package com.example.miniproject
 
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -16,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.rememberNavController
-import com.example.miniproject.screens.OrderConfirmationScreen
+import com.example.miniproject.screens.customer.OrderConfirmationScreen
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.service.PayPalService
 import com.example.miniproject.ui.theme.MiniProjectTheme
