@@ -52,10 +52,9 @@ fun SalesAnalyticsScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // --- NEW: State to prevent double clicks (Crash Prevention) ---
+
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
-    // --- PDF SAVING LOGIC (Storage Access Framework) ---
     val createDocumentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -93,7 +92,6 @@ fun SalesAnalyticsScreen(navController: NavController) {
         }
         createDocumentLauncher.launch(intent)
     }
-    // ------------------------
 
     // Function to load sales data
     fun loadSalesData() {
@@ -133,7 +131,7 @@ fun SalesAnalyticsScreen(navController: NavController) {
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            // --- UPDATED: Safe Back Button Logic ---
+
                             val currentTime = System.currentTimeMillis()
                             // Only allow click if 500ms have passed since the last click
                             if (currentTime - lastBackClickTime > 500) {
@@ -291,7 +289,7 @@ fun SalesAnalyticsContent(
     }
 }
 
-// --- Helper Composables & Data Logic ---
+// Helper Composables & Data Logic
 
 @Composable
 fun MetricCard(
@@ -825,21 +823,20 @@ data class SalesData(
 )
 
 // Helper function to calculate vendor sales data
-// --- Helper function to calculate vendor sales data ---
+
 private suspend fun calculateVendorSalesData(
     vendorId: String,
-    vendorOrders: List<Order>, // 👈 注意：這裡傳入的已經是篩選好的訂單
+    vendorOrders: List<Order>,
     databaseService: DatabaseService
 ): SalesData {
 
-    // 1. 🔥 關鍵優化：先一次性抓取該 Vendor 的所有商品 ID
-    // 這樣在迴圈裡面就不用一直去聯網查 "這是誰的商品"
+
     val myProducts = databaseService.getProductsByVendor(vendorId)
     val myProductIds = myProducts.map { it.productId }.toSet() // 轉成 Set 查詢速度最快
 
     val filteredOrders = mutableListOf<Order>()
 
-    // Variables for financial totals (Only non-cancelled)
+
     var totalRevenue = 0.0
     var totalTax = 0.0
     var validOrdersCount = 0
@@ -849,12 +846,12 @@ private suspend fun calculateVendorSalesData(
     val monthlyRevenueWithTax = mutableMapOf<String, Double>()
     val dailyRevenue = mutableMapOf<String, Double>()
 
-    // Get current date for last 7 days calculation
+
     val calendar = Calendar.getInstance()
     val monthFormat = SimpleDateFormat("MMM yyyy", Locale.getDefault())
     val shortDateFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
 
-    // Initialize last 7 days with 0.0
+
     for (i in 6 downTo 0) {
         calendar.time = Date()
         calendar.add(Calendar.DAY_OF_YEAR, -i)
@@ -862,16 +859,16 @@ private suspend fun calculateVendorSalesData(
         dailyRevenue[dateKey] = 0.0
     }
 
-    // 2. 開始遍歷訂單 (現在只會遍歷屬於你的訂單，數量少很多)
+
     for (order in vendorOrders) {
-        // 這裡還是需要抓詳情，但因為訂單總數變少了，所以請求數大幅下降
+
         val orderDetails = databaseService.getOrderDetails(order.orderId)
 
         var vendorOrderTotal = 0.0
         var vendorOrderTax = 0.0
         var hasMyItems = false
 
-        // 3. 在本地記憶體比對 ID，不需要網路請求
+
         for (detail in orderDetails) {
             if (myProductIds.contains(detail.productId)) {
                 val subtotal = detail.subtotal
@@ -892,7 +889,7 @@ private suspend fun calculateVendorSalesData(
             // Update status counts
             orderStatusCounts[order.status] = orderStatusCounts.getOrDefault(order.status, 0) + 1
 
-            // --- FILTERING LOGIC ---
+            // FILTERING LOGIC
             if (!order.status.equals("cancelled", ignoreCase = true)) {
                 totalRevenue += vendorOrderTotal
                 totalTax += vendorOrderTax

@@ -125,7 +125,7 @@ fun VendorProductsContent(navController: NavController) {
             products.filter { it.category == selectedCategory }
         }
     }
-    // -------------------------------
+
 
     // Get current vendor and load products
     LaunchedEffect(Unit) {
@@ -142,7 +142,7 @@ fun VendorProductsContent(navController: NavController) {
 
     Scaffold(
         topBar = {
-            // REMOVED modifier = Modifier.padding(12.dp) to eliminate empty space
+
             CenterAlignedTopAppBar(
                 title = {
                     Text(
@@ -633,7 +633,7 @@ fun AddEditProductDialog(
                     Text(text = errorMessage!!, color = MaterialTheme.colorScheme.error)
                 }
 
-                // --- Image Picker Section (Same as before) ---
+                //  Image Picker Section
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
                     Box(modifier = Modifier.size(80.dp), contentAlignment = Alignment.Center) {
                         if (isImageLoading) CircularProgressIndicator() else ProductImage(imageUrl = imageUrl, modifier = Modifier.size(80.dp))
@@ -642,7 +642,7 @@ fun AddEditProductDialog(
                     Button(onClick = { imagePicker.pickImageFromGallery() }) { Text("Choose Image") }
                 }
 
-                // --- Basic Fields
+                //  Basic Fields
                 OutlinedTextField(value = productName, onValueChange = { productName = it }, singleLine = true, label = { Text("Product Name *") }, modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
@@ -667,7 +667,7 @@ fun AddEditProductDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), maxLines = 3,singleLine = true,)
 
-                // --- NEW CUSTOMIZATION EDITOR ---
+                // NEW CUSTOMIZATION EDITOR
                 Spacer(modifier = Modifier.height(16.dp))
                 Divider()
                 Spacer(modifier = Modifier.height(16.dp))
@@ -767,7 +767,7 @@ fun CustomizationEditor(
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                     )
 
-                    // Settings: Required & Single Selection
+                    // Required & Single Selection
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = customization.required,
@@ -798,7 +798,7 @@ fun CustomizationEditor(
                             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Option Name (Takes 60% of space)
+                            // Option Name
                             OutlinedTextField(
                                 value = option.name,
                                 onValueChange = { name ->
@@ -817,7 +817,7 @@ fun CustomizationEditor(
 
                             // Price Field
                             OutlinedTextField(
-                                // Logic: If 0, show empty string so user sees placeholder. Remove ".0" for cleaner look.
+
                                 value = if (option.price == 0.0) "" else option.price.toString().removeSuffix(".0"),
                                 onValueChange = { priceStr ->
                                     val newOptions = customization.options.toMutableList()

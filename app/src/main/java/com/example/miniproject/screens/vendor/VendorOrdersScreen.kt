@@ -52,7 +52,7 @@ object VendorOrdersScreen {
 
         val showMigrationButton = remember { false }
 
-        // --- Extracted Data Fetching Logic ---
+
         suspend fun fetchOrdersData() {
             isLoading = true
             val currentVendor = authService.getCurrentVendor()
@@ -76,13 +76,13 @@ object VendorOrdersScreen {
             }
             isLoading = false
         }
-        // --- Initial Load ---
+        // Initial Load
         LaunchedEffect(Unit) {
             fetchOrdersData()
             isLoading = false
         }
 
-        // --- Load Order Details ---
+        // Load Order Details
         LaunchedEffect(selectedOrder) {
             selectedOrder?.let { order ->
                 orderDetails = databaseService.getOrderDetails(order.orderId)
@@ -90,15 +90,14 @@ object VendorOrdersScreen {
             }
         }
 
-        // --- Helper to handle status update ---
+        // Helper to handle status update
         fun handleStatusUpdate(newStatus: String) {
             coroutineScope.launch {
                 selectedOrder?.let { order ->
                     var shouldUpdateStatus = true
 
                     if (newStatus == "cancelled" && order.paymentMethod == "paypal") {
-                        isLoading = true // 顯示讀取圈
-
+                        isLoading = true
                         try {
                             val orderSnapshot = databaseService.db.collection("orders")
                                 .document(order.orderId)
@@ -119,7 +118,7 @@ object VendorOrdersScreen {
                                 } else {
                                     val error = refundResult.exceptionOrNull()?.message ?: "Unknown error"
                                     Toast.makeText(context, "Refund Failed: $error", Toast.LENGTH_LONG).show()
-                                    shouldUpdateStatus = false // 阻止訂單狀態變更，讓 Vendor 知道出錯了
+                                    shouldUpdateStatus = false
                                 }
                             } else {
                                 Toast.makeText(context, "Error: PayPal ID missing!", Toast.LENGTH_LONG).show()
@@ -169,7 +168,7 @@ object VendorOrdersScreen {
                 onUpdateStatus = { newStatus -> handleStatusUpdate(newStatus) }
             )
         } else {
-            // --- MAIN CONTENT WITH PULL TO REFRESH ---
+            //  MAIN CONTENT WITH PULL TO REFRESH
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
                 onRefresh = {

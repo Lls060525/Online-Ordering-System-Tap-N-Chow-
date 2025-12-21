@@ -72,10 +72,9 @@ fun VendorVoucherScreen(navController: NavController) {
     var showAddDialog by remember { mutableStateOf(false) }
     var vendorId by remember { mutableStateOf("") }
 
-    // Store the full vendor object to pass name/image to the voucher
+
     var currentVendor by remember { mutableStateOf<Vendor?>(null) }
 
-    // --- NEW: State to prevent double clicks (Crash Prevention) ---
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     // Load Vouchers and Vendor Details
@@ -102,9 +101,9 @@ fun VendorVoucherScreen(navController: NavController) {
                 },
                 navigationIcon = {
                     IconButton(onClick = {
-                        // --- UPDATED: Safe Back Button Logic ---
+                        //  Safe Back Button Logic
                         val currentTime = System.currentTimeMillis()
-                        // Only allow click if 500ms have passed since the last click
+
                         if (currentTime - lastBackClickTime > 500) {
                             lastBackClickTime = currentTime
                             navController.popBackStack()
@@ -232,7 +231,7 @@ fun VoucherItemCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 
-            // --- NEW HEADER: Vendor Info ---
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -273,7 +272,7 @@ fun VoucherItemCard(
 
             Divider(color = Color.LightGray.copy(alpha = 0.3f))
             Spacer(modifier = Modifier.height(12.dp))
-            // -------------------------------
+
 
             // Voucher Main Content (Code & Switch)
             Row(

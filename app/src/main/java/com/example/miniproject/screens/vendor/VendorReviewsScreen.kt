@@ -33,7 +33,7 @@ fun VendorReviewsScreen(navController: NavController) {
     var reviews by remember { mutableStateOf<List<com.example.miniproject.model.Feedback>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // --- NEW: State to prevent double clicks (Crash Prevention) ---
+
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
@@ -61,9 +61,9 @@ fun VendorReviewsScreen(navController: NavController) {
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            // --- UPDATED: Safe Back Button Logic ---
+
                             val currentTime = System.currentTimeMillis()
-                            // Only allow click if 500ms have passed since the last click
+
                             if (currentTime - lastBackClickTime > 600) {
                                 lastBackClickTime = currentTime
                                 navController.popBackStack()

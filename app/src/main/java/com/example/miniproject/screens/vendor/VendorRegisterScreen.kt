@@ -62,7 +62,7 @@ import com.example.miniproject.util.LocationHelper
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VendorRegisterScreen(navController: NavController) {
-    // --- Form State ---
+    // Form State
     var vendorName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var vendorContact by remember { mutableStateOf("") }
@@ -74,12 +74,12 @@ fun VendorRegisterScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // --- Location State ---
+    // Location State
     var latitude by remember { mutableStateOf(0.0) }
     var longitude by remember { mutableStateOf(0.0) }
     var isLocationLoading by remember { mutableStateOf(false) }
 
-    // --- Error States ---
+    // Error States
     var vendorNameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
     var contactError by remember { mutableStateOf<String?>(null) }
@@ -92,7 +92,7 @@ fun VendorRegisterScreen(navController: NavController) {
     val locationHelper = remember { LocationHelper(context) }
     val scrollState = rememberScrollState()
 
-    // --- Permission Launcher ---
+    // Permission Launcher
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -119,7 +119,7 @@ fun VendorRegisterScreen(navController: NavController) {
         }
     }
 
-    // --- Validation Logic ---
+    // Validation Logic
     fun validateForm(): Boolean {
         var isValid = true
 
@@ -174,7 +174,7 @@ fun VendorRegisterScreen(navController: NavController) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // --- Logo ---
+                // Logo
                 Image(
                     painter = painterResource(id = R.drawable.logo2),
                     contentDescription = "Logo",
@@ -188,7 +188,7 @@ fun VendorRegisterScreen(navController: NavController) {
                     fontWeight = FontWeight.Bold
                 )
 
-                // --- Form Fields ---
+                //  Form Fields
                 CustomTextField(
                     value = vendorName,
                     onValueChange = { vendorName = it; vendorNameError = null },
@@ -216,7 +216,7 @@ fun VendorRegisterScreen(navController: NavController) {
                     supportingText = contactError
                 )
 
-                // --- Address & Location Section ---
+                // Address & Location Section
                 Text(
                     "Shop Location",
                     style = MaterialTheme.typography.labelLarge,
@@ -224,7 +224,7 @@ fun VendorRegisterScreen(navController: NavController) {
                     modifier = Modifier.align(Alignment.Start)
                 )
 
-                // Address Field with Detect Button (NO MAP VISUAL)
+                // Address Field with Detect Button
                 CustomTextField(
                     value = address,
                     onValueChange = { address = it },
@@ -272,7 +272,7 @@ fun VendorRegisterScreen(navController: NavController) {
                     )
                 }
 
-                // --- Category ---
+                // Category
                 ExposedDropdownMenuBox(
                     expanded = isCategoryExpanded,
                     onExpandedChange = { isCategoryExpanded = !isCategoryExpanded },
@@ -301,7 +301,7 @@ fun VendorRegisterScreen(navController: NavController) {
                     }
                 }
 
-                // --- Passwords ---
+                // Passwords
                 CustomTextField(
                     value = password,
                     onValueChange = { password = it; passwordError = null },
@@ -323,8 +323,7 @@ fun VendorRegisterScreen(navController: NavController) {
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
-
-                // --- Register Button ---
+                //Register Button
                 Button(
                     onClick = {
                         if (validateForm()) {
