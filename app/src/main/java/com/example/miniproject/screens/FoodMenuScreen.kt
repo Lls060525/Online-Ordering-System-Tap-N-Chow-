@@ -867,10 +867,10 @@ fun FoodContentWithVendors(navController: NavController) {
         // Load all vendors from Firebase
         val allVendors = databaseService.getAllVendors()
 
-        // --- NEW VALIDATION: Filter out frozen vendors ---
         // This ensures frozen accounts do not show up in the card list
-        vendors = allVendors.filter { !it.isFrozen }
-
+        vendors = allVendors.filter { vendor ->
+            !vendor.isFrozen
+        }
         isLoading = false
     }
 
