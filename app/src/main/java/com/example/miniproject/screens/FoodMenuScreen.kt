@@ -931,6 +931,9 @@ fun FoodContentWithVendors(navController: NavController) {
     var selectedCategory by remember { mutableStateOf<String?>(null) }
     var showCategoryFilter by remember { mutableStateOf(false) }
 
+    // --- NEW: State to prevent multiple clicks ---
+    var lastClickTime by remember { mutableLongStateOf(0L) }
+
     LaunchedEffect(Unit) {
         // Load all vendors from Firebase
         val allVendors = databaseService.getAllVendors()
@@ -1077,10 +1080,15 @@ fun FoodContentWithVendors(navController: NavController) {
                 LazyColumn {
                     items(filteredVendors) { vendor ->
                         RestaurantCard(
-
                             vendor = vendor,
                             onClick = {
-                                navController.navigate("foodMenu/${vendor.vendorId}")
+                                // --- UPDATED CLICK LOGIC ---
+                                val currentTime = System.currentTimeMillis()
+                                // Only allow click if 1 second (1000ms) has passed since last click
+                                if (currentTime - lastClickTime > 1000) {
+                                    lastClickTime = currentTime
+                                    navController.navigate("foodMenu/${vendor.vendorId}")
+                                }
                             }
                         )
                         Spacer(modifier = Modifier.height(12.dp))
@@ -1150,7 +1158,6 @@ fun FoodContentWithVendors(navController: NavController) {
         )
     }
 }
-
 @Composable
 fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
     val context = LocalContext.current

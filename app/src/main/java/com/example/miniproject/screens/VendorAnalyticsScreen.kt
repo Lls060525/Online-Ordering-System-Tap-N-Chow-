@@ -24,6 +24,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -31,10 +35,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 
-
-// Update in VendorHomeScreen.kt - VendorAnalyticsContent composable
 @Composable
 fun VendorAnalyticsContent(navController: NavController) {
+    // --- NEW: State to prevent multiple clicks ---
+    var lastClickTime by remember { mutableLongStateOf(0L) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -54,7 +59,12 @@ fun VendorAnalyticsContent(navController: NavController) {
                 .fillMaxWidth()
                 .height(120.dp)
                 .clickable {
-                    navController.navigate("salesAnalytics") // Updated navigation
+                    // --- Debounce Logic ---
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastClickTime > 1000) {
+                        lastClickTime = currentTime
+                        navController.navigate("salesAnalytics")
+                    }
                 },
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -101,7 +111,12 @@ fun VendorAnalyticsContent(navController: NavController) {
                 .fillMaxWidth()
                 .height(120.dp)
                 .clickable {
-                    navController.navigate("vendorFeedbackAnalytics")
+                    // --- Debounce Logic ---
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastClickTime > 1000) {
+                        lastClickTime = currentTime
+                        navController.navigate("vendorFeedbackAnalytics")
+                    }
                 },
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -135,16 +150,20 @@ fun VendorAnalyticsContent(navController: NavController) {
             }
         }
 
-        // ADD THIS NEW CARD FOR FEEDBACK STATISTICS
-        // Feedback Statistics Card
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Feedback Statistics Card
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(120.dp)
                 .clickable {
-                    navController.navigate("vendorFeedbackStatistics")
+                    // --- Debounce Logic ---
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastClickTime > 1000) {
+                        lastClickTime = currentTime
+                        navController.navigate("vendorFeedbackStatistics")
+                    }
                 },
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -156,7 +175,7 @@ fun VendorAnalyticsContent(navController: NavController) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    Icons.Default.Analytics, // Changed to Analytics icon
+                    Icons.Default.Analytics,
                     contentDescription = "Feedback Statistics",
                     modifier = Modifier.size(48.dp),
                     tint = MaterialTheme.colorScheme.primary
@@ -185,14 +204,18 @@ fun VendorAnalyticsContent(navController: NavController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- NEW: Voucher Management Card ---
+        // Voucher Management Card
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(120.dp)
                 .clickable {
-                    // Make sure you add this route to your NavHost!
-                    navController.navigate("vendorVouchers")
+                    // --- Debounce Logic ---
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastClickTime > 1000) {
+                        lastClickTime = currentTime
+                        navController.navigate("vendorVouchers")
+                    }
                 },
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -204,7 +227,7 @@ fun VendorAnalyticsContent(navController: NavController) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    Icons.Default.LocalOffer, // Use LocalOffer icon
+                    Icons.Default.LocalOffer,
                     contentDescription = "Voucher Management",
                     modifier = Modifier.size(48.dp),
                     tint = MaterialTheme.colorScheme.primary
@@ -230,8 +253,5 @@ fun VendorAnalyticsContent(navController: NavController) {
                 )
             }
         }
-
     }
 }
-
-

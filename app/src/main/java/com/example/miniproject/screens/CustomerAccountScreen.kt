@@ -51,18 +51,17 @@ fun CustomerAccountScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
     var showImagePickerDialog by remember { mutableStateOf(false) }
 
+    // --- NEW: State to prevent multiple clicks ---
+    var lastClickTime by remember { mutableLongStateOf(0L) }
 
     val imagePicker = rememberImagePicker { uri ->
         if (uri != null) {
             coroutineScope.launch {
-                // Convert image to Base64
                 val base64Image = imageConverter.uriToBase64(uri)
                 base64Image?.let { imageString ->
-                    // Update customer profile with Base64 image
                     customer?.customerId?.let { customerId ->
                         databaseService.updateCustomerProfileImageBase64(customerId, imageString).let { result ->
                             if (result.isSuccess) {
-                                // Update local customer state
                                 customer = customer?.copy(profileImageBase64 = imageString)
                             }
                         }
@@ -93,18 +92,12 @@ fun CustomerAccountScreen(navController: NavController) {
             title = { Text("Change Profile Picture") },
             text = { Text("Choose an option to update your profile picture") },
             confirmButton = {
-                Button(
-                    onClick = {
-                        imagePicker.pickImageFromGallery()
-                    }
-                ) {
+                Button(onClick = { imagePicker.pickImageFromGallery() }) {
                     Text("Choose from Gallery")
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = { showImagePickerDialog = false }
-                ) {
+                TextButton(onClick = { showImagePickerDialog = false }) {
                     Text("Cancel")
                 }
             }
@@ -114,13 +107,7 @@ fun CustomerAccountScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        "Account",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                },
+                title = { Text("Account", fontWeight = FontWeight.Bold, fontSize = 20.sp) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     titleContentColor = Color.Black,
                     navigationIconContentColor = Color.Black,
@@ -131,9 +118,7 @@ fun CustomerAccountScreen(navController: NavController) {
     ) { paddingValues ->
         if (isLoading) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(10.dp),
+                modifier = Modifier.fillMaxSize().padding(10.dp),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator()
@@ -145,22 +130,40 @@ fun CustomerAccountScreen(navController: NavController) {
                 customerAccount = customerAccount,
                 imageConverter = imageConverter,
                 onEditProfilePicture = { showImagePickerDialog = true },
+
+                // --- UPDATED CLICK LOGIC FOR NAVIGATION ---
                 onViewProfile = {
-                    // Navigate to profile screen - ADD THIS LINE
-                    navController.navigate("customerProfile")
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastClickTime > 1000) { // 1 second debounce
+                        lastClickTime = currentTime
+                        navController.navigate("customerProfile")
+                    }
                 },
                 onOrderHistory = {
-
-                    navController.navigate("orderHistory")
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastClickTime > 1000) {
+                        lastClickTime = currentTime
+                        navController.navigate("orderHistory")
+                    }
                 },
-                onMyVouchers = { // <--- Renamed and implemented
-                    navController.navigate("customer_vouchers")
+                onMyVouchers = {
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastClickTime > 1000) {
+                        lastClickTime = currentTime
+                        navController.navigate("customer_vouchers")
+                    }
                 },
                 onLogout = {
-                    coroutineScope.launch {
-                        authService.logout()
-                        navController.navigate("login") {
-                            popUpTo(0)
+                    // Logout usually doesn't need debounce as strictly as navigation,
+                    // but adding it prevents accidental double-calls if the UI lags.
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastClickTime > 1000) {
+                        lastClickTime = currentTime
+                        coroutineScope.launch {
+                            authService.logout()
+                            navController.navigate("login") {
+                                popUpTo(0)
+                            }
                         }
                     }
                 }
