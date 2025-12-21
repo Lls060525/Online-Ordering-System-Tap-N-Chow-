@@ -161,6 +161,7 @@ data class Order(
     val customerId: String = "",
     val orderDate: Timestamp = Timestamp.now(),
     val status: String = "pending",
+    val vendorIds: List<String> = emptyList(),
     val totalPrice: Double = 0.0,
     val shippingAddress: String = "",
     val paymentMethod: String = "",

@@ -528,7 +528,7 @@ class DatabaseService {
 
     suspend fun createOrderWithDetails(orderRequest: OrderRequest): Result<String> {
         return try {
-            // FIRST: Validate stock availability
+
             for (item in orderRequest.items) {
                 val productDoc = db.collection("products").document(item.productId).get().await()
                 if (!productDoc.exists()) {
@@ -543,6 +543,7 @@ class DatabaseService {
                 }
             }
 
+            val involvedVendorIds = orderRequest.items.map { it.vendorId }.distinct()
             // Generate custom order ID (O001 format)
             val orderId = Order.generateOrderId(db)
 
@@ -554,7 +555,8 @@ class DatabaseService {
                 shippingAddress = orderRequest.deliveryAddress,
                 paymentMethod = orderRequest.paymentMethod,
                 status = "initializing",
-                orderDate = Timestamp.now()
+                orderDate = Timestamp.now(),
+                vendorIds = involvedVendorIds
             )
 
             // Store order
@@ -1939,6 +1941,64 @@ class DatabaseService {
         } catch (e: Exception) {
             e.printStackTrace()
             allVendors
+        }
+    }
+
+    suspend fun getOrdersByVendor(vendorId: String): List<Order> {
+        return try {
+            println("DEBUG: Fetching orders for vendor: $vendorId using Index")
+
+            val result = db.collection("orders")
+                .whereArrayContains("vendorIds", vendorId) // 👈 關鍵查詢
+                .get()
+                .await()
+
+            val orders = result.toObjects(Order::class.java)
+
+            orders.sortedWith(compareBy(
+                { when (it.status) {
+                    "pending" -> 0
+                    "confirmed" -> 1
+                    "preparing" -> 2
+                    "ready" -> 3
+                    "completed" -> 4
+                    "cancelled" -> 5
+                    else -> 6
+                } },
+                { -it.orderDate.seconds }
+            ))
+        } catch (e: Exception) {
+            println("ERROR fetching vendor orders: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun migrateOldOrdersForVendors(): String {
+        return try {
+            val allOrders = getAllOrders()
+            var updatedCount = 0
+
+            for (order in allOrders) {
+                if (order.vendorIds.isNotEmpty()) continue
+
+                val details = getOrderDetails(order.orderId)
+                val vendorIds = mutableSetOf<String>()
+
+                for (detail in details) {
+                    val product = getProductById(detail.productId)
+                    product?.let { vendorIds.add(it.vendorId) }
+                }
+
+                if (vendorIds.isNotEmpty()) {
+                    db.collection("orders").document(order.orderId)
+                        .update("vendorIds", vendorIds.toList())
+                        .await()
+                    updatedCount++
+                }
+            }
+            "Migration Success: Updated $updatedCount orders"
+        } catch (e: Exception) {
+            "Migration Failed: ${e.message}"
         }
     }
 }

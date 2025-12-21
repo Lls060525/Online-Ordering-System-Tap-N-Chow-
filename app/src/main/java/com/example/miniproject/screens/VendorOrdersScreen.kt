@@ -50,26 +50,18 @@ object VendorOrdersScreen {
         var showOrderDetails by remember { mutableStateOf(false) }
         var selectedTab by remember { mutableStateOf(0) } // 0: Active, 1: Completed
 
+        val showMigrationButton = remember { false }
+
         // --- Extracted Data Fetching Logic ---
         suspend fun fetchOrdersData() {
+            isLoading = true
             val currentVendor = authService.getCurrentVendor()
+
             currentVendor?.let { vendor ->
-                val allOrders = databaseService.getAllOrders()
-                val vendorOrders = mutableListOf<Order>()
 
-                for (order in allOrders) {
-                    val details = databaseService.getOrderDetails(order.orderId)
-                    val hasVendorProducts = details.any { detail ->
-                        val product = databaseService.getProductById(detail.productId)
-                        product?.vendorId == vendor.vendorId
-                    }
-                    if (hasVendorProducts) {
-                        vendorOrders.add(order)
-                    }
-                }
+                val fastOrders = databaseService.getOrdersByVendor(vendor.vendorId)
 
-                // Sort by date and status priority
-                orders = vendorOrders.sortedWith(compareBy(
+                orders = fastOrders.sortedWith(compareBy(
                     { when (it.status) {
                         "pending" -> 0
                         "confirmed" -> 1
@@ -82,8 +74,8 @@ object VendorOrdersScreen {
                     { -it.orderDate.seconds }
                 ))
             }
+            isLoading = false
         }
-
         // --- Initial Load ---
         LaunchedEffect(Unit) {
             fetchOrdersData()
