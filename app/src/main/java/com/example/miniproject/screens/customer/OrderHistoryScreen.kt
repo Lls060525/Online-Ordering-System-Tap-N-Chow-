@@ -35,7 +35,6 @@ fun OrderHistoryScreen(navController: NavController) {
     var orderDetails by remember { mutableStateOf<List<OrderDetail>>(emptyList()) }
     var showOrderDetails by remember { mutableStateOf(false) }
 
-    // --- NEW: State to prevent double clicks ---
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
@@ -74,7 +73,6 @@ fun OrderHistoryScreen(navController: NavController) {
                     )
                 },
                 navigationIcon = {
-                    // --- UPDATED: Safe Back Button Logic ---
                     IconButton(onClick = {
                         val currentTime = System.currentTimeMillis()
                         // 500ms delay: Prevents clicks closer than half a second

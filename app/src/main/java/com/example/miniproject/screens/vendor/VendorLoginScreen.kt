@@ -138,21 +138,21 @@ fun VendorLoginScreen(navController: NavController) {
                                     val result = authService.login(email, password)
 
                                     if (result.isSuccess) {
-                                        // LOGIN SUCCESSFUL - Check Role
+                                        // Login successfully, Check Role
                                         val role = authService.getCurrentUserRole()
 
                                         if (role == "customer") {
-                                            // BLOCKED: Customer trying to log in as Vendor
+                                            // BLOCKED when customer trying to log in as Vendor
                                             authService.logout()
                                             isLoading = false
                                             errorMessage = "Invalid account type. Please use Customer Login."
                                         } else if (role == "admin") {
-                                            // BLOCKED: Admin trying to log in as Vendor
+                                            // BLOCKED when Admin trying to log in as Vendor
                                             authService.logout()
                                             isLoading = false
                                             errorMessage = "Invalid account type. Please use Admin Login."
                                         } else {
-                                            // SUCCESS: Vendor allowed
+                                            // Vendor allowed
                                             isLoading = false
                                             navController.navigate("vendorHome") {
                                                 popUpTo("vendorLogin") { inclusive = true }

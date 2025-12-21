@@ -39,7 +39,6 @@ fun VendorFeedbackAnalyticsScreen(navController: NavController) {
     var showReplyDialog by remember { mutableStateOf(false) }
     var lastRefreshTime by remember { mutableStateOf(System.currentTimeMillis()) }
 
-    // --- NEW: State to prevent double clicks (Crash Prevention) ---
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     // Function to load feedbacks

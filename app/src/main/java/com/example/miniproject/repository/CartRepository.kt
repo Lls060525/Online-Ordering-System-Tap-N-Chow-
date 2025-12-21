@@ -4,13 +4,13 @@ import com.example.miniproject.model.Cart
 import com.example.miniproject.model.CartItem
 
 object CartRepository {
-
     // Stores the ID of the vendor currently owning the cart
     private var activeVendorId: String? = null
+
     // Stores the actual list of items
     private var activeCartItems: List<CartItem> = emptyList()
 
-    // Get items: Only return if the vendor matches the active one
+    // 1. Get items: Only return if the vendor matches the active one
     fun getCartItems(vendorId: String): List<CartItem> {
         return if (activeVendorId == vendorId) {
             activeCartItems
@@ -19,19 +19,19 @@ object CartRepository {
         }
     }
 
-    // Save items: Call this whenever the user adds/removes items
+    // 2. Save items: Call this whenever the user adds/removes items
     fun saveCartItems(vendorId: String, items: List<CartItem>) {
         activeVendorId = vendorId
         activeCartItems = items
     }
 
-    // Clear: Call this after successful checkout
+    // 3. Clear: Call this after successful checkout
     fun clearCart() {
         activeVendorId = null
         activeCartItems = emptyList()
     }
 
-
+    // --- Existing Checkout Logic ---
     private var checkoutCart: Cart? = null
     fun setCart(cart: Cart) {
         checkoutCart = cart

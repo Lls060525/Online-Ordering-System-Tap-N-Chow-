@@ -95,7 +95,6 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
                 val updatedCustomer = currentCustomer.copy(
                     name = editableName.trim(),
                     phoneNumber = editablePhone.trim()
-                    // Email is NOT updated
                 )
 
                 databaseService.updateCustomerProfile(updatedCustomer).let { result ->
@@ -260,8 +259,7 @@ fun CustomerProfileContent(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Email Field (READ-ONLY)
-                // We pass the customer's email directly and force isEditable to false
+                // Email Field
                 ProfileField(
                     label = "Email Address",
                     value = customer?.email ?: "N/A",
@@ -285,7 +283,6 @@ fun CustomerProfileContent(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Member Since (Non-editable)
                 customer?.createdAt?.let { createdAt ->
                     ProfileField(
                         label = "Member Since",

@@ -37,7 +37,7 @@ import androidx.navigation.NavController
 
 @Composable
 fun VendorAnalyticsContent(navController: NavController) {
-    // --- NEW: State to prevent multiple clicks ---
+
     var lastClickTime by remember { mutableLongStateOf(0L) }
 
     Column(

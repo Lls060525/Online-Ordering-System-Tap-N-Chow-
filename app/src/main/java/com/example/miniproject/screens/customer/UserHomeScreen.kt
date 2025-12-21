@@ -54,7 +54,7 @@ import com.example.miniproject.screens.order.OrderScreen
 import com.example.miniproject.service.AuthService
 import kotlinx.coroutines.launch
 
-// Fixed screen definitions
+
 sealed class UserScreen(val title: String, val icon: ImageVector) {
     object Food : UserScreen("Vendor List", Icons.Default.Store)
     object Feedback : UserScreen("Feedback", Icons.Default.Feedback)
@@ -65,7 +65,7 @@ sealed class UserScreen(val title: String, val icon: ImageVector) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserHomeScreen(navController: NavController) {
-    // 1. Define the list of screens to preserve order
+    //  Define the list of screens to preserve order
     val screens = listOf(
         UserScreen.Food,
         UserScreen.Feedback,
@@ -73,19 +73,19 @@ fun UserHomeScreen(navController: NavController) {
         UserScreen.Account
     )
 
-    // 2. Use rememberSaveable with an Integer to save the tab state across navigation
+    // Use rememberSaveable with an Integer to save the tab state across navigation
     var currentScreenIndex by rememberSaveable { mutableIntStateOf(0) }
 
-    // 3. Get the current screen object based on the saved index
+    // Get the current screen object based on the saved index
     val currentScreen = screens[currentScreenIndex]
 
-    // --- State for Spin Feature ---
+    // State for Spin Feature
     var showSpinDialog by remember { mutableStateOf(false) }
     var currentCustomerId by remember { mutableStateOf<String?>(null) }
     val authService = remember { AuthService() }
     val context = LocalContext.current
 
-    // --- Fetch Customer ID for the Spin Feature ---
+    // Fetch Customer ID for the Spin Feature,
     LaunchedEffect(Unit) {
         val customer = authService.getCurrentCustomer()
         currentCustomerId = customer?.customerId
@@ -116,7 +116,7 @@ fun UserHomeScreen(navController: NavController) {
                 )
             }
         },
-        // --- Floating Action Button for Daily Spin ---
+        // Floating Action Button for Daily Spin
         floatingActionButton = {
             // Only show on Food screen
             if (currentScreen == UserScreen.Food && currentCustomerId != null) {
@@ -124,7 +124,7 @@ fun UserHomeScreen(navController: NavController) {
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // 1. Shake Button (Small)
+                    // Shake Button
                     SmallFloatingActionButton(
                         onClick = { navController.navigate("shakeToDecide") },
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -133,7 +133,7 @@ fun UserHomeScreen(navController: NavController) {
                         Icon(Icons.Default.Vibration, contentDescription = "Shake")
                     }
 
-                    // 2. Daily Spin Button (Extended)
+                    // Daily Spin Button
                     ExtendedFloatingActionButton(
                         onClick = { showSpinDialog = true },
                         containerColor = Color(0xFFFFD700),
@@ -149,7 +149,7 @@ fun UserHomeScreen(navController: NavController) {
 
         bottomBar = {
             NavigationBar {
-                // 4. Iterate using index to match the state
+                // Iterate using index to match the state
                 screens.forEachIndexed { index, screen ->
                     NavigationBarItem(
                         icon = {
@@ -159,8 +159,8 @@ fun UserHomeScreen(navController: NavController) {
                             )
                         },
                         label = { Text(screen.title) },
-                        selected = currentScreenIndex == index, // Check if this index matches state
-                        onClick = { currentScreenIndex = index } // Update the integer state
+                        selected = currentScreenIndex == index,
+                        onClick = { currentScreenIndex = index }
                     )
                 }
             }
@@ -178,7 +178,6 @@ fun UserHomeScreen(navController: NavController) {
                 is UserScreen.Account -> AccountContent(navController)
             }
 
-            // --- The Spin Dialog Overlay ---
             if (showSpinDialog && currentCustomerId != null) {
                 DailySpinDialog(
                     customerId = currentCustomerId!!,
@@ -193,7 +192,7 @@ fun UserHomeScreen(navController: NavController) {
     }
 }
 
-// ... Rest of your existing content ...
+
 
 @Composable
 fun FoodContent(navController: NavController) {

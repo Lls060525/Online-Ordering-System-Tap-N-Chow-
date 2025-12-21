@@ -66,7 +66,7 @@ fun DailySpinDialog(
     // Timer State
     var timeRemainingString by remember { mutableStateOf("") }
 
-    // Define Sections (Keep your existing sections code here...)
+    // Define Sections
     val sections = listOf(
         WheelSection("3", 3, Color(0xFFFFCC80), 0.5, Brush.radialGradient(listOf(Color(0xFFFFE0B2), Color(0xFFFFB74D)))),
         WheelSection("10", 10, Color(0xFFFFA726), 0.35, Brush.radialGradient(listOf(Color(0xFFFFCC80), Color(0xFFF57C00)))),
@@ -81,7 +81,6 @@ fun DailySpinDialog(
         isLoading = false
     }
 
-    // Countdown Timer Logic ---
     LaunchedEffect(spinState) {
         if (spinState != null && !spinState!!.canSpin) {
             while (true) {
@@ -142,7 +141,7 @@ fun DailySpinDialog(
                     CircularProgressIndicator()
                 } else {
 
-                    // --- Balance Display ---
+                    // Balance Display
                     if (spinState != null) {
                         Surface(
                             shape = RoundedCornerShape(50),
@@ -166,8 +165,7 @@ fun DailySpinDialog(
                         }
                     }
 
-                    // --- WHEEL UI  ---
-
+                    // WHEEL UI
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(0.9f)
@@ -187,7 +185,7 @@ fun DailySpinDialog(
                                 .shadow(4.dp, shape = CircleShape)
                         )
 
-                        // 2. Wheel Canvas
+                        // Wheel Canvas
                         Canvas(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -262,7 +260,7 @@ fun DailySpinDialog(
                             )
                         }
 
-                        // 3. Center Knob
+                        // Center Knob
                         Box(
                             modifier = Modifier
                                 .fillMaxSize(0.25f) // Take 25% of the size
@@ -331,7 +329,7 @@ fun DailySpinDialog(
                                             )
                                         )
 
-                                        // Database Call (No cost passed)
+                                        //Database Call
                                         val success = databaseService.performDailySpin(
                                             customerId,
                                             wonSection.coinValue

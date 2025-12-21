@@ -64,7 +64,7 @@ fun RegisterScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // NEW: States for password visibility
+    // States for password visibility
     var isPasswordVisible by remember { mutableStateOf(false) }
     var isConfirmPasswordVisible by remember { mutableStateOf(false) }
 
@@ -264,7 +264,7 @@ fun RegisterScreen(navController: NavController) {
                         supportingText = phoneError
                     )
 
-                    // MODIFIED: Password Field
+                    // Modified: Password Field
                     CustomTextField(
                         value = password,
                         onValueChange = { password = it },
@@ -281,7 +281,7 @@ fun RegisterScreen(navController: NavController) {
                         }
                     )
 
-                    // MODIFIED: Confirm Password Field
+                    // Modified: Confirm Password Field
                     CustomTextField(
                         value = confirmPassword,
                         onValueChange = { confirmPassword = it },

@@ -34,22 +34,20 @@ import kotlinx.coroutines.launch
 fun LoginScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    // NEW: State for password visibility
+
     var isPasswordVisible by remember { mutableStateOf(false) }
 
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // --- Hidden Admin Logic ---
     var logoClickCount by remember { mutableIntStateOf(0) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // Create AuthService instance once
     val authService = remember { AuthService() }
 
-    // Logic: Reset click count if user stops tapping for 1 second
+    // Reset click count if user stops tapping for 1 second
     LaunchedEffect(logoClickCount) {
         if (logoClickCount > 0) {
             delay(1000)
@@ -97,7 +95,7 @@ fun LoginScreen(navController: NavController) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    // --- Logo Section (Hidden Trigger) ---
+                    // Logo Section
                     Box(
                         modifier = Modifier
                             .size(150.dp)
@@ -141,7 +139,7 @@ fun LoginScreen(navController: NavController) {
                         onValueChange = { password = it },
                         label = "Password",
                         placeholder = "Type here",
-                        // Logic to switch between Text and Dots
+
                         visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         // Eye Icon Button
                         trailingIcon = {

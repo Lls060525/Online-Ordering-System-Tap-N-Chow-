@@ -111,7 +111,7 @@ fun CustomerAccountScreen(navController: NavController) {
         }
     } else {
         CustomerAccountContent(
-            modifier = Modifier, // No paddingValues needed anymore
+            modifier = Modifier,
             customer = customer,
             customerAccount = customerAccount,
             imageConverter = imageConverter,
@@ -214,7 +214,7 @@ fun CustomerAccountContent(
             onEditClick = onEditProfilePicture,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp) // Reduced vertical padding
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         )
 
         // User Info Section

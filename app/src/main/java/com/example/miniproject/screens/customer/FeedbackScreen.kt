@@ -45,7 +45,6 @@ fun FeedbackScreen(navController: NavController) {
                 )
             }
         }
-
         // Tab Content
         when (selectedTab) {
             0 -> ToRateContent(navController)
@@ -63,7 +62,6 @@ fun ToRateContent(navController: NavController) {
     var ordersToRate by remember { mutableStateOf<List<Order>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // 優化後的刷新邏輯
     fun refreshOrdersToRate() {
         coroutineScope.launch {
             val customer = authService.getCurrentCustomer()
@@ -74,7 +72,7 @@ fun ToRateContent(navController: NavController) {
                     val ratedOrderIdsDeferred = async { databaseService.getCustomerRatedOrderIds(user.customerId) }
 
                     val allOrders = ordersDeferred.await()
-                    val ratedOrderIds = ratedOrderIdsDeferred.await() // 這是一個 Set，查找速度是 O(1)
+                    val ratedOrderIds = ratedOrderIdsDeferred.await()
 
                     println("DEBUG: Total Orders: ${allOrders.size}, Rated Orders Count: ${ratedOrderIds.size}")
 
@@ -104,7 +102,6 @@ fun ToRateContent(navController: NavController) {
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Header with refresh button
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -426,7 +423,7 @@ fun ReviewItem(feedback: Feedback) {
                 )
             }
 
-            // Vendor Reply (if exists) - Enhanced display
+            // Vendor Reply
             if (feedback.isReplied && feedback.vendorReply.isNotEmpty()) {
                 Card(
                     modifier = Modifier

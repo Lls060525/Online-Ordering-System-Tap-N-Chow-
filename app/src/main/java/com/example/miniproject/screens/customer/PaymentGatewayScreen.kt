@@ -102,7 +102,6 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Date
 
-// ... (Keep PaymentImageConverter, Bank data class, and bank list as they are) ...
 class PaymentImageConverter(private val context: Context) {
     fun base64ToBitmap(base64String: String): Bitmap? {
         return try {
@@ -183,7 +182,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
     var isExpiryDateValid by remember { mutableStateOf(true) }
     var isCVVValid by remember { mutableStateOf(true) }
 
-    // --- CART RETRIEVAL FIX ---
     // Get the cart from the singleton repository
     val cart = remember { CartRepository.getCart() }
 
@@ -244,7 +242,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
         }
     }
 
-    // --- CALCULATIONS ---
+    // CcALCULATIONS
     val discountAmount = remember(cart, selectedVoucher) {
         if (cart == null || selectedVoucher == null) 0.0
         else {
@@ -270,7 +268,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
     val isCardDetailsValid = { selectedBank != null && cardHolderName.isNotBlank() && cardNumber.length == 16 && cardExpiryMonth.length == 2 && cardExpiryYear.length == 2 && cardCVV.length == 3 && validateExpiryMonth(cardExpiryMonth) && validateExpiryYear(cardExpiryYear) && validateExpiryDateNotPast(cardExpiryMonth, cardExpiryYear) && validateCVV(cardCVV) }
 
 
-    // --- PAYMENT LOGIC FUNCTIONS ---
+    //  Payment logic functions
     fun processPayPalPayment() {
         coroutineScope.launch {
             isLoading = true
@@ -299,9 +297,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
                         )
                     }
 
-                    // --- KEY CHANGE HERE ---
-                    // Get vendor email from the loaded vendor object
-                    // We treat the 'paypalLink' field as the storage for the PayPal Business Email
                     val vendorEmail = vendor?.paypalLink
 
                     val paypalResult = payPalService.createOrder(
@@ -377,7 +372,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
                         databaseService.trackVoucherUsage(customer!!.customerId, selectedVoucher!!.voucherId)
                     }
 
-                    // --- FIX: Use clearCart() instead of clear() ---
                     CartRepository.clearCart()
 
                     navController.navigate("orderConfirmation/${orderId}") {
@@ -415,7 +409,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
         }
     }
 
-    // --- UI CONTENT ---
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -445,10 +438,8 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
                     .padding(paddingValues)
                     .verticalScroll(rememberScrollState())
             ) {
-                // ... (The rest of your UI code remains exactly the same) ...
-                // I have verified the Cart object usage below, and it correctly references `cart` which is now safe.
 
-                // --- Vendor Info Card ---
+                // Vendor info card
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -479,7 +470,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
-                            // Using cart.vendorName here safely
                             Text(vendor?.vendorName ?: cart.vendorName, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                             Text(vendor?.address ?: cart.vendorAddress, fontSize = 14.sp, color = Color.Gray)
                         }
@@ -740,7 +730,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
         }
     }
 
-    // ... (Keep Voucher Dialog and CardNumberTransformation) ...
     // Voucher Dialog
     if (showVoucherDialog) {
         AlertDialog(

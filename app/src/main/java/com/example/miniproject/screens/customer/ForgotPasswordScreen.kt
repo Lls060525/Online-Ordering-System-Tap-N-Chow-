@@ -30,13 +30,13 @@ fun ForgotPasswordScreen(navController: NavController) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
 
-    // --- NEW: Cooldown State (3 minutes = 180 seconds) ---
+    // Cooldown State (3 minutes = 180 seconds)
     var cooldownSeconds by remember { mutableIntStateOf(0) }
 
     val authService = AuthService()
     val scope = rememberCoroutineScope()
 
-    // --- NEW: Timer Logic ---
+    // Timer Logic
     LaunchedEffect(cooldownSeconds) {
         if (cooldownSeconds > 0) {
             delay(1000L) // Wait 1 second
@@ -193,9 +193,6 @@ fun ForgotPasswordScreen(navController: NavController) {
                             successMessage = "Link sent! Check your inbox."
                             // --- START COOLDOWN (3 Minutes) ---
                             cooldownSeconds = 180
-
-                            // NOTE: Removed auto-navigation so user can use the Resend button
-                            // after the timer expires if needed.
                         } else {
                             errorMessage = result.exceptionOrNull()?.message ?: "Failed to send reset email"
                         }
@@ -217,7 +214,6 @@ fun ForgotPasswordScreen(navController: NavController) {
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    // --- Change Text Based on Timer ---
                     if (cooldownSeconds > 0) {
                         Text(
                             "Resend in ${formatTime(cooldownSeconds)}",

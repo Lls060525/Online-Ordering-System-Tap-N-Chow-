@@ -341,7 +341,6 @@ fun VendorAccountContent(
                 currentPayPalLink = vendor.paypalLink,
                 onDismiss = { showPaymentDialog = false },
                 onConfirm = { methods, link ->
-                    // 更新本地 Vendor 對象並觸發保存
                     val updatedVendor = vendor.copy(
                         acceptedPaymentMethods = methods,
                         paypalLink = link
@@ -361,7 +360,7 @@ fun PaymentMethodActionCard(onClick: () -> Unit) {
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        onClick = onClick // 讓整張卡片可點擊
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier
@@ -371,7 +370,6 @@ fun PaymentMethodActionCard(onClick: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // 左側圖標
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -387,7 +385,6 @@ fun PaymentMethodActionCard(onClick: () -> Unit) {
                 }
                 Spacer(modifier = Modifier.width(16.dp))
 
-                // 文字標題
                 Column {
                     Text(
                         text = "Payment Methods",
@@ -401,8 +398,6 @@ fun PaymentMethodActionCard(onClick: () -> Unit) {
                     )
                 }
             }
-
-            // 右側箭頭
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = "Open",
@@ -489,7 +484,6 @@ fun HeaderSection(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Tagline or Status
             Text(
                 text = "Verified Vendor",
                 style = MaterialTheme.typography.bodyMedium,
@@ -538,7 +532,6 @@ fun HeaderSection(
     }
 }
 
-// Add these utility functions for image handling
 private fun uriToBase64(context: Context, uri: Uri): String? {
     return try {
         val bitmap = if (Build.VERSION.SDK_INT < 28) {
@@ -547,8 +540,6 @@ private fun uriToBase64(context: Context, uri: Uri): String? {
             val source = ImageDecoder.createSource(context.contentResolver, uri)
             ImageDecoder.decodeBitmap(source)
         }
-
-        // Resize bitmap to reduce size (optional)
         val resizedBitmap = resizeBitmap(bitmap, 400, 400)
         bitmapToBase64(resizedBitmap)
     } catch (e: Exception) {
@@ -626,7 +617,7 @@ fun VendorInfoCard(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            // Vendor ID (Non-editable)
+            // Vendor ID
             InfoRow(
                 icon = Icons.Default.Business,
                 label = "Vendor ID:",
@@ -636,7 +627,7 @@ fun VendorInfoCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Vendor Name (Editable)
+            // Vendor Name
             EditableInfoRow(
                 icon = Icons.Default.Business,
                 label = "Vendor Name:",
@@ -648,7 +639,7 @@ fun VendorInfoCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Email (Editable)
+            // Email
             EditableInfoRow(
                 icon = Icons.Default.Email,
                 label = "Email:",
@@ -660,7 +651,7 @@ fun VendorInfoCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Contact (Editable)
+            // Contact
             EditableInfoRow(
                 icon = Icons.Default.Phone,
                 label = "Contact:",
@@ -672,7 +663,7 @@ fun VendorInfoCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Address (Editable)
+            // Address
             EditableAddressRow(
                 icon = Icons.Default.LocationOn,
                 label = "Address:",
@@ -686,8 +677,6 @@ fun VendorInfoCard(
             Divider()
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- FIXED PAYMENT METHODS SECTION ---
-            // Changed from Row to Column to prevent layout squashing
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -699,7 +688,7 @@ fun VendorInfoCard(
                 )
 
                 if (vendor != null && vendor.acceptedPaymentMethods.isNotEmpty()) {
-                    // Use a scrollable Row for chips in case there are many
+
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier
@@ -998,7 +987,6 @@ fun LogoutButton(onLogout: () -> Unit) {
     }
 }
 
-// [file name]: VendorAccountScreen.kt
 
 @Composable
 fun PaymentMethodsDialog(
@@ -1011,7 +999,6 @@ fun PaymentMethodsDialog(
     var selectedMethods by remember { mutableStateOf(currentMethods) }
     var payPalLink by remember { mutableStateOf(currentPayPalLink) }
 
-    // 定義選項
     val options = listOf(
         Triple("paypal", "PayPal", Icons.Default.Payment),
         Triple("card", "Credit / Debit Card", Icons.Default.CreditCard),

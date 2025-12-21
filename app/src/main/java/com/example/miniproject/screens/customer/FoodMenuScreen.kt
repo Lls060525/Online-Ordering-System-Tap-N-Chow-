@@ -82,18 +82,18 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
 
     var showCart by remember { mutableStateOf(false) }
 
-    // --- Voucher States ---
+    //  Voucher States
     var vendorVouchers by remember { mutableStateOf<List<Voucher>>(emptyList()) }
     var claimedVoucherIds by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    // --- Customization States ---
+    //  Customization States
     var showCustomizationDialog by remember { mutableStateOf(false) }
     var selectedProductForCustomization by remember { mutableStateOf<Product?>(null) }
 
-    // --- Auto Filter Logic ---
+    //  Auto Filter Logic
     var selectedCategory by remember { mutableStateOf("All") }
 
-    // --- NEW: State to prevent double clicks ---
+    //  State to prevent double clicks
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     val categories = remember(products) {
@@ -153,7 +153,7 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                     )
                 },
                 navigationIcon = {
-                    // --- UPDATED: Safe Back Button Logic ---
+
                     IconButton(onClick = {
                         val currentTime = System.currentTimeMillis()
                         // 500ms delay: Prevents clicks closer than half a second
@@ -336,17 +336,15 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                             ProductMenuItem(
                                 product = product,
                                 onAddToCart = {
-                                    // 1. Calculate how many of THIS product ID are already in the cart
-                                    // (Summing up all variations, e.g., spicy + non-spicy)
                                     val currentQtyInCart = cartItems
                                         .filter { it.productId == product.productId }
                                         .sumOf { it.quantity }
 
-                                    // 2. Validation Check
+                                    // Validation Check
                                     if (currentQtyInCart >= product.stock) {
                                         Toast.makeText(context, "Maximum stock reached (${product.stock})", Toast.LENGTH_SHORT).show()
                                     } else {
-                                        // ... (Your existing logic for Customization / Adding) ...
+
                                         if (product.customizations.isNotEmpty()) {
                                             selectedProductForCustomization = product
                                             showCustomizationDialog = true
@@ -411,13 +409,10 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                 vendor = vendor,
                 onDismiss = { showCart = false },
 
-                // UPDATED: Receive 'id' (cartItemId) instead of productId
                 onUpdateQuantity = { id, quantity ->
                     if (quantity == 0) {
-                        // Filter by cartItemId
                         cartItems = cartItems.filter { it.cartItemId != id }
                     } else {
-                        // Update specific item by cartItemId
                         cartItems = cartItems.map { item ->
                             if (item.cartItemId == id) {
                                 item.copy(quantity = quantity)
@@ -430,7 +425,7 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                 },
                 onCheckout = {
                     showCart = false
-                    // 1. Create Cart object
+
                     val cart = Cart(
                         vendorId = vendor?.vendorId ?: "",
                         vendorName = vendor?.vendorName ?: "",
@@ -443,10 +438,8 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                         total = cartItems.sumOf { it.productPrice * it.quantity } * 1.18
                     )
 
-                    // 2. CHANGED: Save to Singleton Repository
                     CartRepository.setCart(cart)
 
-                    // 3. CHANGED: Navigate WITHOUT JSON
                     navController.navigate("payment/${vendor?.vendorId ?: ""}")
                 },
                 vendorName = vendor?.vendorName ?: "Vendor"
@@ -531,7 +524,7 @@ fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {
                     maxLines = 2
                 )
 
-                // --- NEW: Stock Display ---
+
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Stock available: ${product.stock}",
@@ -540,7 +533,6 @@ fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {
                     color = if (product.stock < 10) MaterialTheme.colorScheme.error else Color.Gray,
                     fontWeight = FontWeight.Medium
                 )
-                // --------------------------
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -594,7 +586,7 @@ fun CartDialog(
     cartItems: List<CartItem>,
     vendor: Vendor?,
     onDismiss: () -> Unit,
-    onUpdateQuantity: (String, Int) -> Unit, // Using cartItemId here
+    onUpdateQuantity: (String, Int) -> Unit,
     onCheckout: () -> Unit,
     vendorName: String
 ) {
@@ -625,9 +617,6 @@ fun CartDialog(
                     ) {
                         items(cartItems) { item ->
 
-                            // Calculate Total Quantity for this Product ID ---
-                            // This checks how many of this specific physical product are in the cart
-                            // across ALL variations (e.g. 50 Spicy + 50 Non-Spicy = 100 Total)
                             val totalQuantityOfProduct = cartItems
                                 .filter { it.productId == item.productId }
                                 .sumOf { it.quantity }
@@ -933,7 +922,6 @@ fun FoodContentWithVendors(navController: NavController) {
     var selectedCategory by remember { mutableStateOf<String?>(null) }
     var showCategoryFilter by remember { mutableStateOf(false) }
 
-    // --- NEW: State to prevent multiple clicks ---
     var lastClickTime by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
@@ -949,10 +937,10 @@ fun FoodContentWithVendors(navController: NavController) {
 
     // Filter vendors (Search & Category logic)
     val filteredVendors = vendors.filter { vendor ->
-        // 1. Check Search
+        // Check Search
         val matchesSearch = vendor.vendorName.contains(searchQuery, ignoreCase = true)
 
-        // 2. Check Category Dropdown (If null, show all. If selected, match specific category)
+        // Check Category Dropdown
         val matchesCategory = selectedCategory == null || vendor.category == selectedCategory
 
         // Combine them
@@ -1182,14 +1170,14 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        // --- START OF ROW (Wraps Image, Text, and Arrow) ---
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. Vendor Logo
+            // Vendor Logo
             Box(
                 modifier = Modifier
                     .size(60.dp)
@@ -1218,9 +1206,9 @@ fun RestaurantCard(vendor: Vendor, onClick: () -> Unit) {
 
             Spacer(modifier = Modifier.size(16.dp))
 
-            // 2. Vendor Details (Name, Rating, Address)
+            // Vendor Details
             Column(
-                modifier = Modifier.weight(1f) // Takes up remaining horizontal space
+                modifier = Modifier.weight(1f)
             ) {
                 Text(
                     text = vendor.vendorName,

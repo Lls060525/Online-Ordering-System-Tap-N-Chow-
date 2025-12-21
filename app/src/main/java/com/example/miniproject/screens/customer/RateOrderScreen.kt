@@ -43,7 +43,6 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
     var vendorId by remember { mutableStateOf("") }
     var vendorName by remember { mutableStateOf("Unknown Vendor") }
 
-    // --- NEW: State to prevent double clicks (Crash Prevention) ---
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(orderId) {
@@ -101,7 +100,6 @@ fun RateOrderScreen(navController: NavController, orderId: String?) {
                 },
                 navigationIcon = {
                     IconButton(onClick = {
-                        // --- UPDATED: Safe Back Button Logic ---
                         val currentTime = System.currentTimeMillis()
                         if (currentTime - lastBackClickTime > 500) {
                             lastBackClickTime = currentTime

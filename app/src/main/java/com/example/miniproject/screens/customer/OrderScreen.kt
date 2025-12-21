@@ -126,12 +126,12 @@ fun OrderScreen(navController: NavController) {
                     return@launch
                 }
 
-                // 1. Get ALL orders
+                // Get ALL orders
                 val fetchedOrders = databaseService.getCustomerOrders(customer.customerId)
                 allOrders = fetchedOrders.sortedByDescending { it.orderDate }
                 isLoading = false
 
-                // 2. Check for ready orders (for notification)
+                // Check for ready orders (for notification)
                 val alreadyReadyOrder = allOrders.find { it.status.equals("ready", ignoreCase = true) }
                 if (alreadyReadyOrder != null) {
                     pickupOrderId = alreadyReadyOrder.getDisplayOrderId()
@@ -139,7 +139,7 @@ fun OrderScreen(navController: NavController) {
                     notificationHelper.showOrderReadyNotification(pickupOrderId)
                 }
 
-                // 3. Real-time listener
+                // Real-time listener
                 databaseService.listenToOrderUpdates(customer.customerId) { readyOrder ->
                     notificationHelper.showOrderReadyNotification(readyOrder.getDisplayOrderId())
                     pickupOrderId = readyOrder.getDisplayOrderId()
@@ -204,7 +204,6 @@ fun OrderScreen(navController: NavController) {
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            // --- FILTER CHIPS ROW ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

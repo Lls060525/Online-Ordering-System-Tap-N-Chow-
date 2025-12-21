@@ -75,7 +75,6 @@ fun VendorFeedbackStatisticsScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
     var selectedTimeRange by remember { mutableStateOf("current") } // current, week, month, year
 
-    // --- NEW: State to prevent double clicks (Crash Prevention) ---
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     // Function to load feedbacks
@@ -130,7 +129,6 @@ fun VendorFeedbackStatisticsScreen(navController: NavController) {
                 ),
                 navigationIcon = {
                     IconButton(onClick = {
-                        // --- UPDATED: Safe Back Button Logic ---
                         val currentTime = System.currentTimeMillis()
                         // Only allow click if 500ms have passed since the last click
                         if (currentTime - lastBackClickTime > 500) {
@@ -364,7 +362,7 @@ fun RatingBar(
     rating: Int,
     count: Int,
     total: Int,
-    defaultColor: Color, // New parameter
+    defaultColor: Color,
     modifier: Modifier = Modifier
 ) {
     val percentage = if (total > 0) (count.toFloat() / total) * 100 else 0f
@@ -515,7 +513,7 @@ fun BarChartItem(rating: Int, count: Int, maxCount: Int, totalReviews: Int, defa
 @Composable
 fun RatingPieChart(statistics: FeedbackStatistics) {
     val textMeasurer = rememberTextMeasurer()
-    val defaultColor = MaterialTheme.colorScheme.primary // Capture color here
+    val defaultColor = MaterialTheme.colorScheme.primary
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -585,7 +583,6 @@ fun CanvasPieChart(
             val sweepAngle = (count.toFloat() / total) * 360f
             if (sweepAngle > 0) {
                 drawArc(
-                    // FIX: Now calling a regular function, not a Composable
                     color = getRatingColor(rating, defaultColor),
                     startAngle = startAngle,
                     sweepAngle = sweepAngle,
@@ -598,7 +595,7 @@ fun CanvasPieChart(
         // Draw center circle for donut effect
         val innerRadius = radius * 0.4f
         drawCircle(
-            color = Color.White, // Use a hardcoded color or pass background color if needed
+            color = Color.White,
             center = center,
             radius = innerRadius
         )
@@ -608,7 +605,7 @@ fun CanvasPieChart(
         val avgTextLayoutResult = textMeasurer.measure(
             text = averageText,
             style = TextStyle(
-                color = Color.Black, // Ensure contrast
+                color = Color.Black,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -753,7 +750,6 @@ fun EmptyStatisticsState(selectedTimeRange: String) {
     }
 }
 
-// FIX: Removed @Composable annotation and added defaultColor parameter
 private fun getRatingColor(rating: Int, defaultColor: Color): Color {
     return when (rating) {
         1 -> Color(0xFFF44336) // Red for 1-star

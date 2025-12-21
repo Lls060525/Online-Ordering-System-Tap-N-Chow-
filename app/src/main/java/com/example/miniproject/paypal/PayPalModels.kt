@@ -102,8 +102,8 @@ data class PurchaseUnitResponse(
     val reference_id: String? = null,
     val amount: Amount,
     val payments: Payments?,
-    val custom_id: String? = null,
-    val invoice_id: String? = null
+    val custom_id: String? = null,  // Add this field
+    val invoice_id: String? = null   // Add this field
 )
 
 @Serializable
@@ -121,7 +121,7 @@ data class Capture(
     val links: List<Link>,
     val create_time: String,
     val update_time: String,
-    val custom_id: String? = null
+    val custom_id: String? = null    // Add this field
 )
 
 @Serializable

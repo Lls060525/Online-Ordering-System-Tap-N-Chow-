@@ -41,7 +41,6 @@ fun ShakeToDecideScreen(navController: NavController) {
     var showDialog by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // --- NEW: State to prevent double clicks (Crash Prevention) ---
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     // Animation State
@@ -59,16 +58,16 @@ fun ShakeToDecideScreen(navController: NavController) {
     // Load Products with Strict Filtering
     LaunchedEffect(Unit) {
         isLoading = true
-        // 1. Fetch Products
+        //  Fetch Products
         val products = databaseService.getAllProducts()
 
-        // 2. Fetch Vendors to check who is frozen
+        //  Fetch Vendors to check who is frozen
         val vendors = databaseService.getAllVendors()
 
-        // 3. Create a list of Valid Vendor IDs (Not Frozen)
+        // Create a list of Valid Vendor IDs (Not Frozen)
         val validVendorIds = vendors.filter { !it.isFrozen }.map { it.vendorId }.toSet()
 
-        // 4. Filter the products
+        //  Filter the products
         allProducts = products.filter { product ->
             val hasStock = product.stock > 0
             val isVendorActive = validVendorIds.contains(product.vendorId)
@@ -82,7 +81,7 @@ fun ShakeToDecideScreen(navController: NavController) {
     val shakeDetector = remember {
         ShakeDetector {
             if (!showDialog && allProducts.isNotEmpty()) {
-                // 1. Vibrate phone
+                // Vibrate phone
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
                 } else {
@@ -90,7 +89,7 @@ fun ShakeToDecideScreen(navController: NavController) {
                     vibrator.vibrate(100)
                 }
 
-                // 2. Pick Random from the Filtered List
+                // Pick Random from the Filtered List
                 recommendedProduct = allProducts.random()
                 showDialog = true
             }
@@ -124,7 +123,6 @@ fun ShakeToDecideScreen(navController: NavController) {
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            // --- UPDATED: Safe Back Button Logic ---
                             val currentTime = System.currentTimeMillis()
                             // Only allow click if 500ms have passed since the last click
                             if (currentTime - lastBackClickTime > 500) {

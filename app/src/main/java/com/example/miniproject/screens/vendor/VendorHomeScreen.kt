@@ -41,7 +41,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -61,15 +60,11 @@ import com.example.miniproject.R
 import com.example.miniproject.model.Product
 import com.example.miniproject.model.Vendor
 import com.example.miniproject.model.VendorRating
-import com.example.miniproject.screens.vendor.VendorOrdersScreen.VendorOrdersContent
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.utils.ImageConverter
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -89,7 +84,7 @@ sealed class VendorScreen(val title: String, val icon: ImageVector) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VendorHomeScreen(navController: NavController) {
-    // 1. Define the list of screens to preserve order
+    // Define the list of screens to preserve order
     val screens = listOf(
         VendorScreen.Dashboard,
         VendorScreen.Products,
@@ -98,14 +93,9 @@ fun VendorHomeScreen(navController: NavController) {
         VendorScreen.Account
     )
 
-    // 2. Use rememberSaveable with an INT index to persist state across rotations/navigation
-    // This fixes the issue of the tab resetting to Dashboard unexpectedly
     var currentScreenIndex by rememberSaveable { mutableIntStateOf(0) }
     val currentScreen = screens[currentScreenIndex]
 
-    // 3. Handle System Back Button
-    // If we are NOT on Dashboard, pressing Back takes us to Dashboard first.
-    // If we ARE on Dashboard, the system handles Back (usually exits/pops activity).
     BackHandler(enabled = currentScreen != VendorScreen.Dashboard) {
         currentScreenIndex = 0 // 0 is the index of Dashboard
     }
@@ -181,7 +171,7 @@ fun VendorDashboardContent(navController: NavController) {
     var products by remember { mutableStateOf<List<Product>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // --- Filter Logic ---
+    // Filter Logic
     var selectedCategory by remember { mutableStateOf("All") }
 
     // Calculate unique categories dynamically
@@ -203,7 +193,6 @@ fun VendorDashboardContent(navController: NavController) {
             products.filter { it.category == selectedCategory }
         }
     }
-    // --------------------
 
     LaunchedEffect(Unit) {
         val currentVendor = authService.getCurrentVendor()
@@ -263,7 +252,7 @@ fun VendorDashboardContent(navController: NavController) {
                     }
                 }
 
-                // --- Category Filter Chips Row ---
+                // Category Filter Chips Row
                 if (categories.size > 1) {
                     Spacer(modifier = Modifier.height(8.dp))
                     LazyRow(
@@ -303,7 +292,7 @@ fun VendorDashboardContent(navController: NavController) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(150.dp), // Slightly smaller height for dashboard
+                            .height(150.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(

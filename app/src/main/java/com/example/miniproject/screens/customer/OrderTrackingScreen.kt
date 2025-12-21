@@ -59,7 +59,7 @@ fun OrderTrackingScreen(
     var cancellationTimeRemaining by remember { mutableLongStateOf(0L) } // In Seconds
     var isCancelling by remember { mutableStateOf(false) }
 
-    // --- NEW: State to prevent double clicks (Crash Prevention) ---
+    // State to prevent double clicks
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     val payPalService = remember { PayPalService() }
@@ -211,10 +211,9 @@ fun OrderTrackingScreen(
                     .padding(padding)
                     .verticalScroll(rememberScrollState())
             ) {
-                // 1. Header
                 OrderHeader(order!!)
 
-                // 2. Cancellation Button (Only if time > 0 and status is valid)
+                // Cancellation Button, only if time > 0 and status is valid
                 val activeStatuses = listOf("pending", "confirmed", "preparing")
 
                 AnimatedVisibility(
@@ -248,12 +247,12 @@ fun OrderTrackingScreen(
 
                 Divider(thickness = 8.dp, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
 
-                // 3. Timeline
+                // Timeline
                 TrackingTimeline(currentStatus = order!!.status)
 
                 Divider(thickness = 8.dp, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
 
-                // 4. Details
+                // Details
                 OrderSummary(order!!, orderDetails)
 
                 // Bottom padding
@@ -341,7 +340,7 @@ fun TrackingTimeline(currentStatus: String) {
                 isCompleted = isCompleted,
                 isCurrent = isCurrent,
                 isLast = isLast,
-                isError = isCancelled && isCurrent // Red color for cancelled step
+                isError = isCancelled && isCurrent
             )
         }
     }

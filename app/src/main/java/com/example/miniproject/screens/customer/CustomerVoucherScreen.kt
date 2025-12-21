@@ -47,7 +47,7 @@ fun CustomerVoucherScreen(navController: NavController) {
     LaunchedEffect(Unit) {
         val customer = authService.getCurrentCustomer()
         if (customer != null) {
-            // CHANGED: Now fetching only CLAIMED vouchers
+
             vouchers = databaseService.getClaimedVouchers(customer.customerId)
         }
         isLoading = false
@@ -58,7 +58,6 @@ fun CustomerVoucherScreen(navController: NavController) {
             TopAppBar(
                 title = { Text("My Vouchers", color = Color.White, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    // --- UPDATED: Safe Back Button Logic ---
                     IconButton(onClick = {
                         val currentTime = System.currentTimeMillis()
                         // 500ms delay: Prevents clicks closer than half a second
@@ -88,7 +87,6 @@ fun CustomerVoucherScreen(navController: NavController) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
 
-                    // Image(painter = painterResource(id = R.drawable.empty_voucher), contentDescription = null)
                     Text("You haven't claimed any vouchers yet.", color = Color.Gray)
                     TextButton(onClick = { navController.popBackStack() }) { // Go back to home
                         Text("Go find some food!")
@@ -155,7 +153,7 @@ fun CustomerVoucherCard(voucher: Voucher) {
             Divider(color = Color.LightGray.copy(alpha = 0.3f))
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Content: Discount & Code
+            // Discount & Code
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
