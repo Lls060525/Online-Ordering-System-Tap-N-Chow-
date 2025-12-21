@@ -40,7 +40,7 @@ import com.example.miniproject.model.*
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import kotlinx.coroutines.launch
-import com.example.miniproject.model.CartRepository
+import com.example.miniproject.repository.CartRepository
 import com.google.firebase.Timestamp
 
 

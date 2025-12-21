@@ -1,7 +1,15 @@
 package com.example.miniproject.service
 
-import com.example.miniproject.config.PayPalConfig
-import com.example.miniproject.model.paypal.*
+import com.example.miniproject.paypal.PayPalConfig
+import com.example.miniproject.paypal.Amount
+import com.example.miniproject.paypal.PayPalAuthResponse
+import com.example.miniproject.paypal.PayPalCaptureOrderRequest
+import com.example.miniproject.paypal.PayPalCaptureOrderResponse
+import com.example.miniproject.paypal.PayPalCreateOrderRequest
+import com.example.miniproject.paypal.PayPalCreateOrderResponse
+import com.example.miniproject.paypal.PayPalErrorResponse
+import com.example.miniproject.paypal.PayPalRefundResponse
+import com.example.miniproject.paypal.PurchaseUnit
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

@@ -1,7 +1,6 @@
 // [file name]: PayPalModels.kt
-package com.example.miniproject.model.paypal
+package com.example.miniproject.paypal
 
-import com.example.miniproject.config.PayPalConfig
 import kotlinx.serialization.Serializable
 
 @Serializable

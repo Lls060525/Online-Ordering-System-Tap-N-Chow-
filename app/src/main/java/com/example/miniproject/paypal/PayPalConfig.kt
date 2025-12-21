@@ -1,5 +1,4 @@
-// [file name]: PayPalConfig.kt
-package com.example.miniproject.config
+package com.example.miniproject.paypal
 
 object PayPalConfig {
     // Sandbox credentials

@@ -1,4 +1,7 @@
-package com.example.miniproject.model
+package com.example.miniproject.repository
+
+import com.example.miniproject.model.Cart
+import com.example.miniproject.model.CartItem
 
 object CartRepository {
     // Stores the ID of the vendor currently owning the cart

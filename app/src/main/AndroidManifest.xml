@@ -48,12 +48,12 @@
 
         <!-- PayPal Activities -->
         <activity
-            android:name=".PayPalWebViewActivity"
+            android:name=".paypal.PayPalWebViewActivity"
             android:exported="true"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
 
         <activity
-            android:name=".PayPalResultActivity"
+            android:name=".paypal.PayPalResultActivity"
             android:exported="true"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar">
 

@@ -1,5 +1,5 @@
 // [file name]: PayPalResultActivity.kt
-package com.example.miniproject
+package com.example.miniproject.paypal
 
 import android.net.Uri
 import android.os.Bundle
@@ -19,6 +19,7 @@ import com.example.miniproject.screens.customer.OrderConfirmationScreen
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.service.PayPalService
 import com.example.miniproject.ui.theme.MiniProjectTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class PayPalResultActivity : ComponentActivity() {
@@ -97,7 +98,7 @@ fun PayPalResultScreen(uri: Uri?) {
                                     isLoading = false
 
                                     // Navigate to order confirmation after delay
-                                    kotlinx.coroutines.delay(2000)
+                                    delay(2000)
                                     navController.navigate("orderConfirmation/$customId")
                                 } else {
                                     errorMessage = "Order ID not found in PayPal response"

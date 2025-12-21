@@ -1,15 +1,30 @@
 package com.example.miniproject.service
 
-import android.net.Uri
-import com.example.miniproject.model.*
+import com.example.miniproject.model.Admin
+import com.example.miniproject.model.Customer
+import com.example.miniproject.model.CustomerAccount
+import com.example.miniproject.model.Feedback
+import com.example.miniproject.model.Order
+import com.example.miniproject.model.OrderDetail
+import com.example.miniproject.model.OrderRequest
+import com.example.miniproject.model.Payment
+import com.example.miniproject.model.Product
+import com.example.miniproject.model.ProductRating
+import com.example.miniproject.model.Vendor
+import com.example.miniproject.model.VendorAnalytics
+import com.example.miniproject.model.VendorRating
+import com.example.miniproject.model.Voucher
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentChange
+import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.Source
 import kotlinx.coroutines.tasks.await
+import java.util.Calendar
+import kotlin.collections.iterator
 
 class DatabaseService {
     val db = FirebaseFirestore.getInstance()
@@ -456,7 +471,7 @@ class DatabaseService {
     suspend fun createOrder(order: Order, orderDetails: List<OrderDetail>): Result<String> {
         return try {
             // Generate custom order ID (O001 format)
-            val orderId = Order.generateOrderId(db)
+            val orderId = Order.Companion.generateOrderId(db)
 
             // Create order with custom ID
             val orderWithId = order.copy(orderId = orderId)
@@ -545,7 +560,7 @@ class DatabaseService {
 
             val involvedVendorIds = orderRequest.items.map { it.vendorId }.distinct()
             // Generate custom order ID (O001 format)
-            val orderId = Order.generateOrderId(db)
+            val orderId = Order.Companion.generateOrderId(db)
 
             // Create order with custom ID
             val order = Order(
@@ -867,7 +882,8 @@ class DatabaseService {
                     createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
                     updatedAt = data["updatedAt"] as? Timestamp ?: Timestamp.now(),
                     // IMPORTANT: Manually check isFrozen field
-                    isFrozen = data["isFrozen"] as? Boolean ?: false, // Default to false if not found
+                    isFrozen = data["isFrozen"] as? Boolean
+                        ?: false, // Default to false if not found
                     lastLogin = data["lastLogin"] as? Timestamp,
                     loginCount = (data["loginCount"] as? Long)?.toInt() ?: 0,
                     orderCount = (data["orderCount"] as? Long)?.toInt() ?: 0,
@@ -1189,14 +1205,16 @@ class DatabaseService {
                         orderId = data["orderId"] as? String ?: "",
                         productId = data["productId"] as? String ?: "",
                         productName = data["productName"] as? String ?: "",
-                        rating = (data["rating"] as? Double) ?: (data["rating"] as? Long)?.toDouble() ?: 0.0,
+                        rating = (data["rating"] as? Double)
+                            ?: (data["rating"] as? Long)?.toDouble() ?: 0.0,
                         comment = data["comment"] as? String ?: "",
                         feedbackDate = data["feedbackDate"] as? Timestamp ?: Timestamp.now(),
                         createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
                         isVisible = data["isVisible"] as? Boolean ?: true,
                         vendorReply = data["vendorReply"] as? String ?: "",
                         vendorReplyDate = data["vendorReplyDate"] as? Timestamp,
-                        isReplied = data["isReplied"] as? Boolean ?: (data["replied"] as? Boolean) ?: false
+                        isReplied = data["isReplied"] as? Boolean ?: (data["replied"] as? Boolean)
+                        ?: false
                     )
                 } catch (e: Exception) {
                     println("DEBUG: Error converting document ${document.id}: ${e.message}")
@@ -1289,14 +1307,16 @@ class DatabaseService {
                         orderId = data["orderId"] as? String ?: "",
                         productId = data["productId"] as? String ?: "",
                         productName = data["productName"] as? String ?: "",
-                        rating = (data["rating"] as? Double) ?: (data["rating"] as? Long)?.toDouble() ?: 0.0,
+                        rating = (data["rating"] as? Double)
+                            ?: (data["rating"] as? Long)?.toDouble() ?: 0.0,
                         comment = data["comment"] as? String ?: "",
                         feedbackDate = data["feedbackDate"] as? Timestamp ?: Timestamp.now(),
                         createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
                         isVisible = data["isVisible"] as? Boolean ?: true,
                         vendorReply = data["vendorReply"] as? String ?: "",
                         vendorReplyDate = data["vendorReplyDate"] as? Timestamp,
-                        isReplied = data["isReplied"] as? Boolean ?: (data["replied"] as? Boolean) ?: false
+                        isReplied = data["isReplied"] as? Boolean ?: (data["replied"] as? Boolean)
+                        ?: false
                     )
                 } catch (e: Exception) {
                     println("DEBUG: Error converting document ${document.id}: ${e.message}")
@@ -1405,7 +1425,8 @@ class DatabaseService {
                     totalRevenue = (data["totalRevenue"] as? Double) ?: 0.0,
                     rating = (data["rating"] as? Double) ?: 0.0,
                     reviewCount = (data["reviewCount"] as? Long)?.toInt() ?: 0,
-                    acceptedPaymentMethods = (data["acceptedPaymentMethods"] as? List<String>) ?: listOf("cash"),
+                    acceptedPaymentMethods = (data["acceptedPaymentMethods"] as? List<String>)
+                        ?: listOf("cash"),
                     paypalLink = data["paypalLink"] as? String ?: ""
                 )
             } else {
@@ -1531,12 +1552,12 @@ class DatabaseService {
             val currentCoins = account?.tapNChowCoins ?: 0
 
             // Calculate "Tomorrow Midnight" for the timer
-            val calendar = java.util.Calendar.getInstance()
-            calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
-            calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
-            calendar.set(java.util.Calendar.MINUTE, 0)
-            calendar.set(java.util.Calendar.SECOND, 0)
-            calendar.set(java.util.Calendar.MILLISECOND, 0)
+            val calendar = Calendar.getInstance()
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
+            calendar.set(Calendar.HOUR_OF_DAY, 0)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
             val nextSpinTime = calendar.timeInMillis
 
             if (account?.lastSpinDate == null) {
@@ -1546,12 +1567,12 @@ class DatabaseService {
 
             // Check if last spin was on a different calendar day
             val lastSpin = account.lastSpinDate.toDate()
-            val currentCal = java.util.Calendar.getInstance()
-            val lastSpinCal = java.util.Calendar.getInstance()
+            val currentCal = Calendar.getInstance()
+            val lastSpinCal = Calendar.getInstance()
             lastSpinCal.time = lastSpin
 
-            val sameDay = currentCal.get(java.util.Calendar.DAY_OF_YEAR) == lastSpinCal.get(java.util.Calendar.DAY_OF_YEAR) &&
-                    currentCal.get(java.util.Calendar.YEAR) == lastSpinCal.get(java.util.Calendar.YEAR)
+            val sameDay = currentCal.get(Calendar.DAY_OF_YEAR) == lastSpinCal.get(Calendar.DAY_OF_YEAR) &&
+                    currentCal.get(Calendar.YEAR) == lastSpinCal.get(Calendar.YEAR)
 
             if (!sameDay) {
                 // New day -> Allow Spin
@@ -1842,7 +1863,7 @@ class DatabaseService {
                 if (!orderSnapshot.exists()) return@runTransaction
 
 
-                val productStockMap = mutableMapOf<com.google.firebase.firestore.DocumentReference, Long>()
+                val productStockMap = mutableMapOf<DocumentReference, Long>()
 
                 for ((productId, quantityToRestore) in productQuantities) {
                     val productRef = db.collection("products").document(productId)

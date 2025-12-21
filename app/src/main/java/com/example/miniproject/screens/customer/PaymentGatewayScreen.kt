@@ -86,10 +86,10 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.miniproject.PayPalWebViewActivity
+import com.example.miniproject.paypal.PayPalWebViewActivity
 import com.example.miniproject.R
 import com.example.miniproject.model.Customer
-import com.example.miniproject.model.CartRepository
+import com.example.miniproject.repository.CartRepository
 import com.example.miniproject.model.CustomerAccount
 import com.example.miniproject.model.OrderRequest
 import com.example.miniproject.model.Vendor

@@ -1,6 +1,8 @@
-package com.example.miniproject
+package com.example.miniproject.paypal
 
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.webkit.WebResourceError
@@ -24,7 +26,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.example.miniproject.config.PayPalConfig
+import com.example.miniproject.MainActivity
+import com.example.miniproject.paypal.PayPalConfig
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.service.EmailService
 import com.example.miniproject.service.PayPalService
@@ -123,7 +126,7 @@ fun PayPalWebView(url: String, orderId: String) {
                         }
 
                         if (url.contains("com.example.miniproject.paypeltest")) {
-                            val uri = android.net.Uri.parse(url)
+                            val uri = Uri.parse(url)
                             val token = uri.getQueryParameter("token")
 
                             if (token != null) {
@@ -172,11 +175,11 @@ fun PayPalWebView(url: String, orderId: String) {
 
                                                 // 頁面跳轉回主頁
                                                 (context as? PayPalWebViewActivity)?.run {
-                                                    val intent = android.content.Intent(this, MainActivity::class.java).apply {
+                                                    val intent = Intent(this, MainActivity::class.java).apply {
                                                         putExtra("ORDER_ID", orderId)
                                                         putExtra("PAYMENT_SUCCESS", true)
-                                                        flags = android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                                                                android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                                                        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                                                                Intent.FLAG_ACTIVITY_NEW_TASK
                                                     }
                                                     startActivity(intent)
                                                     finish()
