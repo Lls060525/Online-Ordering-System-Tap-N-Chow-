@@ -90,7 +90,7 @@ class PayPalService {
                 .url("${PayPalConfig.SANDBOX_BASE_URL}/v2/checkout/orders")
                 .header("Authorization", "Bearer $accessToken")
                 .header("Content-Type", "application/json")
-                .header("PayPal-Request-Id", orderId)
+                .header("PayPal-Request-Id", "${orderId}_${System.currentTimeMillis()}")
                 .header("Prefer", "return=representation")
                 .post(requestBody)
                 .build()
