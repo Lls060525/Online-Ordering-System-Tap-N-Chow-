@@ -560,7 +560,7 @@ fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {
                     }
 
                     if (product.stock > 0) {
-                        // Check for maxStock logic in onAddToCart here
+                        //  Check for maxStock logic in onAddToCart here
                         TextButton(
                             onClick = onAddToCart,
                             enabled = product.stock > 0
