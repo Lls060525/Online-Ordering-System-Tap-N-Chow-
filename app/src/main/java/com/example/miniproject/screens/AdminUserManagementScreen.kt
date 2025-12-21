@@ -68,7 +68,6 @@ fun AdminUserManagementScreen(navController: NavController) {
 
                 customers = allCustomers.map { customer ->
                     val userOrders = customerOrdersMap[customer.customerId] ?: emptyList()
-
                     val validOrders = userOrders.filter { it.status != "cancelled" }
 
                     customer.copy(

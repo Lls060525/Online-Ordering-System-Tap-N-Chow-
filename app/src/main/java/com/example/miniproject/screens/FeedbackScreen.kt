@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 import com.example.miniproject.components.StarRatingDisplay
+import kotlinx.coroutines.async
 
 @Composable
 fun FeedbackScreen(navController: NavController) {
@@ -56,26 +57,34 @@ fun ToRateContent(navController: NavController) {
     var ordersToRate by remember { mutableStateOf<List<com.example.miniproject.model.Order>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // Function to refresh orders to rate
+    // 優化後的刷新邏輯
     fun refreshOrdersToRate() {
         coroutineScope.launch {
             val customer = authService.getCurrentCustomer()
-            customer?.let {
-                val allOrders = databaseService.getCustomerOrders(it.customerId)
-                println("DEBUG: Found ${allOrders.size} total orders for customer ${it.customerId}")
+            customer?.let { user ->
+                isLoading = true
+                try {
+                    val ordersDeferred = async { databaseService.getCustomerOrders(user.customerId) }
+                    val ratedOrderIdsDeferred = async { databaseService.getCustomerRatedOrderIds(user.customerId) }
 
-                // Filter orders that are delivered/completed but not rated yet
-                val filteredOrders = allOrders.filter { order ->
-                    println("DEBUG: Order ${order.orderId} - Status: ${order.status}")
-                    val isRated = databaseService.getFeedbackByOrder(order.orderId) != null
-                    println("DEBUG: Order ${order.orderId} - Is Rated: $isRated")
+                    val allOrders = ordersDeferred.await()
+                    val ratedOrderIds = ratedOrderIdsDeferred.await() // 這是一個 Set，查找速度是 O(1)
 
-                    // Show orders that are delivered/completed AND not rated
-                    (order.status == "delivered" || order.status == "completed") && !isRated
+                    println("DEBUG: Total Orders: ${allOrders.size}, Rated Orders Count: ${ratedOrderIds.size}")
+
+                    // 在內存中過濾，不需要再發起網絡請求
+                    val filteredOrders = allOrders.filter { order ->
+                        // 條件：狀態是 delivered/completed 且 OrderId 不在已評價列表中
+                        val isCompleted = (order.status == "delivered" || order.status == "completed")
+                        val isNotRated = !ratedOrderIds.contains(order.orderId)
+
+                        isCompleted && isNotRated
+                    }
+
+                    ordersToRate = filteredOrders.sortedByDescending { it.orderDate }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-
-                println("DEBUG: Found ${filteredOrders.size} orders to rate")
-                ordersToRate = filteredOrders.sortedByDescending { it.orderDate }
             }
             isLoading = false
         }
@@ -103,15 +112,9 @@ fun ToRateContent(navController: NavController) {
             )
 
             IconButton(
-                onClick = {
-                    isLoading = true
-                    refreshOrdersToRate()
-                }
+                onClick = { refreshOrdersToRate() }
             ) {
-                Icon(
-                    Icons.Default.Refresh,
-                    contentDescription = "Refresh"
-                )
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh")
             }
         }
 
@@ -125,7 +128,7 @@ fun ToRateContent(navController: NavController) {
             EmptyState(
                 icon = Icons.Default.Star,
                 title = "No orders to rate",
-                subtitle = "Completed orders will appear here for rating. Your feedback helps vendors improve!"
+                subtitle = "Completed orders will appear here for rating."
             )
         } else {
             LazyColumn {

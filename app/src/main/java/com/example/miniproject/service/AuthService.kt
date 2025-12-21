@@ -1,4 +1,4 @@
-// [file name]: AuthService.kt
+
 package com.example.miniproject.service
 
 import com.example.miniproject.model.Customer

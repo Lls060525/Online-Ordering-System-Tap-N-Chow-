@@ -689,48 +689,33 @@ class DatabaseService {
 
     suspend fun getCustomerOrders(customerId: String): List<Order> {
         return try {
-            println("DEBUG: Getting ALL orders and filtering for customer: $customerId")
+            println("DEBUG: Querying orders for customer: $customerId via Index")
 
-            val allOrders = db.collection("orders")
+            val result = db.collection("orders")
+                .whereEqualTo("customerId", customerId)
                 .get()
                 .await()
 
-            println("DEBUG: Total orders in database: ${allOrders.documents.size}")
+            println("DEBUG: Found ${result.documents.size} orders for customer $customerId")
 
-            val orders = mutableListOf<Order>()
-            allOrders.documents.forEach { doc ->
-                val data = doc.data ?: emptyMap()
-                println("DEBUG: Order ${doc.id} fields: ${data.keys}")
-
-                // Check all possible customer ID field names
-                val custId = data["customerId"] as? String ?:
-                data["CustomerID"] as? String ?:
-                data["customerID"] as? String ?: ""
-
-                if (custId == customerId) {
-                    println("DEBUG: Found matching order for customer $customerId: ${doc.id}")
-                    val order = Order(
-                        orderId = data["orderId"] as? String ?: doc.id,
-                        documentId = doc.id,
-                        customerId = custId,
-                        orderDate = data["orderDate"] as? Timestamp ?: Timestamp.now(),
-                        status = data["status"] as? String ?: "pending",
-                        totalPrice = (data["totalPrice"] as? Double) ?: 0.0,
-                        shippingAddress = data["shippingAddress"] as? String ?: "",
-                        paymentMethod = data["paymentMethod"] as? String ?: "",
-                        createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
-                        updatedAt = data["updatedAt"] as? Timestamp ?: Timestamp.now()
-                    )
-                    orders.add(order)
-                }
-            }
-
-            println("DEBUG: Found ${orders.size} orders for customer $customerId")
-            orders
+            result.toObjects(Order::class.java)
         } catch (e: Exception) {
             println("DEBUG: Error in getCustomerOrders: ${e.message}")
             e.printStackTrace()
             emptyList()
+        }
+    }
+
+    suspend fun getCustomerRatedOrderIds(customerId: String): Set<String> {
+        return try {
+            val result = db.collection("feedbacks")
+                .whereEqualTo("customerId", customerId)
+                .get()
+                .await()
+
+            result.documents.mapNotNull { it.getString("orderId") }.toSet()
+        } catch (e: Exception) {
+            emptySet()
         }
     }
 
