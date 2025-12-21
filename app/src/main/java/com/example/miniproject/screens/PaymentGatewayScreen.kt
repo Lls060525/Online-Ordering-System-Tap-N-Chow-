@@ -300,7 +300,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
                         amount = finalTotal,
                         orderId = orderId,
                         description = "Order from ${cart.vendorName}",
-                        vendorPayPalEmail = vendorEmail // Pass the vendor's email as payee
+                        vendorPayPalEmail = null
                     )
 
                     if (paypalResult.isSuccess) {

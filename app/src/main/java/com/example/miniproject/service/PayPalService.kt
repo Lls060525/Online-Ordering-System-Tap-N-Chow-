@@ -1,4 +1,3 @@
-// [file name]: PayPalService.kt
 package com.example.miniproject.service
 
 import com.example.miniproject.config.PayPalConfig
@@ -70,11 +69,7 @@ class PayPalService {
 
             val accessToken = tokenResult.getOrThrow()
 
-            val payeeData = if (!vendorPayPalEmail.isNullOrEmpty()) {
-                Payee(email_address = vendorPayPalEmail)
-            } else {
-                null
-            }
+            val payeeData = null
 
             val createOrderRequest = PayPalCreateOrderRequest(
                 purchase_units = listOf(

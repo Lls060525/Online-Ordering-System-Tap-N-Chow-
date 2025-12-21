@@ -26,13 +26,20 @@ import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.util.OrderStatusHelper
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import com.example.miniproject.service.PayPalService
+import kotlinx.coroutines.tasks.await
+
 
 object VendorOrdersScreen {
     @OptIn(ExperimentalMaterial3Api::class) // Opt-in for PullToRefreshBox
     @Composable
     fun VendorOrdersContent() {
+        val context = LocalContext.current
         val authService = AuthService()
         val databaseService = DatabaseService()
+        val payPalService = remember { PayPalService() }
         val coroutineScope = rememberCoroutineScope()
 
         var orders by remember { mutableStateOf<List<Order>>(emptyList()) }
@@ -95,13 +102,59 @@ object VendorOrdersScreen {
         fun handleStatusUpdate(newStatus: String) {
             coroutineScope.launch {
                 selectedOrder?.let { order ->
-                    databaseService.updateOrderStatus(order.orderId, newStatus)
-                    // Refresh list after update
-                    isLoading = true // Optional: show loading while refreshing
-                    fetchOrdersData()
-                    isLoading = false
-                    showOrderDetails = false
-                    selectedOrder = null
+                    var shouldUpdateStatus = true
+
+                    if (newStatus == "cancelled" && order.paymentMethod == "paypal") {
+                        isLoading = true // 顯示讀取圈
+
+                        try {
+                            val orderSnapshot = databaseService.db.collection("orders")
+                                .document(order.orderId)
+                                .get()
+                                .await()
+
+                            val captureId = orderSnapshot.getString("paypalOrderId")
+
+                            if (!captureId.isNullOrEmpty()) {
+                                Toast.makeText(context, "Processing Refund...", Toast.LENGTH_SHORT).show()
+
+                                val refundResult = payPalService.refundPayment(captureId)
+
+                                if (refundResult.isSuccess) {
+                                    Toast.makeText(context, "✅ Refund Successful!", Toast.LENGTH_LONG).show()
+
+                                    databaseService.updatePaymentStatus(order.orderId, "refunded")
+                                } else {
+                                    val error = refundResult.exceptionOrNull()?.message ?: "Unknown error"
+                                    Toast.makeText(context, "Refund Failed: $error", Toast.LENGTH_LONG).show()
+                                    shouldUpdateStatus = false // 阻止訂單狀態變更，讓 Vendor 知道出錯了
+                                }
+                            } else {
+                                Toast.makeText(context, "Error: PayPal ID missing!", Toast.LENGTH_LONG).show()
+                                shouldUpdateStatus = false
+                            }
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                            shouldUpdateStatus = false
+                        }
+                    }
+
+                    if (shouldUpdateStatus) {
+                        databaseService.updateOrderStatus(order.orderId, newStatus)
+
+                        if (newStatus == "cancelled") {
+                            orderDetails.forEach { detail ->
+                                databaseService.updateProductStock(detail.productId, -detail.quantity)
+                            }
+                        }
+                        isLoading = true
+                        fetchOrdersData()
+                        isLoading = false
+                        showOrderDetails = false
+                        selectedOrder = null
+                    } else {
+                        isLoading = false
+                    }
                 }
             }
         }
