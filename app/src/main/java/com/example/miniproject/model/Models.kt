@@ -281,12 +281,14 @@ data class VendorRating(
 
 @Serializable
 data class CartItem(
+    val cartItemId: String = java.util.UUID.randomUUID().toString(),
     val productId: String = "",
     val productName: String = "",
     val productPrice: Double = 0.0,
     val quantity: Int = 0,
     val vendorId: String = "",
-    val imageUrl: String = ""
+    val imageUrl: String = "",
+    val maxStock: Int = 0
 )
 
 @Serializable

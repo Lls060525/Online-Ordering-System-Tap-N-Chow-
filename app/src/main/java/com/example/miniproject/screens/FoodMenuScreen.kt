@@ -333,28 +333,46 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                             ProductMenuItem(
                                 product = product,
                                 onAddToCart = {
-                                    if (product.customizations.isNotEmpty()) {
-                                        selectedProductForCustomization = product
-                                        showCustomizationDialog = true
+                                    // 1. Calculate how many of THIS product ID are already in the cart
+                                    // (Summing up all variations, e.g., spicy + non-spicy)
+                                    val currentQtyInCart = cartItems
+                                        .filter { it.productId == product.productId }
+                                        .sumOf { it.quantity }
+
+                                    // 2. Validation Check
+                                    if (currentQtyInCart >= product.stock) {
+                                        Toast.makeText(context, "Maximum stock reached (${product.stock})", Toast.LENGTH_SHORT).show()
                                     } else {
-                                        val existingItem = cartItems.find { it.productId == product.productId }
-                                        if (existingItem != null) {
-                                            cartItems = cartItems.map { item ->
-                                                if (item.productId == product.productId) {
-                                                    item.copy(quantity = item.quantity + 1)
-                                                } else item
-                                            }
+                                        // ... (Your existing logic for Customization / Adding) ...
+                                        if (product.customizations.isNotEmpty()) {
+                                            selectedProductForCustomization = product
+                                            showCustomizationDialog = true
                                         } else {
-                                            cartItems = cartItems + CartItem(
-                                                productId = product.productId,
-                                                productName = product.productName,
-                                                productPrice = product.productPrice,
-                                                quantity = 1,
-                                                vendorId = product.vendorId,
-                                                imageUrl = product.imageUrl
-                                            )
+                                            val existingItem = cartItems.find {
+                                                it.productId == product.productId &&
+                                                        it.productName == product.productName &&
+                                                        it.productPrice == product.productPrice
+                                            }
+
+                                            if (existingItem != null) {
+                                                cartItems = cartItems.map { item ->
+                                                    if (item.cartItemId == existingItem.cartItemId) {
+                                                        item.copy(quantity = item.quantity + 1)
+                                                    } else item
+                                                }
+                                            } else {
+                                                cartItems = cartItems + CartItem(
+                                                    productId = product.productId,
+                                                    productName = product.productName,
+                                                    productPrice = product.productPrice,
+                                                    quantity = 1,
+                                                    vendorId = product.vendorId,
+                                                    imageUrl = product.imageUrl,
+                                                    maxStock = product.stock // <--- PASS THE STOCK HERE
+                                                )
+                                            }
+                                            Toast.makeText(context, "Added to cart", Toast.LENGTH_SHORT).show()
                                         }
-                                        Toast.makeText(context, "Added to cart", Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             )
@@ -386,12 +404,16 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                 cartItems = cartItems,
                 vendor = vendor,
                 onDismiss = { showCart = false },
-                onUpdateQuantity = { productId, quantity ->
+
+                // UPDATED: Receive 'id' (cartItemId) instead of productId
+                onUpdateQuantity = { id, quantity ->
                     if (quantity == 0) {
-                        cartItems = cartItems.filter { it.productId != productId }
+                        // Filter by cartItemId
+                        cartItems = cartItems.filter { it.cartItemId != id }
                     } else {
+                        // Update specific item by cartItemId
                         cartItems = cartItems.map { item ->
-                            if (item.productId == productId) {
+                            if (item.cartItemId == id) {
                                 item.copy(quantity = quantity)
                             } else item
                         }
@@ -424,7 +446,6 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
     }
 }
 
-// ... (Rest of the file remains exactly the same: ProductMenuItem, CartDialog, VendorHeaderSection, etc.) ...
 
 @Composable
 fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {
@@ -501,6 +522,17 @@ fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {
                     maxLines = 2
                 )
 
+                // --- NEW: Stock Display ---
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Stock available: ${product.stock}",
+                    fontSize = 12.sp,
+                    // Highlight red if stock is low (< 10), otherwise grey
+                    color = if (product.stock < 10) MaterialTheme.colorScheme.error else Color.Gray,
+                    fontWeight = FontWeight.Medium
+                )
+                // --------------------------
+
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
@@ -528,6 +560,7 @@ fun ProductMenuItem(product: Product, onAddToCart: () -> Unit) {
                     }
 
                     if (product.stock > 0) {
+                        // Check for maxStock logic in onAddToCart here
                         TextButton(
                             onClick = onAddToCart,
                             enabled = product.stock > 0
@@ -552,10 +585,12 @@ fun CartDialog(
     cartItems: List<CartItem>,
     vendor: Vendor?,
     onDismiss: () -> Unit,
-    onUpdateQuantity: (String, Int) -> Unit,
+    onUpdateQuantity: (String, Int) -> Unit, // Using cartItemId here
     onCheckout: () -> Unit,
     vendorName: String
 ) {
+    val context = LocalContext.current
+
     val subtotal = cartItems.sumOf { it.productPrice * it.quantity }
     val serviceFee = subtotal * 0.10
     val tax = subtotal * 0.08
@@ -580,6 +615,14 @@ fun CartDialog(
                         modifier = Modifier.heightIn(max = 300.dp)
                     ) {
                         items(cartItems) { item ->
+
+                            // --- CRITICAL FIX: Calculate Total Quantity for this Product ID ---
+                            // This checks how many of this specific physical product are in the cart
+                            // across ALL variations (e.g. 50 Spicy + 50 Non-Spicy = 100 Total)
+                            val totalQuantityOfProduct = cartItems
+                                .filter { it.productId == item.productId }
+                                .sumOf { it.quantity }
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -605,23 +648,42 @@ fun CartDialog(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
+                                    // MINUS BUTTON
                                     IconButton(
-                                        onClick = { onUpdateQuantity(item.productId, item.quantity - 1) },
+                                        // Uses cartItemId to target this specific row
+                                        onClick = { onUpdateQuantity(item.cartItemId, item.quantity - 1) },
                                         modifier = Modifier.size(32.dp)
                                     ) {
                                         Text("-", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                                     }
+
                                     Text(
                                         text = item.quantity.toString(),
                                         modifier = Modifier.padding(horizontal = 8.dp),
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Medium
                                     )
+
+                                    // PLUS BUTTON (With Global Stock Validation)
                                     IconButton(
-                                        onClick = { onUpdateQuantity(item.productId, item.quantity + 1) },
+                                        onClick = {
+                                            // Check if the TOTAL quantity (across all variants) is less than stock
+                                            if (totalQuantityOfProduct < item.maxStock) {
+                                                onUpdateQuantity(item.cartItemId, item.quantity + 1)
+                                            } else {
+                                                Toast.makeText(context, "Stock limit reached for this product!", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        // Disable visually if limit reached
+                                        enabled = totalQuantityOfProduct < item.maxStock,
                                         modifier = Modifier.size(32.dp)
                                     ) {
-                                        Text("+", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                        Text(
+                                            "+",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 18.sp,
+                                            color = if (totalQuantityOfProduct < item.maxStock) Color.Black else Color.Gray
+                                        )
                                     }
                                 }
                                 Text(
@@ -702,7 +764,6 @@ fun CartDialog(
         }
     )
 }
-
 @Composable
 fun VendorHeaderSection(vendor: Vendor?) {
     val context = LocalContext.current
@@ -1388,7 +1449,8 @@ fun ProductCustomizationDialog(
                         productPrice = totalPrice, // Use calculated total price
                         quantity = 1,
                         vendorId = product.vendorId,
-                        imageUrl = product.imageUrl
+                        imageUrl = product.imageUrl,
+                        maxStock = product.stock
                     )
 
                     onAddToCart(cartItem)

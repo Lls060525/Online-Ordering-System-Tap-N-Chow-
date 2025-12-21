@@ -71,20 +71,7 @@ fun AdminLoginScreen(navController: NavController) {
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Admin Login", fontWeight = FontWeight.Bold, fontSize = 20.sp) },
-                navigationIcon = {
-                    IconButton(onClick = {
 
-                        val currentTime = System.currentTimeMillis()
-                        // 500ms delay: Prevents clicks closer than half a second
-                        if (currentTime - lastBackClickTime > 800) {
-                            lastBackClickTime = currentTime
-                            navController.popBackStack()
-
-                        }
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
             )
         }
     ) { paddingValues ->
