@@ -32,7 +32,7 @@ import java.util.Date
 @Composable
 fun FeedbackScreen(navController: NavController) {
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("To Rate", "My Reviews") // Removed "Rating Statistics"
+    val tabs = listOf("To Rate", "My Reviews")
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Tab Row
@@ -78,9 +78,8 @@ fun ToRateContent(navController: NavController) {
 
                     println("DEBUG: Total Orders: ${allOrders.size}, Rated Orders Count: ${ratedOrderIds.size}")
 
-                    // 在內存中過濾，不需要再發起網絡請求
                     val filteredOrders = allOrders.filter { order ->
-                        // 條件：狀態是 delivered/completed 且 OrderId 不在已評價列表中
+                     
                         val isCompleted = (order.status == "delivered" || order.status == "completed")
                         val isNotRated = !ratedOrderIds.contains(order.orderId)
 

@@ -41,7 +41,6 @@ fun CustomerVoucherScreen(navController: NavController) {
     var vouchers by remember { mutableStateOf<List<Voucher>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // --- NEW: State to prevent double clicks ---
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     // Load Vouchers
@@ -88,7 +87,7 @@ fun CustomerVoucherScreen(navController: NavController) {
                     modifier = Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Optional: Add an image here if you have one
+
                     // Image(painter = painterResource(id = R.drawable.empty_voucher), contentDescription = null)
                     Text("You haven't claimed any vouchers yet.", color = Color.Gray)
                     TextButton(onClick = { navController.popBackStack() }) { // Go back to home

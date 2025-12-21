@@ -124,7 +124,7 @@ fun CustomerProfileScreen(navController: NavController, isEditMode: Boolean = fa
                 navigationIcon = {
                     IconButton(onClick = {
                         val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastBackClickTime > 500) {
+                        if (currentTime - lastBackClickTime > 800) {
                             lastBackClickTime = currentTime
                             navController.popBackStack()
                         }

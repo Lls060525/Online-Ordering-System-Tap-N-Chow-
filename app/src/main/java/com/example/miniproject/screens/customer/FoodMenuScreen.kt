@@ -625,7 +625,7 @@ fun CartDialog(
                     ) {
                         items(cartItems) { item ->
 
-                            // --- CRITICAL FIX: Calculate Total Quantity for this Product ID ---
+                            // Calculate Total Quantity for this Product ID ---
                             // This checks how many of this specific physical product are in the cart
                             // across ALL variations (e.g. 50 Spicy + 50 Non-Spicy = 100 Total)
                             val totalQuantityOfProduct = cartItems
@@ -949,20 +949,15 @@ fun FoodContentWithVendors(navController: NavController) {
 
     // Filter vendors (Search & Category logic)
     val filteredVendors = vendors.filter { vendor ->
-        val isRestaurantType = vendor.category == VendorCategory.RESTAURANT ||
-                vendor.category == VendorCategory.CAFE ||
-                vendor.category == VendorCategory.BAKERY
+        // 1. Check Search
+        val matchesSearch = vendor.vendorName.contains(searchQuery, ignoreCase = true)
 
-        val matchesSearch = vendor.vendorName.contains(searchQuery, ignoreCase = true) ||
-                vendor.address.contains(searchQuery, ignoreCase = true)
-
+        // 2. Check Category Dropdown (If null, show all. If selected, match specific category)
         val matchesCategory = selectedCategory == null || vendor.category == selectedCategory
 
-        // Note: We don't need to check isFrozen here because we already
-        // filtered them out in the LaunchedEffect above.
-        isRestaurantType && matchesSearch && matchesCategory
+        // Combine them
+        matchesSearch && matchesCategory
     }
-
     Column(
         modifier = Modifier
             .fillMaxSize()

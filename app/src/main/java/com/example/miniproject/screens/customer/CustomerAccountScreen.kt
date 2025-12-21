@@ -35,7 +35,6 @@ import com.example.miniproject.utils.ImageConverter
 import com.example.miniproject.utils.rememberImagePicker
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerAccountScreen(navController: NavController) {
     val authService = AuthService()
@@ -49,7 +48,7 @@ fun CustomerAccountScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
     var showImagePickerDialog by remember { mutableStateOf(false) }
 
-    // --- NEW: State to prevent multiple clicks ---
+    // --- State to prevent multiple clicks ---
     var lastClickTime by remember { mutableLongStateOf(0L) }
 
     val imagePicker = rememberImagePicker { uri ->
@@ -102,71 +101,56 @@ fun CustomerAccountScreen(navController: NavController) {
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Account", fontWeight = FontWeight.Bold, fontSize = 20.sp) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    titleContentColor = Color.Black,
-                    navigationIconContentColor = Color.Black,
-                    actionIconContentColor = Color.Black
-                )
-            )
-        }
-    ) { paddingValues ->
-        if (isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        } else {
-            CustomerAccountContent(
-                modifier = Modifier.padding(paddingValues),
-                customer = customer,
-                customerAccount = customerAccount,
-                imageConverter = imageConverter,
-                onEditProfilePicture = { showImagePickerDialog = true },
 
-                // --- UPDATED CLICK LOGIC FOR NAVIGATION ---
-                onViewProfile = {
-                    val currentTime = System.currentTimeMillis()
-                    if (currentTime - lastClickTime > 1000) { // 1 second debounce
-                        lastClickTime = currentTime
-                        navController.navigate("customerProfile")
-                    }
-                },
-                onOrderHistory = {
-                    val currentTime = System.currentTimeMillis()
-                    if (currentTime - lastClickTime > 1000) {
-                        lastClickTime = currentTime
-                        navController.navigate("orderHistory")
-                    }
-                },
-                onMyVouchers = {
-                    val currentTime = System.currentTimeMillis()
-                    if (currentTime - lastClickTime > 1000) {
-                        lastClickTime = currentTime
-                        navController.navigate("customer_vouchers")
-                    }
-                },
-                onLogout = {
-                    // Logout usually doesn't need debounce as strictly as navigation,
-                    // but adding it prevents accidental double-calls if the UI lags.
-                    val currentTime = System.currentTimeMillis()
-                    if (currentTime - lastClickTime > 1000) {
-                        lastClickTime = currentTime
-                        coroutineScope.launch {
-                            authService.logout()
-                            navController.navigate("login") {
-                                popUpTo(0)
-                            }
+    if (isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize().padding(10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+    } else {
+        CustomerAccountContent(
+            modifier = Modifier, // No paddingValues needed anymore
+            customer = customer,
+            customerAccount = customerAccount,
+            imageConverter = imageConverter,
+            onEditProfilePicture = { showImagePickerDialog = true },
+
+            onViewProfile = {
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastClickTime > 1000) {
+                    lastClickTime = currentTime
+                    navController.navigate("customerProfile")
+                }
+            },
+            onOrderHistory = {
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastClickTime > 1000) {
+                    lastClickTime = currentTime
+                    navController.navigate("orderHistory")
+                }
+            },
+            onMyVouchers = {
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastClickTime > 1000) {
+                    lastClickTime = currentTime
+                    navController.navigate("customer_vouchers")
+                }
+            },
+            onLogout = {
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastClickTime > 1000) {
+                    lastClickTime = currentTime
+                    coroutineScope.launch {
+                        authService.logout()
+                        navController.navigate("login") {
+                            popUpTo(0)
                         }
                     }
                 }
-            )
-        }
+            }
+        )
     }
 }
 
@@ -182,10 +166,8 @@ fun CustomerAccountContent(
     onMyVouchers: () -> Unit,
     onLogout: () -> Unit
 ) {
-    // 1. Add State for Logout Dialog
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    // 2. The Logout Confirmation Dialog
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
@@ -195,7 +177,7 @@ fun CustomerAccountContent(
                 Button(
                     onClick = {
                         showLogoutDialog = false
-                        onLogout() // Call the actual logout function
+                        onLogout()
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
@@ -205,9 +187,7 @@ fun CustomerAccountContent(
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = { showLogoutDialog = false }
-                ) {
+                TextButton(onClick = { showLogoutDialog = false }) {
                     Text("Cancel")
                 }
             }
@@ -219,6 +199,14 @@ fun CustomerAccountContent(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
+
+        Text(
+            text = "Account",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp)
+        )
+
         // Profile Avatar Section
         ProfileAvatarSection(
             customer = customer,
@@ -226,14 +214,14 @@ fun CustomerAccountContent(
             onEditClick = onEditProfilePicture,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp) // Reduced vertical padding
         )
 
         // User Info Section
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(
@@ -247,16 +235,14 @@ fun CustomerAccountContent(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Tap N Chow Credit Section
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    // Change Icon to something resembling a coin/reward
                     Icon(
                         imageVector = Icons.Default.MonetizationOn,
                         contentDescription = "Coins",
-                        tint = Color(0xFFFFD700), // Gold color for coins
+                        tint = Color(0xFFFFD700),
                         modifier = Modifier.size(32.dp)
                     )
 
@@ -264,12 +250,11 @@ fun CustomerAccountContent(
 
                     Column {
                         Text(
-                            text = "Tap N Chow Coins", // Updated Label
+                            text = "Tap N Chow Coins",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            // Display as Integer Coins
                             text = "${customerAccount?.tapNChowCoins ?: 0} Coins",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
@@ -299,19 +284,18 @@ fun CustomerAccountContent(
             onClick = onMyVouchers
         )
 
-        Spacer(modifier = Modifier.height(24.dp)) // Add spacing
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Logout Button
         Button(
-            // 3. Update onClick to show dialog instead of logging out immediately
             onClick = { showLogoutDialog = true },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .height(50.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer, // Light Pink
-                contentColor = MaterialTheme.colorScheme.onErrorContainer  // Dark Red
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer
             )
         ) {
             Icon(
@@ -326,10 +310,16 @@ fun CustomerAccountContent(
             )
         }
 
+        Spacer(modifier = Modifier.height(24.dp))
+
         // Customer Details Section
         CustomerDetailsSection(customer = customer)
+
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
+
+
 @Composable
 fun ProfileAvatarSection(
     customer: Customer?,
@@ -347,11 +337,9 @@ fun ProfileAvatarSection(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Profile Avatar with Edit Button
             Box(
                 contentAlignment = Alignment.BottomEnd
             ) {
-                // Profile Image from Base64
                 if (!customer?.profileImageBase64.isNullOrEmpty()) {
                     val bitmap = imageConverter.base64ToImageBitmap(customer!!.profileImageBase64)
                     bitmap?.let {
@@ -364,14 +352,12 @@ fun ProfileAvatarSection(
                             contentScale = ContentScale.Crop
                         )
                     } ?: run {
-                        // Fallback if bitmap conversion fails
                         DefaultProfileAvatar()
                     }
                 } else {
                     DefaultProfileAvatar()
                 }
 
-                // Edit Button
                 FloatingActionButton(
                     onClick = onEditClick,
                     modifier = Modifier.size(40.dp),
@@ -418,7 +404,6 @@ fun DefaultProfileAvatar() {
     )
 }
 
-// Rest of your composable functions remain the same...
 @Composable
 fun AccountMenuItem(
     icon: ImageVector,

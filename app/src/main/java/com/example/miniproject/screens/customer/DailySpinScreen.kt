@@ -166,7 +166,7 @@ fun DailySpinDialog(
                         }
                     }
 
-                    // --- WHEEL UI (Copy existing Wheel UI code here) ---
+                    // --- WHEEL UI  ---
 
                     Box(
                         modifier = Modifier
@@ -281,7 +281,7 @@ fun DailySpinDialog(
                             Text(
                                 "SPIN",
                                 fontWeight = FontWeight.Black,
-                                fontSize = 16.sp, // You might want to make this responsive too if needed
+                                fontSize = 16.sp,
                                 color = MaterialTheme.colorScheme.primary,
                                 letterSpacing = 1.sp
                             )
