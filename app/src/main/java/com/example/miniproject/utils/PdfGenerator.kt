@@ -30,7 +30,7 @@ object PdfGenerator {
         val titlePaint = Paint()
         val headerPaint = Paint()
 
-        // --- SETUP STYLES ---
+        //  SETUP STYLES
         titlePaint.color = Color.BLACK
         titlePaint.textSize = 24f
         titlePaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -49,14 +49,14 @@ object PdfGenerator {
         val pageHeight = 842
         val margin = 40f
 
-        // --- PAGE MANAGEMENT VARIABLES ---
+        //  PAGE MANAGEMENT VARIABLES
         var pageNumber = 1
         var pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
         var page = document.startPage(pageInfo)
         var canvas = page.canvas
         var yPosition = 40f // Start slightly higher to fit logo
 
-        // --- DRAW LOGO ---
+        //  DRAW LOGO
         try {
 
             val originalBitmap = BitmapFactory.decodeResource(context.resources, R.drawable.logo)
@@ -141,7 +141,7 @@ object PdfGenerator {
 
         yPosition = boxTop + boxHeight + 40f
 
-        // --- ORDER LIST HEADER ---
+        //  ORDER LIST HEADER
         canvas.drawText("Order History (All Orders)", margin, yPosition, headerPaint)
         yPosition += 20f
 
@@ -165,7 +165,7 @@ object PdfGenerator {
         drawTableHeader(canvas, yPosition)
         yPosition += 20f
 
-        // --- ITERATE THROUGH ALL ORDERS ---
+        //  ITERATE THROUGH ALL ORDERS
         val allOrders = salesData.recentOrders // This contains ALL orders sorted by date
         paint.textSize = 10f
 
@@ -260,7 +260,7 @@ object PdfGenerator {
 
         subHeaderPaint.textSize = 16f
         subHeaderPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        subHeaderPaint.color = Color.parseColor("#2196F3") // 使用蓝色作为强调色
+        subHeaderPaint.color = Color.parseColor("#2196F3")
         subHeaderPaint.textAlign = Paint.Align.LEFT
 
 
@@ -515,7 +515,7 @@ object PdfGenerator {
         yPosition += 25f
 
         canvas.drawText("Total Revenue:", margin + 10f, yPosition, headerPaint)
-        canvas.drawText(String.format(Locale.getDefault(), "RM %.2f", totalRev), pageWidth - margin - 10f, yPosition, moneyPaint) // 右对齐总金额
+        canvas.drawText(String.format(Locale.getDefault(), "RM %.2f", totalRev), pageWidth - margin - 10f, yPosition, moneyPaint)
         yPosition += 20f
 
         paint.color = Color.GRAY

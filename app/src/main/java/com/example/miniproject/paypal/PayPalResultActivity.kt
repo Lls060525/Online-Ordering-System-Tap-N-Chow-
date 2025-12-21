@@ -1,4 +1,3 @@
-// [file name]: PayPalResultActivity.kt
 package com.example.miniproject.paypal
 
 import android.net.Uri
@@ -45,8 +44,6 @@ class PayPalResultActivity : ComponentActivity() {
         val payerId = uri.getQueryParameter("PayerID")
 
         if (token != null && payerId != null) {
-            // We have a successful return from PayPal
-            // You can process the payment capture here
         } else {
             // User cancelled
             finish()

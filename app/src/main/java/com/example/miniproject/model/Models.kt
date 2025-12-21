@@ -21,7 +21,7 @@ data class Admin(
         "view_analytics"
     )
 ) {
-    // No freeze property needed for admin
+
     companion object {
         const val ADMIN_ID = "ADMIN001"
         const val ADMIN_EMAIL = "admin@admin.com.my"
@@ -143,12 +143,12 @@ data class Product(
 )
 
 data class CustomizationOption(
-    val name: String = "",      // e.g., "Large", "Extra Spicy"
-    val price: Double = 0.0     // e.g., 2.0 (adds RM2.00)
+    val name: String = "",
+    val price: Double = 0.0
 )
 
 data class ProductCustomization(
-    val title: String = "",       // e.g., "Size", "Spiciness Level"
+    val title: String = "",
     val required: Boolean = false, // If true, customer MUST select one
     val singleSelection: Boolean = true, // true = Radio Button, false = Checkbox
     val options: List<CustomizationOption> = emptyList()
@@ -156,8 +156,8 @@ data class ProductCustomization(
 
 // Order Model
 data class Order(
-    @DocumentId val documentId: String = "", // Firestore document ID (0001, 0002, etc.)
-    val orderId: String = "", // Custom order ID (O001, O002, etc.) - can be same as documentId or different
+    @DocumentId val documentId: String = "", // Firestore document ID
+    val orderId: String = "", // Custom order ID  can be same as documentId or different
     val customerId: String = "",
     val orderDate: Timestamp = Timestamp.now(),
     val status: String = "pending",
@@ -184,7 +184,7 @@ data class Order(
                     .await()
                     .size()
 
-                // Format as O001, O002, etc.
+                // Format as O001, O002.....
                 "O${(count + 1).toString().padStart(3, '0')}"
             } catch (e: Exception) {
                 // Fallback if counting fails
@@ -218,7 +218,6 @@ data class Payment(
 )
 
 // Feedback Model
-// Feedback Model with enhanced fields
 data class Feedback(
     @DocumentId val feedbackId: String = "",
     val customerId: String = "",
@@ -233,13 +232,11 @@ data class Feedback(
     val feedbackDate: Timestamp = Timestamp.now(),
     val createdAt: Timestamp = Timestamp.now(),
     val isVisible: Boolean = true,
-    // New fields for vendor replies
     val vendorReply: String = "",
     val vendorReplyDate: Timestamp? = null,
     val isReplied: Boolean = false
 )
 
-// Add Vendor Analytics Model
 data class VendorAnalytics(
     val vendorId: String = "",
     val totalReviews: Int = 0,
@@ -312,7 +309,6 @@ data class OrderRequest(
     val totalAmount: Double = 0.0,
     val deliveryAddress: String = "",
     val paymentMethod: String = "",
-    // ADD THESE TWO FIELDS:
     val discountAmount: Double = 0.0,
     val voucherCode: String? = null
 )

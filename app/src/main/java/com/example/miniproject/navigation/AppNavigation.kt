@@ -16,7 +16,7 @@ fun AppNavigation(navController: NavHostController) {
         navController = navController,
         startDestination = "login"
     ) {
-        // --- Authentication ---
+        //  Authentication
         composable("login") {
             LoginScreen(navController = navController)
         }
@@ -27,7 +27,7 @@ fun AppNavigation(navController: NavHostController) {
             ForgotPasswordScreen(navController = navController)
         }
 
-        // --- Vendor Authentication ---
+        //  Vendor Authentication
         composable("vendorLogin") {
             VendorLoginScreen(navController = navController)
         }
@@ -35,12 +35,12 @@ fun AppNavigation(navController: NavHostController) {
             VendorRegisterScreen(navController = navController)
         }
 
-        // --- Admin Authentication ---
+        //  Admin Authentication
         composable("adminLogin") {
             AdminLoginScreen(navController)
         }
 
-        // --- Customer Main Screens ---
+        //  Customer Main Screens
         composable("home") {
             UserHomeScreen(navController = navController)
         }
@@ -61,7 +61,7 @@ fun AppNavigation(navController: NavHostController) {
             ShakeToDecideScreen(navController)
         }
 
-        // --- Ordering Flow ---
+        //  Ordering Flow
         composable("order_screen"){
             OrderScreen(navController = navController)
         }
@@ -88,7 +88,7 @@ fun AppNavigation(navController: NavHostController) {
             FeedbackScreen(navController = navController)
         }
 
-        // --- Vendor Screens ---
+        //  Vendor Screens
         composable("vendorHome") {
             VendorHomeScreen(navController = navController)
         }
@@ -114,7 +114,7 @@ fun AppNavigation(navController: NavHostController) {
             VendorVoucherScreen(navController)
         }
 
-        // --- Admin Screens ---
+        //  Admin Screens
         composable("adminDashboard") {
             AdminDashboardScreen(navController)
         }
