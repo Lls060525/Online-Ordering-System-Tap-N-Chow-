@@ -86,7 +86,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.miniproject.PayPalWebViewActivity
 import com.example.miniproject.R
-import com.example.miniproject.model.CartRepository
+import com.example.miniproject.repository.CartRepository
 import com.example.miniproject.model.CustomerAccount
 import com.example.miniproject.model.OrderRequest
 import com.example.miniproject.model.Voucher
@@ -98,7 +98,7 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Date
 
-
+// ... (Keep PaymentImageConverter, Bank data class, and bank list as they are) ...
 class PaymentImageConverter(private val context: android.content.Context) {
     fun base64ToBitmap(base64String: String): Bitmap? {
         return try {
@@ -179,7 +179,8 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
     var isExpiryDateValid by remember { mutableStateOf(true) }
     var isCVVValid by remember { mutableStateOf(true) }
 
-    // Retrieve Cart from Singleton Repository
+    // --- CART RETRIEVAL FIX ---
+    // Get the cart from the singleton repository
     val cart = remember { CartRepository.getCart() }
 
     // --- FETCH DATA ---
@@ -193,11 +194,9 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
                         vendorBitmap = imageConverter.base64ToBitmap(vendorData.profileImageBase64)
                     }
 
-                    // Logic to auto-select payment method based on vendor settings
                     val acceptedMethods = vendorData.acceptedPaymentMethods
                     if (acceptedMethods.isNotEmpty()) {
                         if (selectedPaymentMethod.isEmpty() || !acceptedMethods.contains(selectedPaymentMethod)) {
-                            // Priority: PayPal -> Card -> Cash
                             selectedPaymentMethod = when {
                                 acceptedMethods.contains("paypal") -> "paypal"
                                 acceptedMethods.contains("card") -> "card"
@@ -291,9 +290,6 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
                         databaseService.trackVoucherUsage(customer!!.customerId, selectedVoucher!!.voucherId)
                     }
 
-                    // --- KEY CHANGE HERE ---
-                    // Get vendor email from the loaded vendor object
-                    // We treat the 'paypalLink' field as the storage for the PayPal Business Email
                     val vendorEmail = vendor?.paypalLink
 
                     val paypalResult = payPalService.createOrder(
@@ -349,8 +345,8 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
                         databaseService.trackVoucherUsage(customer!!.customerId, selectedVoucher!!.voucherId)
                     }
 
-                    // Clear cart after successful payment
-                    CartRepository.clear()
+                    // --- FIX: Use clearCart() instead of clear() ---
+                    CartRepository.clearCart()
 
                     navController.navigate("orderConfirmation/${orderId}") {
                         popUpTo("home") { inclusive = false }
@@ -405,6 +401,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
             )
         }
     ) { paddingValues ->
+        // Check if cart is null before rendering the main content
         if (cart == null) {
             Box(Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
                 Text("No cart data found. Please go back to menu.")
@@ -416,6 +413,9 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
                     .padding(paddingValues)
                     .verticalScroll(rememberScrollState())
             ) {
+                // ... (The rest of your UI code remains exactly the same) ...
+                // I have verified the Cart object usage below, and it correctly references `cart` which is now safe.
+
                 // --- Vendor Info Card ---
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -447,6 +447,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
+                            // Using cart.vendorName here safely
                             Text(vendor?.vendorName ?: cart.vendorName, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                             Text(vendor?.address ?: cart.vendorAddress, fontSize = 14.sp, color = Color.Gray)
                         }
@@ -707,6 +708,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
         }
     }
 
+    // ... (Keep Voucher Dialog and CardNumberTransformation) ...
     // Voucher Dialog
     if (showVoucherDialog) {
         AlertDialog(

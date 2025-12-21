@@ -39,12 +39,9 @@ import com.example.miniproject.model.*
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import java.net.URLEncoder
+import com.example.miniproject.repository.CartRepository
 
-// Improved Image Converter
-// Improved Image Converter
+
 class ImageConverter(private val context: android.content.Context) {
     fun base64ToBitmap(base64String: String?): Bitmap? {
         if (base64String.isNullOrEmpty()) {
@@ -76,7 +73,11 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
     var vendor by remember { mutableStateOf<Vendor?>(null) }
     var products by remember { mutableStateOf<List<Product>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var cartItems by remember { mutableStateOf<List<CartItem>>(emptyList()) }
+
+    var cartItems by remember {
+        mutableStateOf(CartRepository.getCartItems(vendorId ?: ""))
+    }
+
     var showCart by remember { mutableStateOf(false) }
 
     // --- Voucher States ---
@@ -102,7 +103,7 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
         listOf("All") + uniqueCategories
     }
 
-    val filteredProducts = remember(products, selectedCategory) {
+    val filteredProducts = remember<List<Product>>(products, selectedCategory) {
         if (selectedCategory == "All") {
             products
         } else {
@@ -371,6 +372,8 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                                                     maxStock = product.stock // <--- PASS THE STOCK HERE
                                                 )
                                             }
+                                            CartRepository.saveCartItems(vendorId ?: "", cartItems)
+
                                             Toast.makeText(context, "Added to cart", Toast.LENGTH_SHORT).show()
                                         }
                                     }
@@ -392,6 +395,7 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                 },
                 onAddToCart = { customCartItem ->
                     cartItems = cartItems + customCartItem
+                    CartRepository.saveCartItems(vendorId ?: "", cartItems)
                     showCustomizationDialog = false
                     selectedProductForCustomization = null
                     Toast.makeText(context, "Added to cart", Toast.LENGTH_SHORT).show()
@@ -418,6 +422,9 @@ fun FoodMenuScreen(navController: NavController, vendorId: String?) {
                             } else item
                         }
                     }
+
+                    CartRepository.saveCartItems(vendorId ?: "", cartItems)
+
                 },
                 onCheckout = {
                     showCart = false
