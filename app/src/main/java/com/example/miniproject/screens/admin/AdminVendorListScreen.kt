@@ -39,7 +39,7 @@ fun AdminVendorListScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // Dialog States (Delete logic removed)
+
     var showFreezeDialog by remember { mutableStateOf(false) }
     var vendorToFreeze by remember { mutableStateOf<Vendor?>(null) }
     var freezeAction by remember { mutableStateOf(true) } // true = freeze, false = unfreeze
@@ -295,7 +295,6 @@ fun VendorStatChip(
 fun ModernVendorItem(
     vendor: Vendor,
     decimalFormat: DecimalFormat,
-    // Removed onDeleteClick from parameters
     onFreezeClick: () -> Unit,
     onViewClick: () -> Unit
 ) {
@@ -312,7 +311,7 @@ fun ModernVendorItem(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            // --- Top Row: Identity & Menu ---
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -390,14 +389,14 @@ fun ModernVendorItem(
                                 )
                             }
                         )
-                        // Removed Delete Vendor DropdownMenuItem and Divider
+
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- Middle Row: Key Stats (Grey Box) ---
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -448,7 +447,7 @@ fun ModernVendorItem(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // --- Bottom Row: Contact Info (Subtle) ---
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.LocationOn, null, tint = Color.Gray, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(4.dp))

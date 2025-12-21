@@ -73,7 +73,7 @@ data class Vendor(
     val address: String = "",
     val category: String = "",
     val profileImageBase64: String = "",
-    val isFrozen: Boolean = false, // ONLY VENDORS CAN BE FROZEN
+    val isFrozen: Boolean = false,
     val lastLogin: Timestamp? = null,
     val loginCount: Int = 0,
     val orderCount: Int = 0,
@@ -137,27 +137,27 @@ data class Product(
     val stock: Int = 0,
     val imageUrl: String = "",
     val category: String = "",
-    val customizations: List<ProductCustomization> = emptyList(), // <--- ADD THIS
+    val customizations: List<ProductCustomization> = emptyList(),
     val createdAt: Timestamp = Timestamp.now(),
     val updatedAt: Timestamp = Timestamp.now()
 )
 
 data class CustomizationOption(
-    val name: String = "",      // e.g., "Large", "Extra Spicy"
-    val price: Double = 0.0     // e.g., 2.0 (adds RM2.00)
+    val name: String = "",
+    val price: Double = 0.0
 )
 
 data class ProductCustomization(
-    val title: String = "",       // e.g., "Size", "Spiciness Level"
-    val required: Boolean = false, // If true, customer MUST select one
-    val singleSelection: Boolean = true, // true = Radio Button, false = Checkbox
+    val title: String = "",
+    val required: Boolean = false,
+    val singleSelection: Boolean = true,
     val options: List<CustomizationOption> = emptyList()
 )
 
 // Order Model
 data class Order(
     @DocumentId val documentId: String = "", // Firestore document ID (0001, 0002, etc.)
-    val orderId: String = "", // Custom order ID (O001, O002, etc.) - can be same as documentId or different
+    val orderId: String = "",
     val customerId: String = "",
     val orderDate: Timestamp = Timestamp.now(),
     val status: String = "pending",
@@ -196,7 +196,7 @@ data class Order(
 
 // Order Detail Model
 data class OrderDetail(
-    @DocumentId val orderDetailsId: String = "", // Keep for order details
+    @DocumentId val orderDetailsId: String = "",
     val orderId: String = "",
     val productId: String = "",
     val productName: String = "",
@@ -208,7 +208,7 @@ data class OrderDetail(
 
 // Payment Model
 data class Payment(
-    @DocumentId val paymentId: String = "", // Keep for payments
+    @DocumentId val paymentId: String = "",
     val orderId: String = "",
     val amount: Double = 0.0,
     val paymentMethod: String = "",
@@ -218,7 +218,6 @@ data class Payment(
 )
 
 // Feedback Model
-// Feedback Model with enhanced fields
 data class Feedback(
     @DocumentId val feedbackId: String = "",
     val customerId: String = "",
@@ -233,13 +232,12 @@ data class Feedback(
     val feedbackDate: Timestamp = Timestamp.now(),
     val createdAt: Timestamp = Timestamp.now(),
     val isVisible: Boolean = true,
-    // New fields for vendor replies
     val vendorReply: String = "",
     val vendorReplyDate: Timestamp? = null,
     val isReplied: Boolean = false
 )
 
-// Add Vendor Analytics Model
+// Vendor Analytics Model
 data class VendorAnalytics(
     val vendorId: String = "",
     val totalReviews: Int = 0,

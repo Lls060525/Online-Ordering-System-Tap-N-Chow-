@@ -28,14 +28,8 @@ fun AdminLoginScreen(navController: NavController) {
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    // --- NEW: State for Password Visibility ---
     var isPasswordVisible by remember { mutableStateOf(false) }
-
-    // State to prevent double clicks (Crash Prevention)
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
-
-    // Scroll state for the screen
     val scrollState = rememberScrollState()
 
     fun performAdminLogin(email: String, password: String) {

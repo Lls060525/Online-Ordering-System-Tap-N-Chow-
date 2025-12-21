@@ -30,35 +30,6 @@ class DatabaseService {
     val db = FirebaseFirestore.getInstance()
 
 
-    private suspend fun createFreezeLog(userId: String, userType: String, reason: String) {
-        try {
-            val log = mapOf(
-                "userId" to userId,
-                "userType" to userType,
-                "reason" to reason,
-                "actionDate" to Timestamp.now(),
-                "adminAction" to true,
-                "createdAt" to Timestamp.now()
-            )
-            db.collection("freeze_logs").add(log).await()
-        } catch (e: Exception) {
-            // Silently fail - logging is not critical
-        }
-    }
-
-    suspend fun getAdmin(): Admin? {
-        return try {
-            db.collection("admins").document("ADMIN001")
-                .get(Source.SERVER)
-                .await()
-                .toObject(Admin::class.java)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-// Add to DatabaseService class
-
     suspend fun adminExists(): Boolean {
         return try {
             val adminDoc = db.collection("admins").document("ADMIN001").get().await()
@@ -128,27 +99,6 @@ class DatabaseService {
         return Triple(orderCount, totalRevenue, rating)
     }
 
-    // Calculate customer statistics
-    suspend fun calculateCustomerActualStats(customerId: String): Pair<Int, Double> {
-        var orderCount = 0
-        var totalSpent = 0.0
-
-        try {
-            val customerOrders = getCustomerOrders(customerId)
-            orderCount = customerOrders.size
-            totalSpent = customerOrders.sumOf { it.totalPrice }
-        } catch (e: Exception) {
-            // Handle error
-        }
-
-        return Pair(orderCount, totalSpent)
-    }
-// DatabaseService.kt
-
-// ... inside DatabaseService class ...
-
-    // REPLACEMENT: Robust Freeze/Unfreeze functions
-    // In DatabaseService.kt, update the freeze functions:
 
     suspend fun freezeVendorAccount(vendorId: String): Result<Boolean> {
         return try {
@@ -209,112 +159,6 @@ class DatabaseService {
         }
     }
 
-    suspend fun updateCustomerFrozenStatus(customerId: String, isFrozen: Boolean): Result<Unit> {
-        return try {
-            db.collection("customers").document(customerId)
-                .update(mapOf(
-                    "isFrozen" to isFrozen,
-                    "updatedAt" to Timestamp.now()
-                )).await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    suspend fun deleteCustomer(customerId: String): Result<Unit> {
-        return try {
-            // Get customer first to find Firebase UID
-            val customer = db.collection("customers").document(customerId).get().await()
-                .toObject(Customer::class.java)
-
-            if (customer != null) {
-                // Find the mapping to get Firebase UID
-                val mappings = db.collection("user_mappings")
-                    .whereEqualTo("customerId", customerId)
-                    .get().await()
-
-                // Delete customer document
-                db.collection("customers").document(customerId).delete().await()
-
-                // Delete user mapping
-                mappings.documents.forEach { doc ->
-                    db.collection("user_mappings").document(doc.id).delete().await()
-                }
-
-                // Optionally delete auth user (requires admin privileges)
-                // This would need Firebase Admin SDK on a server
-            }
-
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    suspend fun updateVendorFrozenStatus(vendorId: String, isFrozen: Boolean): Result<Unit> {
-        return try {
-            db.collection("vendors").document(vendorId)
-                .update(mapOf(
-                    "isFrozen" to isFrozen,
-                    "updatedAt" to FieldValue.serverTimestamp()
-                )).await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    suspend fun deleteVendor(vendorId: String): Result<Unit> {
-        return try {
-            // Get vendor first
-            val vendor = db.collection("vendors").document(vendorId).get().await()
-                .toObject(Vendor::class.java)
-
-            if (vendor != null) {
-                // Find the mapping to get Firebase UID
-                val mappings = db.collection("user_mappings")
-                    .whereEqualTo("vendorId", vendorId)
-                    .get().await()
-
-                // Delete vendor document
-                db.collection("vendors").document(vendorId).delete().await()
-
-                // Delete user mapping
-                mappings.documents.forEach { doc ->
-                    db.collection("user_mappings").document(doc.id).delete().await()
-                }
-
-                // Delete vendor's products, orders, etc. (optional)
-                db.collection("products")
-                    .whereEqualTo("vendorId", vendorId)
-                    .get().await()
-                    .documents.forEach { doc ->
-                        db.collection("products").document(doc.id).delete().await()
-                    }
-            }
-
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    suspend fun getActiveVendors(): List<Vendor> {
-        return try {
-            // Reuse getAllVendors to benefit from the manual field mapping logic
-            val allVendors = getAllVendors()
-
-            // Filter out any vendor where isFrozen is true
-            val activeVendors = allVendors.filter { !it.isFrozen }
-
-            println("DEBUG: getActiveVendors - Filtered ${allVendors.size} vendors down to ${activeVendors.size}")
-            activeVendors
-        } catch (e: Exception) {
-            println("ERROR in getActiveVendors: ${e.message}")
-            emptyList()
-        }
-    }
 
     // Update user activity on login
     suspend fun updateCustomerLoginActivity(customerId: String): Result<Unit> {
@@ -347,7 +191,7 @@ class DatabaseService {
         }
     }
 
-    // Update customer order stats when order is placed
+
     suspend fun updateCustomerOrderStats(customerId: String, orderAmount: Double): Result<Unit> {
         return try {
             val customerDoc = db.collection("customers").document(customerId)
@@ -462,31 +306,6 @@ class DatabaseService {
                 .toObjects(Product::class.java)
         } catch (e: Exception) {
             emptyList()
-        }
-    }
-
-
-
-    // Order Operations
-    suspend fun createOrder(order: Order, orderDetails: List<OrderDetail>): Result<String> {
-        return try {
-            // Generate custom order ID (O001 format)
-            val orderId = Order.Companion.generateOrderId(db)
-
-            // Create order with custom ID
-            val orderWithId = order.copy(orderId = orderId)
-            db.collection("orders").document(orderId).set(orderWithId).await()
-
-            // Create order details
-            orderDetails.forEach { detail ->
-                db.collection("order_details").add(
-                    detail.copy(orderId = orderId)
-                ).await()
-            }
-
-            Result.success(orderId)
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
 
@@ -634,13 +453,12 @@ class DatabaseService {
                 db.collection("products").document(productId)
                     .update("stock", newStock).await()
 
-                println("DEBUG: Updated product $productId stock from $currentStock to $newStock")
+                println("Updated product $productId stock from $currentStock to $newStock")
             } else {
-                println("DEBUG: Product $productId not found when updating stock")
+                println("Product $productId not found when updating stock")
             }
         } catch (e: Exception) {
-            println("DEBUG: Error updating product stock: ${e.message}")
-            // Don't rethrow - we still want the order to be created
+
         }
     }
 
@@ -664,20 +482,6 @@ class DatabaseService {
         }
     }
 
-    suspend fun markOrderAsDelivered(orderId: String): Result<Boolean> {
-        return try {
-            db.collection("orders").document(orderId)
-                .update(
-                    mapOf(
-                        "status" to "delivered",
-                        "updatedAt" to Timestamp.now()
-                    )
-                ).await()
-            Result.success(true)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
 
     suspend fun updatePaymentStatus(orderId: String, status: String): Result<Boolean> {
         return try {
@@ -706,18 +510,14 @@ class DatabaseService {
 
     suspend fun getCustomerOrders(customerId: String): List<Order> {
         return try {
-            println("DEBUG: Querying orders for customer: $customerId via Index")
 
             val result = db.collection("orders")
                 .whereEqualTo("customerId", customerId)
                 .get()
                 .await()
-
-            println("DEBUG: Found ${result.documents.size} orders for customer $customerId")
-
             result.toObjects(Order::class.java)
         } catch (e: Exception) {
-            println("DEBUG: Error in getCustomerOrders: ${e.message}")
+
             e.printStackTrace()
             emptyList()
         }
@@ -738,18 +538,15 @@ class DatabaseService {
 
     suspend fun getOrderDetails(orderId: String): List<OrderDetail> {
         return try {
-            println("DEBUG: Getting order details for orderId: $orderId")
 
             val result = db.collection("order_details")
                 .whereEqualTo("orderId", orderId)
                 .get()
                 .await()
 
-            println("DEBUG: Found ${result.documents.size} order details for order: $orderId")
 
             result.toObjects(OrderDetail::class.java)
         } catch (e: Exception) {
-            println("DEBUG: Error getting order details: ${e.message}")
             emptyList()
         }
     }
@@ -789,23 +586,6 @@ class DatabaseService {
         }
     }
 
-    // Payment Operations
-    suspend fun createPayment(payment: Payment): Result<String> {
-        return try {
-            val paymentRef = db.collection("payments").add(payment).await()
-
-            // Update order payment status
-            db.collection("orders").document(payment.orderId)
-                .update("paymentMethod", payment.paymentMethod).await()
-
-            Result.success(paymentRef.id)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-// Add import at the top
-
 
     // Update getAllVendors function
     suspend fun getAllVendors(): List<Vendor> {
@@ -814,7 +594,7 @@ class DatabaseService {
                 .get(Source.SERVER)
                 .await()
 
-            println("DEBUG getAllVendors: Got ${result.documents.size} vendors")
+            println("getAllVendors: Got ${result.documents.size} vendors")
 
             // MANUAL CONVERSION to ensure isFrozen is correctly mapped
             val vendors = mutableListOf<Vendor>()
@@ -823,7 +603,7 @@ class DatabaseService {
                 val data = document.data ?: return@forEach
 
                 // DEBUG: Print raw data
-                println("DEBUG Vendor ${document.id}:")
+                println("Vendor ${document.id}:")
                 data.forEach { (key, value) ->
                     println("  $key = $value (type: ${value?.javaClass?.simpleName})")
                 }
@@ -848,7 +628,7 @@ class DatabaseService {
                     longitude = (data["longitude"] as? Double) ?: 0.0
                 )
 
-                println("DEBUG Mapped vendor ${document.id}: isFrozen = ${vendor.isFrozen}")
+                println("Mapped vendor ${document.id}: isFrozen = ${vendor.isFrozen}")
                 vendors.add(vendor)
             }
 
@@ -865,7 +645,7 @@ class DatabaseService {
                 .get(Source.SERVER)  // Force server fetch
                 .await()
 
-            println("DEBUG: getAllCustomers - Document count: ${result.documents.size}")
+            println("getAllCustomers - Document count: ${result.documents.size}")
 
             val customers = mutableListOf<Customer>()
 
@@ -881,7 +661,6 @@ class DatabaseService {
                     profileImageBase64 = data["profileImageBase64"] as? String ?: "",
                     createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
                     updatedAt = data["updatedAt"] as? Timestamp ?: Timestamp.now(),
-                    // IMPORTANT: Manually check isFrozen field
                     isFrozen = data["isFrozen"] as? Boolean
                         ?: false, // Default to false if not found
                     lastLogin = data["lastLogin"] as? Timestamp,
@@ -890,7 +669,6 @@ class DatabaseService {
                     totalSpent = (data["totalSpent"] as? Double) ?: 0.0
                 )
 
-                // DEBUG: Print C0001 specifically
                 if (document.id == "C0001") {
                     println("DEBUG C0001:")
                     println("  - Document ID: ${document.id}")
@@ -905,7 +683,7 @@ class DatabaseService {
 
             customers
         } catch (e: Exception) {
-            println("ERROR getting all customers: ${e.message}")
+            println("getting all customers: ${e.message}")
             e.printStackTrace()
             emptyList()
         }
@@ -1091,26 +869,6 @@ class DatabaseService {
         }
     }
 
-    suspend fun deleteVendorReply(feedbackId: String): Result<Boolean> {
-        return try {
-            db.collection("feedbacks").document(feedbackId)
-                .update(
-                    mapOf(
-                        "vendorReply" to "",
-                        "vendorReplyDate" to null,
-                        "isReplied" to false
-                    )
-                ).await()
-
-            // Update analytics
-            updateVendorAnalytics(feedbackId)
-
-            Result.success(true)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
     // Vendor Analytics functions
     private suspend fun updateVendorAnalytics(feedbackId: String) {
         try {
@@ -1166,21 +924,12 @@ class DatabaseService {
         }
     }
 
-    suspend fun getVendorAnalytics(vendorId: String): VendorAnalytics? {
-        return try {
-            db.collection("vendor_analytics").document(vendorId).get().await()
-                .toObject(VendorAnalytics::class.java)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
     suspend fun getFeedbackWithReplies(vendorId: String): List<Feedback> {
         return try {
-            println("DEBUG: Querying feedbacks for vendor: $vendorId")
+            println("Querying feedbacks for vendor: $vendorId")
 
             if (vendorId.isBlank()) {
-                println("DEBUG: Vendor ID is blank!")
+                println("Vendor ID is blank!")
                 return emptyList()
             }
 
@@ -1189,7 +938,7 @@ class DatabaseService {
                 .get()
                 .await()
 
-            println("DEBUG: Query completed. Found ${result.documents.size} documents")
+            println("Query completed. Found ${result.documents.size} documents")
 
             // Manual conversion to handle field name differences
             val feedbacks = result.documents.mapNotNull { document ->
@@ -1217,23 +966,23 @@ class DatabaseService {
                         ?: false
                     )
                 } catch (e: Exception) {
-                    println("DEBUG: Error converting document ${document.id}: ${e.message}")
+                    println("Error converting document ${document.id}: ${e.message}")
                     null
                 }
             }
 
-            println("DEBUG: Successfully converted to ${feedbacks.size} Feedback objects")
+            println("Successfully converted to ${feedbacks.size} Feedback objects")
 
             // Filter by isVisible
             val visibleFeedbacks = feedbacks.filter { it.isVisible }
-            println("DEBUG: After filtering - ${visibleFeedbacks.size} visible feedbacks")
+            println("After filtering - ${visibleFeedbacks.size} visible feedbacks")
 
             // Sort by date, newest first
             val sortedFeedbacks = visibleFeedbacks.sortedByDescending { it.feedbackDate?.seconds ?: 0 }
 
             sortedFeedbacks
         } catch (e: Exception) {
-            println("DEBUG: Error in getFeedbackWithReplies: ${e.message}")
+            println("Error in getFeedbackWithReplies: ${e.message}")
             e.printStackTrace()
             emptyList()
         }
@@ -1264,19 +1013,6 @@ class DatabaseService {
         }
     }
 
-    suspend fun getFeedbackByOrder(orderId: String): Feedback? {
-        return try {
-            db.collection("feedbacks")
-                .whereEqualTo("orderId", orderId)
-                .get()
-                .await()
-                .documents.firstOrNull()
-                ?.toObject(Feedback::class.java)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
     suspend fun getFeedbackByCustomer(customerId: String): List<Feedback> {
         return try {
             println("DEBUG: Getting feedback for customer: $customerId")
@@ -1286,10 +1022,10 @@ class DatabaseService {
                 .get()
                 .await()
 
-            println("DEBUG: Query completed. Found ${result.documents.size} documents")
+            println("Query completed. Found ${result.documents.size} documents")
 
             if (result.documents.isEmpty()) {
-                println("DEBUG: No feedback documents found for customer $customerId")
+                println("No feedback documents found for customer $customerId")
                 return emptyList()
             }
 
@@ -1324,15 +1060,15 @@ class DatabaseService {
                 }
             }
 
-            println("DEBUG: Successfully converted to ${feedbacks.size} Feedback objects")
+            println("Successfully converted to ${feedbacks.size} Feedback objects")
 
             // Sort by date, newest first
             val sortedFeedbacks = feedbacks.sortedByDescending { it.feedbackDate?.seconds ?: 0 }
-            println("DEBUG: Returning ${sortedFeedbacks.size} sorted feedbacks")
+            println("Returning ${sortedFeedbacks.size} sorted feedbacks")
 
             sortedFeedbacks
         } catch (e: Exception) {
-            println("DEBUG: Error in getFeedbackByCustomer: ${e.message}")
+            println("Error in getFeedbackByCustomer: ${e.message}")
             e.printStackTrace()
             emptyList()
         }
@@ -1349,29 +1085,6 @@ class DatabaseService {
                 .toObjects(Feedback::class.java)
         } catch (e: Exception) {
             emptyList()
-        }
-    }
-
-    suspend fun getFeedbackByProduct(productId: String): List<Feedback> {
-        return try {
-            db.collection("feedbacks")
-                .whereEqualTo("productId", productId)
-                .whereEqualTo("isVisible", true)
-                .orderBy("feedbackDate", Query.Direction.DESCENDING)
-                .get()
-                .await()
-                .toObjects(Feedback::class.java)
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    suspend fun getProductRating(productId: String): ProductRating? {
-        return try {
-            db.collection("product_ratings").document(productId).get().await()
-                .toObject(ProductRating::class.java)
-        } catch (e: Exception) {
-            null
         }
     }
 
@@ -1394,8 +1107,8 @@ class DatabaseService {
             if (document.exists()) {
                 val data = document.data ?: return null
 
-                // DEBUG: Print all fields
-                println("DEBUG: Vendor $vendorId fields:")
+                // Print all fields
+                println("Vendor $vendorId fields:")
                 data.forEach { (key, value) ->
                     println("  $key = $value (type: ${value?.javaClass?.simpleName})")
                 }
@@ -1407,7 +1120,7 @@ class DatabaseService {
                     else -> false
                 }
 
-                println("DEBUG: Vendor $vendorId isFrozen = $isFrozen")
+                println("Vendor $vendorId isFrozen = $isFrozen")
 
                 // Create vendor object with manual field mapping
                 Vendor(
@@ -1438,15 +1151,6 @@ class DatabaseService {
         }
     }
 
-    suspend fun testCustomerFreezeStatus(): String {
-        return try {
-            val customer = getCustomerById("C0001")
-            "Customer C0001: isFrozen = ${customer?.isFrozen}, name = ${customer?.name}"
-        } catch (e: Exception) {
-            "Error: ${e.message}"
-        }
-    }
-
     // Customer Operations
     suspend fun getCustomerById(customerId: String): Customer? {
         return try {
@@ -1460,7 +1164,7 @@ class DatabaseService {
                 val data = document.data ?: return null
 
                 // EXTRA DEBUG: Log the raw data
-                println("DEBUG: Raw Firestore data for $customerId:")
+                println("Raw Firestore data for $customerId:")
                 data.forEach { (key, value) ->
                     println("  - $key: $value (${value?.javaClass?.simpleName})")
                 }
@@ -1469,7 +1173,7 @@ class DatabaseService {
                 val isFrozen = data["isFrozen"] as? Boolean ?:
                 data["frozen"] as? Boolean ?: false
 
-                println("DEBUG: Determined isFrozen = $isFrozen for $customerId")
+                println("Determined isFrozen = $isFrozen for $customerId")
 
                 Customer(
                     customerId = customerId,
@@ -1486,7 +1190,7 @@ class DatabaseService {
                     totalSpent = (data["totalSpent"] as? Double) ?: 0.0
                 )
             } else {
-                println("DEBUG: Customer $customerId not found")
+                println("Customer $customerId not found")
                 null
             }
         } catch (e: Exception) {
@@ -1496,20 +1200,7 @@ class DatabaseService {
         }
     }
 
-    suspend fun getCustomerByFirebaseUid(firebaseUid: String): Customer? {
-        return try {
-            val mapping = db.collection("user_mappings").document(firebaseUid).get().await()
-            val customerId = mapping.getString("customerId")
-            customerId?.let {
-                db.collection("customers").document(it).get().await()
-                    .toObject(Customer::class.java)
-            }
-        } catch (e: Exception) {
-            null
-        }
-    }
 
-    // Add this function to your DatabaseService.kt:
     suspend fun updateOrderWithPayPalId(orderId: String, paypalOrderId: String, paypalPayerId: String): Result<Boolean> {
         return try {
             val updates = mapOf(
@@ -1696,15 +1387,12 @@ class DatabaseService {
             if (voucherIds.isEmpty()) return emptyList()
 
             // 2. Fetch the actual Voucher objects based on IDs
-            // Firestore 'in' query supports up to 10 items. For robustness, we fetch individually or in batches.
-            // Here we fetch individually for simplicity in this context.
             val vouchers = mutableListOf<Voucher>()
 
             for (id in voucherIds) {
                 val voucherDoc = db.collection("vouchers").document(id).get().await()
                 val voucher = voucherDoc.toObject(Voucher::class.java)
 
-                // Only add if voucher exists and is still valid (expiry check)
                 if (voucher != null && voucher.isActive && voucher.expiryDate.seconds > Timestamp.now().seconds) {
                     vouchers.add(voucher)
                 }
@@ -1746,13 +1434,10 @@ class DatabaseService {
                 }
 
                 for (dc in snapshots!!.documentChanges) {
-                    // We only care if an existing order was MODIFIED
+
                     if (dc.type == DocumentChange.Type.MODIFIED) {
                         val order = dc.document.toObject(Order::class.java)
 
-                        // Check if the NEW status is "ready"
-                        // You might want to check if the old status was NOT ready to avoid duplicates,
-                        // but usually checking the current state is enough for a simple alert.
                         if (order.status.equals("ready", ignoreCase = true)) {
                             onOrderReady(order)
                         }
@@ -1776,34 +1461,6 @@ class DatabaseService {
 
         } catch (e: Exception) {
             println("Error fetching vouchers: ${e.message}") // Add logging to help debug
-            e.printStackTrace()
-            emptyList()
-        }
-    }
-
-    suspend fun getAllActiveVouchers(): List<Voucher> {
-        return try {
-            println("DEBUG: Fetching vouchers...") // Log 1
-
-            val result = db.collection("vouchers")
-                .whereEqualTo("isActive", true)
-                .get()
-                .await()
-
-            println("DEBUG: Found ${result.documents.size} active vouchers in Firestore") // Log 2
-
-            val vouchers = result.toObjects(Voucher::class.java)
-
-            // Filter by date
-            val now = Timestamp.now().seconds
-            val validVouchers = vouchers.filter { it.expiryDate.seconds > now }
-                .sortedByDescending { it.createdAt }
-
-            println("DEBUG: Returning ${validVouchers.size} valid vouchers after date filter") // Log 3
-            validVouchers
-
-        } catch (e: Exception) {
-            println("DEBUG: Error fetching vouchers: ${e.message}") // Log Error
             e.printStackTrace()
             emptyList()
         }
@@ -1903,7 +1560,7 @@ class DatabaseService {
                 db.collection("payments").document(doc.id).delete()
             }
 
-            println("DEBUG: Order $orderId successfully deleted and stock restored.")
+            println("Order $orderId successfully deleted and stock restored.")
             Result.success(true)
 
         } catch (e: Exception) {
@@ -1914,14 +1571,14 @@ class DatabaseService {
 
     suspend fun calculateAllVendorsStatsBatch(allVendors: List<Vendor>): List<Vendor> {
         return try {
-            println("DEBUG: Starting Batch Calculation...")
+            println("Starting Batch Calculation...")
 
             val allOrders = getAllOrders()
 
 
             val allOrderDetails = db.collection("order_details").get().await().toObjects(OrderDetail::class.java)
 
-            println("DEBUG: Fetched ${allOrders.size} orders and ${allOrderDetails.size} details")
+            println("Fetched ${allOrders.size} orders and ${allOrderDetails.size} details")
 
             val detailsMap = allOrderDetails.groupBy { it.orderId }
 
@@ -1988,7 +1645,7 @@ class DatabaseService {
 
     suspend fun getOrdersByVendor(vendorId: String): List<Order> {
         return try {
-            println("DEBUG: Fetching orders for vendor: $vendorId using Index")
+            println("Fetching orders for vendor: $vendorId using Index")
 
             val result = db.collection("orders")
                 .whereArrayContains("vendorIds", vendorId) // 👈 關鍵查詢
@@ -2012,35 +1669,6 @@ class DatabaseService {
         } catch (e: Exception) {
             println("ERROR fetching vendor orders: ${e.message}")
             emptyList()
-        }
-    }
-
-    suspend fun migrateOldOrdersForVendors(): String {
-        return try {
-            val allOrders = getAllOrders()
-            var updatedCount = 0
-
-            for (order in allOrders) {
-                if (order.vendorIds.isNotEmpty()) continue
-
-                val details = getOrderDetails(order.orderId)
-                val vendorIds = mutableSetOf<String>()
-
-                for (detail in details) {
-                    val product = getProductById(detail.productId)
-                    product?.let { vendorIds.add(it.vendorId) }
-                }
-
-                if (vendorIds.isNotEmpty()) {
-                    db.collection("orders").document(order.orderId)
-                        .update("vendorIds", vendorIds.toList())
-                        .await()
-                    updatedCount++
-                }
-            }
-            "Migration Success: Updated $updatedCount orders"
-        } catch (e: Exception) {
-            "Migration Failed: ${e.message}"
         }
     }
 }

@@ -113,7 +113,7 @@ fun PayPalWebView(url: String, orderId: String) {
                             isLoading = false
                             isPaymentCompleted = true
 
-                            // 執行刪除訂單
+
                             coroutineScope.launch {
                                 databaseService.deleteOrderAndRestoreStock(orderId)
 
@@ -173,7 +173,7 @@ fun PayPalWebView(url: String, orderId: String) {
                                                     }
                                                 }
 
-                                                // 頁面跳轉回主頁
+
                                                 (context as? PayPalWebViewActivity)?.run {
                                                     val intent = Intent(this, MainActivity::class.java).apply {
                                                         putExtra("ORDER_ID", orderId)

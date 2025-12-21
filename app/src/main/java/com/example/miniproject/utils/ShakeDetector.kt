@@ -46,6 +46,7 @@ class ShakeDetector(private val onShake: () -> Unit) : SensorEventListener {
                     shakeCount = 0
                 }
 
+
                 shakeTimestamp = now
                 shakeCount++
 

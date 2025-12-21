@@ -42,7 +42,7 @@ fun AdminOrderListScreen(navController: NavController) {
     var searchQuery by remember { mutableStateOf("") }
     var filterStatus by remember { mutableStateOf("all") } // all, pending, confirmed, completed, cancelled
 
-    // --- NEW: Debounce state to prevent double-click crashes ---
+
     var lastClickTime by remember { mutableLongStateOf(0L) }
 
     // Load orders function
@@ -196,7 +196,7 @@ fun AdminOrderListScreen(navController: NavController) {
                             dateFormat = dateFormat,
                             decimalFormat = decimalFormat,
                             onViewClick = {
-                                // --- UPDATED: Safe Navigation Logic ---
+
                                 val currentTime = System.currentTimeMillis()
                                 if (currentTime - lastClickTime > 500) { // 500ms debounce
                                     lastClickTime = currentTime
@@ -220,7 +220,7 @@ fun AdminOrderListScreen(navController: NavController) {
     }
 }
 
-// --- Modern UI Components ---
+
 
 @Composable
 fun ModernStatChip(
@@ -348,7 +348,7 @@ fun ModernOrderItem(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Row 2: Customer and Amount
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -385,7 +385,7 @@ fun ModernOrderItem(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Row 3: Status Badge and Menu Actions
+            // Status Badge and Menu Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

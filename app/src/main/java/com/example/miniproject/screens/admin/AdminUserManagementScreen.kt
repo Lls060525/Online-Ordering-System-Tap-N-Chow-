@@ -43,7 +43,7 @@ fun AdminUserManagementScreen(navController: NavController) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf(0) }
 
-    // Dialog States (Delete Removed)
+    // Dialog States
     var showFreezeDialog by remember { mutableStateOf(false) }
     var userToFreeze by remember { mutableStateOf<Any?>(null) }
     var freezeAction by remember { mutableStateOf(true) }
@@ -51,7 +51,7 @@ fun AdminUserManagementScreen(navController: NavController) {
     // Snackbar
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Define data loading function to reuse it
+
     val loadData = {
         coroutineScope.launch {
             isLoading = true
@@ -433,7 +433,7 @@ fun VendorCard(vendor: Vendor, dateFormat: SimpleDateFormat, onFreeze: () -> Uni
                             onClick = { showMenu = false; onFreeze() },
                             leadingIcon = { Icon(if (vendor.isFrozen) Icons.Default.LockOpen else Icons.Default.Lock, null) }
                         )
-                        // Removed Delete Menu Item
+
                     }
                 }
             }

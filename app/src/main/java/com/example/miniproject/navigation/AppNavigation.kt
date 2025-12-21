@@ -144,10 +144,5 @@ fun AppNavigation(navController: NavHostController) {
             val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
             AdminOrderDetailsScreen(navController = navController, orderId = orderId)
         }
-
-        // Placeholders (only if you have screens for these, otherwise remove)
-        composable("adminVendorDetails/{vendorId}") { backStackEntry ->
-            // Add AdminVendorDetailsScreen here if you have it
-        }
     }
 }

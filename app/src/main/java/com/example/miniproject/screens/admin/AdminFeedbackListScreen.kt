@@ -70,7 +70,7 @@ fun AdminFeedbackListScreen(navController: NavController) {
 
                     feedbackSnapshot.documents.forEach { document ->
                         val data = document.data ?: return@forEach
-                        // ... (Parsing logic remains the same)
+
                         val feedback = Feedback(
                             feedbackId = document.id,
                             customerId = data["customerId"] as? String ?: "",
@@ -159,7 +159,7 @@ fun AdminFeedbackListScreen(navController: NavController) {
                         color = Color(0xFF333333)
                     )
                 },
-                // Removed navigationIcon to remove "Exit" arrow
+
                 actions = {
                     IconButton(onClick = { /* Refresh logic */ }) {
                         Icon(Icons.Default.Refresh, "Refresh", tint = Color(0xFF333333))
@@ -181,7 +181,7 @@ fun AdminFeedbackListScreen(navController: NavController) {
                     .background(Color.White)
                     .padding(bottom = 16.dp)
             ) {
-                // Stats Row (Clean & Consistent Sizing)
+                // Stats Row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -211,7 +211,7 @@ fun AdminFeedbackListScreen(navController: NavController) {
                     )
                 }
 
-                // Search Bar (Matching other screens)
+                // Search Bar
                 FeedbackSearchBar(
                     query = searchQuery,
                     onQueryChange = { searchQuery = it },
@@ -220,7 +220,7 @@ fun AdminFeedbackListScreen(navController: NavController) {
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Vendor Filter Chips (Matching Order List)
+                // Vendor Filter Chips
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -289,7 +289,6 @@ fun AdminFeedbackListScreen(navController: NavController) {
     }
 }
 
-// --- PRIVATE COMPONENTS (Prevents conflicts) ---
 
 @Composable
 private fun FeedbackStatCard(

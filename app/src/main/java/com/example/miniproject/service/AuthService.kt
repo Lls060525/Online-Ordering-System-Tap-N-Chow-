@@ -22,86 +22,8 @@ class AuthService {
     private val ADMIN_EMAIL = "admin@admin.com.my"
     private val ADMIN_PASSWORD = "administrator"
 
-    // ... (Keep resetPasswordWithOTP and verifyOTP functions as they are) ...
 
-    suspend fun resetPasswordWithOTP(email: String): Result<Boolean> {
-        return try {
-            val databaseService = DatabaseService()
-            val customers = databaseService.getAllCustomers()
-            val isCustomer = customers.any { it.email.equals(email, ignoreCase = true) }
-            val vendors = databaseService.getAllVendors()
-            val isVendor = vendors.any { it.email.equals(email, ignoreCase = true) }
-            val isAdmin = email == ADMIN_EMAIL
 
-            if (!isCustomer && !isVendor && !isAdmin) {
-                return Result.failure(Exception("Email not found in our system"))
-            }
-
-            val otp = (100000..999999).random().toString()
-            val otpData = hashMapOf(
-                "email" to email,
-                "otp" to otp,
-                "createdAt" to Timestamp.now(),
-                "expiresAt" to Timestamp(Date(Date().time + 5 * 60 * 1000)),
-                "used" to false
-            )
-
-            db.collection("password_reset_otps").document(email).set(otpData).await()
-            println("DEBUG: OTP for $email is: $otp")
-            Result.success(true)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    suspend fun verifyOTP(email: String, otp: String): Result<Boolean> {
-        // ... (Keep existing implementation) ...
-        return try {
-            val otpDoc = db.collection("password_reset_otps").document(email).get().await()
-            if (!otpDoc.exists()) return Result.failure(Exception("OTP not found or expired"))
-
-            val data = otpDoc.data ?: return Result.failure(Exception("Invalid OTP"))
-            val storedOTP = data["otp"] as? String
-            val expiresAt = data["expiresAt"] as? Timestamp
-            val used = data["used"] as? Boolean ?: false
-
-            if (used) return Result.failure(Exception("OTP has already been used"))
-
-            val now = Timestamp.now()
-            if (expiresAt == null || expiresAt.seconds < now.seconds) {
-                return Result.failure(Exception("OTP has expired"))
-            }
-
-            if (storedOTP == otp) {
-                db.collection("password_reset_otps").document(email).update("used", true).await()
-                Result.success(true)
-            } else {
-                Result.failure(Exception("Invalid OTP"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    suspend fun resetPassword(email: String, newPassword: String, confirmPassword: String): Result<Boolean> {
-        // ... (Keep existing implementation) ...
-        return try {
-            if (newPassword != confirmPassword) return Result.failure(Exception("Passwords do not match"))
-            if (newPassword.length < 6) return Result.failure(Exception("Password must be at least 6 characters"))
-
-            val currentUser = auth.currentUser
-            if (currentUser?.email == email) {
-                currentUser.updatePassword(newPassword).await()
-            } else {
-                return Result.failure(Exception("Please complete OTP verification first"))
-            }
-            Result.success(true)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    // --- UPDATED FUNCTION ---
     suspend fun sendPasswordResetEmail(email: String): Result<Boolean> {
         return try {
             // 1. Check if email matches Admin
@@ -132,10 +54,10 @@ class AuthService {
         }
     }
 
-    // ... (Keep the rest of the file: login, registerCustomer, registerVendor, etc. exactly as they are) ...
+
 
     suspend fun login(email: String, password: String): Result<String> {
-        // ... (Existing login logic) ...
+
         return try {
             val result = auth.signInWithEmailAndPassword(email, password).await()
             if (result.user != null) {
@@ -189,7 +111,7 @@ class AuthService {
     }
 
     suspend fun adminLogin(email: String, password: String): Result<String> {
-        // ... (Existing adminLogin logic) ...
+
         return try {
             if (email != ADMIN_EMAIL || password != ADMIN_PASSWORD) {
                 return Result.failure(Exception("Invalid admin credentials"))
@@ -254,12 +176,13 @@ class AuthService {
         phoneNumber: String,
         password: String
     ): Result<String> {
-        // ... (Existing registerCustomer logic) ...
+
         return try {
             try {
                 auth.signInWithEmailAndPassword(email, password).await()
                 return Result.failure(Exception("User already exists with this email"))
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+            }
 
             val authResult = auth.createUserWithEmailAndPassword(email, password).await()
             val user = authResult.user ?: throw Exception("Customer creation failed")
@@ -294,24 +217,6 @@ class AuthService {
         } catch (e: Exception) {
             auth.currentUser?.delete()?.await()
             Result.failure(Exception("Registration failed: ${e.message}"))
-        }
-    }
-
-    suspend fun resendVerificationEmail(email: String, password: String): Result<Boolean> {
-        // ... (Existing logic) ...
-        return try {
-            val result = auth.signInWithEmailAndPassword(email, password).await()
-            val user = result.user
-            if (user != null) {
-                if (user.isEmailVerified) return Result.failure(Exception("Email is already verified."))
-                user.sendEmailVerification().await()
-                auth.signOut()
-                Result.success(true)
-            } else {
-                Result.failure(Exception("User not found"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
 
@@ -385,26 +290,8 @@ class AuthService {
         } catch (e: Exception) { null }
     }
 
-    suspend fun getVendorByFirebaseUid(firebaseUid: String): Vendor? {
-        return try {
-            val mapping = db.collection("user_mappings").document(firebaseUid).get().await()
-            val vendorId = mapping.getString("vendorId")
-            vendorId?.let { db.collection("vendors").document(it).get().await().toObject(Vendor::class.java) }
-        } catch (e: Exception) { null }
-    }
-
-    suspend fun getVendorById(vendorId: String): Vendor? {
-        return try {
-            db.collection("vendors").document(vendorId).get().await().toObject(Vendor::class.java)
-        } catch (e: Exception) { null }
-    }
-
     fun getCurrentUser() = auth.currentUser
     fun logout() = auth.signOut()
-
-    suspend fun shouldShowAdminFeatures(): Boolean {
-        return isAdminUser()
-    }
 
     suspend fun getCurrentUserRole(): String {
         return try {

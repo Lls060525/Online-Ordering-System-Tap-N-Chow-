@@ -41,8 +41,7 @@ object EmailService {
             false
         }
     }
-
-    // genera HTML
+    // generate HTML
     private fun generateHtmlReceipt(
         customer: Customer,
         order: Order,

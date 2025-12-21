@@ -143,7 +143,7 @@ fun AdminVendorSalesReportScreen(
                 ErrorView(message = errorMessage ?: "Unknown Error") {
                     // Retry logic
                     isLoading = true
-                    // ... (repeat fetch logic)
+
                 }
             } else if (salesData == null || salesData?.totalOrders == 0) {
                 EmptyDataView()
@@ -153,7 +153,7 @@ fun AdminVendorSalesReportScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // 1. Key Metrics Row
+                    //  Key Metrics Row
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             ModernMetricCard(
@@ -182,8 +182,7 @@ fun AdminVendorSalesReportScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
-
-                    // 2. Revenue Trend Graph (Modern Line Chart)
+                    //  Revenue Trend Graph (Modern Line Chart)
                     item {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -227,7 +226,7 @@ fun AdminVendorSalesReportScreen(
                                 }
 
                                 Spacer(modifier = Modifier.height(24.dp))
-                                // 1. 获取对应当前选择的数据源
+
                                 val currentChartData = when (selectedTimeRange) {
                                     "Day" -> salesData?.chartDataDay ?: emptyMap()
                                     "Week" -> salesData?.chartDataWeek ?: emptyMap()
@@ -236,7 +235,7 @@ fun AdminVendorSalesReportScreen(
                                 }
                                 // Graph Component
                                 SmoothLineChart(
-                                    data = currentChartData, // <--- 这里不再是写死的 dailyRevenueWithTax
+                                    data = currentChartData,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(200.dp)
@@ -245,7 +244,7 @@ fun AdminVendorSalesReportScreen(
                         }
                     }
 
-                    // 3. Revenue Distribution (Donut Chart)
+                    //  Revenue Distribution (Donut Chart)
                     item {
                         RevenueDistributionCard(salesData = salesData)
                     }
@@ -275,7 +274,6 @@ fun AdminVendorSalesReportScreen(
     }
 }
 
-// --- Modern Components ---
 
 @Composable
 fun ModernMetricCard(
@@ -596,7 +594,7 @@ fun EmptyDataView() {
     }
 }
 
-// Data class (Keep existing)
+// Data class
 data class VendorSalesData(
     val totalRevenue: Double,
     val totalTax: Double,
@@ -612,7 +610,7 @@ data class VendorSalesData(
     val chartDataMonth: Map<String, Double>  // Month View: Week 1 - Week 4
 )
 
-// Logic function remains largely the same, just ensuring context correctness
+
 private suspend fun calculateAdminVendorSalesData(
     vendorId: String,
     allOrders: List<Order>,
@@ -623,18 +621,18 @@ private suspend fun calculateAdminVendorSalesData(
     var totalTax = 0.0
     val orderStatusCounts = mutableMapOf<String, Int>()
 
-    // --- 初始化图表数据容器 ---
-    // 1. Day View: 00:00 到 23:00
+
+
     val chartDataDay = LinkedHashMap<String, Double>()
     for (i in 0..23) {
         chartDataDay[String.format("%02d:00", i)] = 0.0
     }
 
-    // 2. Week View: 过去7天
+
     val chartDataWeek = LinkedHashMap<String, Double>()
     val calendar = Calendar.getInstance()
     val shortDateFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
-    // 预先填充过去7天的日期作为 Key
+
     val weekKeys = mutableListOf<String>()
     for (i in 6 downTo 0) {
         val cal = Calendar.getInstance()
@@ -644,25 +642,25 @@ private suspend fun calculateAdminVendorSalesData(
         weekKeys.add(dateKey)
     }
 
-    // 3. Month View: Week 1 到 Week 4 (或 5)
+
     val chartDataMonth = LinkedHashMap<String, Double>()
     for (i in 1..4) {
         chartDataMonth["Week $i"] = 0.0
     }
 
-    // --- 辅助变量 ---
+
     val todayStart = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0)
     }
     val currentMonth = Calendar.getInstance().get(Calendar.MONTH)
 
-    // --- 遍历订单 ---
+
     for (order in allOrders) {
         val orderDetails = databaseService.getOrderDetails(order.orderId)
         var vendorOrderTotal = 0.0
         var vendorOrderTax = 0.0
 
-        // 计算该 Vendor 在此订单中的份额
+
         for (detail in orderDetails) {
             val product = databaseService.getProductById(detail.productId)
             if (product?.vendorId == vendorId) {
@@ -681,29 +679,28 @@ private suspend fun calculateAdminVendorSalesData(
             totalRevenue += vendorOrderTotal
             totalTax += vendorOrderTax
 
-            // 更新订单状态统计
+
             orderStatusCounts[order.status] = orderStatusCounts.getOrDefault(order.status, 0) + 1
 
-            // --- 填充图表数据 ---
+
             val orderDate = order.orderDate.toDate()
             val orderCal = Calendar.getInstance().apply { time = orderDate }
 
-            // A. Day Data (仅限今天的订单)
+
             if (orderDate.after(todayStart.time)) {
                 val hourKey = String.format("%02d:00", orderCal.get(Calendar.HOUR_OF_DAY))
                 chartDataDay[hourKey] = chartDataDay.getOrDefault(hourKey, 0.0) + vendorOrderWithTax
             }
 
-            // B. Week Data (过去7天)
-            // 简单的检查方法：看这个日期生成的 Key 是否在我们的 keys 列表中
+
             val dayKey = shortDateFormat.format(orderDate)
             if (chartDataWeek.containsKey(dayKey)) {
                 chartDataWeek[dayKey] = chartDataWeek.getOrDefault(dayKey, 0.0) + vendorOrderWithTax
             }
 
-            // C. Month Data (仅限本月)
+
             if (orderCal.get(Calendar.MONTH) == currentMonth) {
-                // 计算是第几周 (1-4, 超过4归入Week 4)
+
                 val weekNum = orderCal.get(Calendar.WEEK_OF_MONTH).coerceAtMost(4)
                 val weekKey = "Week $weekNum"
                 chartDataMonth[weekKey] = chartDataMonth.getOrDefault(weekKey, 0.0) + vendorOrderWithTax
@@ -729,7 +726,6 @@ private suspend fun calculateAdminVendorSalesData(
         averageOrderValueWithTax = averageOrderValueWithTax,
         orderStatusCounts = orderStatusCounts,
         recentOrders = recentOrders,
-        // 填入新计算的数据
         chartDataDay = chartDataDay,
         chartDataWeek = chartDataWeek,
         chartDataMonth = chartDataMonth

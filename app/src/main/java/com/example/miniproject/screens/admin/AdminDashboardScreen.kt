@@ -119,7 +119,7 @@ fun AdminDashboardScreen(navController: NavController) {
                                         color = Color.White.copy(alpha = 0.8f)
                                     )
                                 }
-                                // --- UPDATED: Logout Button triggers dialog ---
+                                // --- Logout Button triggers dialog ---
                                 IconButton(
                                     onClick = { showLogoutDialog = true },
                                     modifier = Modifier
@@ -257,7 +257,7 @@ fun AdminDashboardScreen(navController: NavController) {
                 }
             }
 
-            // --- NEW: Logout Confirmation Dialog ---
+            // --- Logout Confirmation Dialog ---
             if (showLogoutDialog) {
                 AlertDialog(
                     onDismissRequest = { showLogoutDialog = false },
@@ -287,7 +287,7 @@ fun AdminDashboardScreen(navController: NavController) {
         }
     }
 }
-// --- Modern UI Components ---
+// --- UI Components ---
 
 @Composable
 fun ModernStatCard(
@@ -390,98 +390,6 @@ fun ModernActionCard(
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color(0xFF424242)
-            )
-        }
-    }
-}
-
-@Composable
-fun AdminStatCard(
-    title: String,
-    value: String,
-    icon: ImageVector,
-    color: Color,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Icon(
-                icon,
-                contentDescription = title,
-                modifier = Modifier.size(32.dp),
-                tint = color
-            )
-            Text(
-                value,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                title,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
-}
-
-@Composable
-fun AdminActionCard(
-    title: String,
-    description: String,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Icon(
-                icon,
-                contentDescription = title,
-                modifier = Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    description,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = "Go",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -603,7 +511,7 @@ fun PlatformEarningsBreakdown(
     }
 }
 
-// Data class for navigation items (add this ABOVE the AdminBottomNavigation function)
+// Data class for navigation items
 data class NavItem(
     val route: String,
     val icon: ImageVector,

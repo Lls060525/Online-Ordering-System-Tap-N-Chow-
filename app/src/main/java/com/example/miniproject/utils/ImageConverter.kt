@@ -61,7 +61,7 @@ class ImageConverter(private val context: Context) {
 
     fun base64ToBitmap(base64String: String): Bitmap? {
         return try {
-            // Handle both formats: with and without data URI prefix
+            // To Handle both formats: with and without data URI prefix
             val pureBase64 = if (base64String.contains(",")) {
                 base64String.substringAfter(",")
             } else {

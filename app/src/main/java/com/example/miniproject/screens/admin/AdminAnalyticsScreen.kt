@@ -74,7 +74,7 @@ fun AdminAnalyticsScreen(navController: NavController) {
     var platformRevenueData by remember { mutableStateOf<List<Double>>(emptyList()) }
     var isGeneratingReport by remember { mutableStateOf(false) }
 
-    // --- NEW: Debounce state for back button safety ---
+    // Debounce state for back button safety ---
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     // Permission Launcher
@@ -136,7 +136,7 @@ fun AdminAnalyticsScreen(navController: NavController) {
     val activeVendors = vendors.size
     val ordersByStatus = orders.groupBy { order -> order.status }.mapValues { entry -> entry.value.size }
 
-    // 2. Fix Top Vendors Calculation: Use the actual calculated revenue from the Vendor object
+    // Use the actual calculated revenue from the Vendor object
     val topVendors = vendors
         .sortedByDescending { it.totalRevenue }
         .take(5)
@@ -273,9 +273,6 @@ fun AdminAnalyticsScreen(navController: NavController) {
     }
 }
 
-// REMOVED: calculateTopVendors and calculateVendorRevenue helper functions are no longer needed
-// because we calculate it directly in the LaunchedEffect.
-
 @Composable
 fun TopVendorsCard(
     vendors: List<Vendor>,
@@ -313,9 +310,6 @@ fun TopVendorsCard(
         }
     }
 }
-
-// --- Rest of your UI Composable functions (AdminTimeRangeSelector, PlatformRevenueChart, etc.) remain the same ---
-// ... (Include AdminTimeRangeSelector, PlatformRevenueChart, BeautifulBarChart, AdminMetricCard, etc. here) ...
 
 @Composable
 private fun AdminTimeRangeSelector(

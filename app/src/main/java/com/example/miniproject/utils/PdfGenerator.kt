@@ -58,7 +58,7 @@ object PdfGenerator {
 
         // --- DRAW LOGO ---
         try {
-            // REPLACE 'R.drawable.logo' with your actual image filename
+
             val originalBitmap = BitmapFactory.decodeResource(context.resources, R.drawable.logo)
 
             if (originalBitmap != null) {
@@ -75,12 +75,12 @@ object PdfGenerator {
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            // If logo fails, just skip it and continue
+
         }
 
-        // --- DRAW FIRST PAGE HEADER (Vendor Info & Summary) ---
 
-        // 1. App Title & Report Name
+
+        // App Title & Report Name
         canvas.drawText("Tap-N-Chow", pageWidth / 2f, yPosition, titlePaint)
         yPosition += 30f
 
@@ -89,13 +89,13 @@ object PdfGenerator {
         canvas.drawText("Vendor Sales Report", pageWidth / 2f, yPosition, subTitlePaint)
         yPosition += 40f
 
-        // 2. Generation Date
+        // Generation Date
         paint.textAlign = Paint.Align.RIGHT
         val dateFormat = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
         canvas.drawText("Generated: ${dateFormat.format(Date())}", pageWidth - margin, yPosition, paint)
         paint.textAlign = Paint.Align.LEFT
 
-        // 3. Vendor Details
+        // Vendor Details
         canvas.drawLine(margin, yPosition + 10f, pageWidth - margin, yPosition + 10f, paint)
         yPosition += 40f
 
@@ -111,7 +111,7 @@ object PdfGenerator {
 
         yPosition += 40f
 
-        // 4. Financial Summary Box
+        // Financial Summary Box
         val boxTop = yPosition
         val boxHeight = 100f
 
@@ -222,9 +222,6 @@ object PdfGenerator {
         }
     }
 
-    // Add this function to PdfGenerator.kt, inside the PdfGenerator object
-// 请替换 PdfGenerator object 中的 generatePlatformAnalyticsReport 函数
-
     fun generatePlatformAnalyticsReport(
         context: Context,
         outputStream: OutputStream,
@@ -245,66 +242,66 @@ object PdfGenerator {
         val titlePaint = Paint()
         val headerPaint = Paint()
         val subHeaderPaint = Paint()
-        val moneyPaint = Paint() // 专门用于金额右对齐
+        val moneyPaint = Paint()
 
-        // --- 1. 定义样式 (Styles) ---
-        // 标题样式
+
+
         titlePaint.color = Color.BLACK
         titlePaint.textSize = 24f
         titlePaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         titlePaint.textAlign = Paint.Align.CENTER
 
-        // 表头样式 (加粗，深灰色)
+
         headerPaint.textSize = 12f
         headerPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         headerPaint.color = Color.DKGRAY
         headerPaint.textAlign = Paint.Align.LEFT
 
-        // 副标题/区域标题样式
+
         subHeaderPaint.textSize = 16f
         subHeaderPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         subHeaderPaint.color = Color.parseColor("#2196F3") // 使用蓝色作为强调色
         subHeaderPaint.textAlign = Paint.Align.LEFT
 
-        // 普通文本样式
+
         paint.color = Color.BLACK
         paint.textSize = 11f
         paint.typeface = Typeface.DEFAULT
         paint.textAlign = Paint.Align.LEFT
 
-        // 金额/数字样式 (右对齐)
+
         moneyPaint.color = Color.BLACK
         moneyPaint.textSize = 11f
         moneyPaint.typeface = Typeface.DEFAULT
         moneyPaint.textAlign = Paint.Align.RIGHT
 
-        // 页面设置
+
         val pageWidth = 595
         val pageHeight = 842
         val margin = 40f
 
-        // 分页管理
+
         var pageNumber = 1
         var pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
         var page = document.startPage(pageInfo)
         var canvas = page.canvas
         var yPosition = 40f
 
-        // 辅助函数：绘制背景条 (斑马纹)
+
         fun drawRowBackground(top: Float, height: Float) {
             val bgPaint = Paint()
-            bgPaint.color = Color.parseColor("#F5F5F5") // 浅灰色背景
+            bgPaint.color = Color.parseColor("#F5F5F5")
             canvas.drawRect(margin, top - 10f, pageWidth - margin, top + height - 10f, bgPaint)
         }
 
-        // --- 2. 绘制 Logo 和 顶部信息 ---
+
         try {
             val originalBitmap = BitmapFactory.decodeResource(context.resources, R.drawable.logo)
             if (originalBitmap != null) {
                 val logoWidth = 60
                 val logoHeight = 60
                 val scaledLogo = Bitmap.createScaledBitmap(originalBitmap, logoWidth, logoHeight, true)
-                // 居中绘制 Logo
+
                 canvas.drawBitmap(scaledLogo, (pageWidth / 2f) - (logoWidth / 2f), yPosition, paint)
                 yPosition += logoHeight + 15f
             }
@@ -312,7 +309,7 @@ object PdfGenerator {
             e.printStackTrace()
         }
 
-        // 主标题
+
         canvas.drawText("Tap-N-Chow", pageWidth / 2f, yPosition, titlePaint)
         yPosition += 25f
 
@@ -323,12 +320,12 @@ object PdfGenerator {
         canvas.drawText("Platform Analytics Report", pageWidth / 2f, yPosition, reportTitlePaint)
         yPosition += 35f
 
-        // 生成时间和范围 (左右分布)
+
         val dateFormat = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
         val dateStr = "Generated: ${dateFormat.format(Date())}"
         val rangeStr = "Time Range: ${selectedTimeRange.uppercase()}"
 
-        // 画一条分隔线
+
         val linePaint = Paint()
         linePaint.color = Color.LTGRAY
         linePaint.strokeWidth = 1f
@@ -342,65 +339,63 @@ object PdfGenerator {
         canvas.drawText(dateStr, pageWidth - margin, yPosition, rightAlignPaint)
         yPosition += 30f
 
-        // --- 3. Key Platform Metrics (修复重叠问题) ---
-        // 绘制蓝色背景框的标题
+
         canvas.drawText("Key Platform Metrics", margin, yPosition, subHeaderPaint)
         yPosition += 20f
 
-        // 定义两列数据的X坐标
-        val col1LabelX = margin + 10f
-        val col1ValueX = (pageWidth / 2f) - 20f // 第一列数值右对齐的位置
-        val col2LabelX = (pageWidth / 2f) + 20f
-        val col2ValueX = pageWidth - margin - 10f // 第二列数值右对齐的位置
 
-        // 绘制灰色背景框
+        val col1LabelX = margin + 10f
+        val col1ValueX = (pageWidth / 2f) - 20f
+        val col2LabelX = (pageWidth / 2f) + 20f
+        val col2ValueX = pageWidth - margin - 10f
+
+
         val boxTop = yPosition - 10f
-        val boxHeight = 70f // 增加高度以容纳内容
+        val boxHeight = 70f
         val boxPaint = Paint()
         boxPaint.color = Color.parseColor("#F9F9F9")
         boxPaint.style = Paint.Style.FILL
         canvas.drawRect(margin, boxTop, pageWidth - margin, boxTop + boxHeight, boxPaint)
 
-        // 边框
+
         boxPaint.style = Paint.Style.STROKE
         boxPaint.color = Color.LTGRAY
         canvas.drawRect(margin, boxTop, pageWidth - margin, boxTop + boxHeight, boxPaint)
 
-        yPosition += 10f // 进入框内
+        yPosition += 10f
 
-        // 第一行数据
+
         canvas.drawText("Total Revenue:", col1LabelX, yPosition, headerPaint)
         canvas.drawText(String.format(Locale.getDefault(), "RM %.2f", totalRevenue), col1ValueX, yPosition, moneyPaint)
 
         canvas.drawText("Platform Rev (10%):", col2LabelX, yPosition, headerPaint)
         canvas.drawText(String.format(Locale.getDefault(), "RM %.2f", platformRevenue), col2ValueX, yPosition, moneyPaint)
 
-        yPosition += 25f // 增加行间距
+        yPosition += 25f
 
-        // 第二行数据
+
         canvas.drawText("Total Orders:", col1LabelX, yPosition, headerPaint)
         canvas.drawText(totalOrders.toString(), col1ValueX, yPosition, moneyPaint)
 
         canvas.drawText("Active Vendors:", col2LabelX, yPosition, headerPaint)
         canvas.drawText(activeVendors.toString(), col2ValueX, yPosition, moneyPaint)
 
-        yPosition = boxTop + boxHeight + 35f // 移出框外
+        yPosition = boxTop + boxHeight + 35f
 
-        // --- 4. Order Status Distribution (表格优化) ---
+        // Order Status Distribution
         canvas.drawText("Order Status Distribution", margin, yPosition, subHeaderPaint)
         yPosition += 20f
 
-        // 定义表格列宽
         val tableCol1 = margin + 10f // Status
         val tableCol2 = margin + 250f // Count (Right Align target)
         val tableCol3 = pageWidth - margin - 10f // Percentage (Right Align target)
 
-        // 表头背景
+
         val headerBgPaint = Paint()
         headerBgPaint.color = Color.parseColor("#E0E0E0")
         canvas.drawRect(margin, yPosition - 12f, pageWidth - margin, yPosition + 8f, headerBgPaint)
 
-        // 表头文字
+
         canvas.drawText("Status", tableCol1, yPosition, headerPaint)
 
         val centerHeaderPaint = Paint(headerPaint)
@@ -410,10 +405,10 @@ object PdfGenerator {
 
         yPosition += 20f
 
-        // 遍历绘制行
+
         var rowIndex = 0
         ordersByStatus.entries.sortedByDescending { entry -> entry.value }.forEach { (status, count) ->
-            // 隔行变色
+
             if (rowIndex % 2 == 0) {
                 drawRowBackground(yPosition, 20f)
             }
@@ -427,7 +422,7 @@ object PdfGenerator {
             yPosition += 20f
             rowIndex++
 
-            // 分页检查
+
             if (yPosition > pageHeight - 50) {
                 document.finishPage(page)
                 pageNumber++
@@ -438,13 +433,13 @@ object PdfGenerator {
             }
         }
 
-        // 表格底线
+
         canvas.drawLine(margin, yPosition - 5f, pageWidth - margin, yPosition - 5f, linePaint)
         yPosition += 30f
 
-        // --- 5. Top Performing Vendors (修复划线问题) ---
+        // Top Performing Vendors
 
-        // 分页检查：确保标题和表格不分离
+
         if (yPosition > pageHeight - 150) {
             document.finishPage(page)
             pageNumber++
@@ -457,12 +452,11 @@ object PdfGenerator {
         canvas.drawText("Top Performing Vendors", margin, yPosition, subHeaderPaint)
         yPosition += 20f
 
-        // 定义列
+
         val vCol1 = margin + 10f // Name
         val vCol2 = margin + 250f // Category
         val vCol3 = pageWidth - margin - 10f // Revenue (Right Align)
 
-        // 表头背景
         canvas.drawRect(margin, yPosition - 12f, pageWidth - margin, yPosition + 8f, headerBgPaint)
 
         canvas.drawText("Vendor Name", vCol1, yPosition, headerPaint)
@@ -482,9 +476,8 @@ object PdfGenerator {
             canvas.drawText(vendor.category.uppercase(), vCol2, yPosition, paint)
             canvas.drawText(String.format(Locale.getDefault(), "RM %.2f", revenue), vCol3, yPosition, moneyPaint)
 
-            // 关键修复：这里的横线逻辑改成了每行底部画淡淡的线，而不是穿过文字
-            // 如果想要类似 Excel 的效果，可以注释掉下面这行，或者只在最后画线
-            // canvas.drawLine(margin, yPosition + 8f, pageWidth - margin, yPosition + 8f, lightLinePaint)
+
+
 
             yPosition += 20f
             rowIndex++
@@ -498,13 +491,13 @@ object PdfGenerator {
                 yPosition = 50f
             }
         }
-        // 表格底部封口线
+
         canvas.drawLine(margin, yPosition - 5f, pageWidth - margin, yPosition - 5f, linePaint)
 
         yPosition += 30f
 
-        // --- 6. Revenue Breakdown (简单的总结) ---
-        // 确保这块内容不会被切断
+        // Revenue Breakdown
+
         if (yPosition > pageHeight - 100) {
             document.finishPage(page)
             pageNumber++
@@ -514,7 +507,7 @@ object PdfGenerator {
             yPosition = 50f
         }
 
-        // 画一个小框作为总结
+
         val totalRev = platformRevenue + vendorRevenue
         val summaryBoxTop = yPosition
 
@@ -528,10 +521,9 @@ object PdfGenerator {
         paint.color = Color.GRAY
         canvas.drawText(" * Includes both Platform commission and Vendor earnings.", margin + 10f, yPosition, paint)
 
-        // 完成页面
+
         document.finishPage(page)
 
-        // 保存文件
         try {
             document.writeTo(outputStream)
             Toast.makeText(context, "Analytics Report Saved Successfully", Toast.LENGTH_LONG).show()

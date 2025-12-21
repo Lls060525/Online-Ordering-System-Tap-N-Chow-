@@ -25,7 +25,6 @@ fun CustomTextField(
     keyboardType: KeyboardType = KeyboardType.Text,
     isError: Boolean = false,
     supportingText: String? = null,
-    // ADD THIS PARAMETER:
     trailingIcon: @Composable (() -> Unit)? = null
 ) {
     OutlinedTextField(
@@ -43,7 +42,6 @@ fun CustomTextField(
         ),
         singleLine = true,
         isError = isError,
-        // PASS IT HERE:
         trailingIcon = trailingIcon,
         supportingText = {
             if (supportingText != null) {

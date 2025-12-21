@@ -38,7 +38,6 @@ class MainActivity : FragmentActivity() {
                 // Navigation setup
                 val navController = rememberNavController()
 
-                // If we have a successful PayPal payment with order ID, navigate to confirmation
                 LaunchedEffect(Unit) {
                     if (paymentSuccess == true && !orderId.isNullOrEmpty()) {
                         navController.navigate("orderConfirmation/$orderId") {

@@ -10,6 +10,7 @@ import com.google.android.gms.tasks.CancellationTokenSource
 class LocationHelper(private val context: Context) {
     private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
 
+
     @SuppressLint("MissingPermission")
     fun getCurrentLocation(onLocationReceived: (Location) -> Unit) {
         fusedLocationClient.getCurrentLocation(

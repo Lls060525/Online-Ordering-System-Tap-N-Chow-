@@ -45,7 +45,7 @@ fun AdminOrderDetailsScreen(
     var payment by remember { mutableStateOf<Payment?>(null) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // --- NEW: State to prevent double clicks (Crash Prevention) ---
+
     var lastBackClickTime by remember { mutableLongStateOf(0L) }
 
     // Load order data
@@ -74,7 +74,7 @@ fun AdminOrderDetailsScreen(
                         }
                     }
 
-                    // Load the first vendor (most orders have one vendor)
+                    // Load the first vendor
                     if (vendors.isNotEmpty()) {
                         val vendorId = vendors.first()
                         vendor = databaseService.getVendorById(vendorId)
@@ -105,7 +105,7 @@ fun AdminOrderDetailsScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = {
-                        // --- UPDATED: Safe Back Button Logic ---
+
                         val currentTime = System.currentTimeMillis()
                         // Only allow action if 500ms has passed since last click
                         if (currentTime - lastBackClickTime > 500) {
@@ -167,7 +167,7 @@ fun AdminOrderDetailsScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // 1. Order ID & Status Header Card
+                //  Order ID & Status Header Card
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -221,7 +221,7 @@ fun AdminOrderDetailsScreen(
                     }
                 }
 
-                // 2. Timeline Card
+                //  Timeline Card
                 item {
                     ModernSectionCard(title = "Order Timeline", icon = Icons.Default.Timeline, iconColor = Color(0xFF9C27B0)) {
                         Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
@@ -277,7 +277,7 @@ fun AdminOrderDetailsScreen(
                     }
                 }
 
-                // 3. Customer & Vendor Info
+                // Customer & Vendor Info
                 item {
                     ModernSectionCard(title = "Customer Details", icon = Icons.Default.Person, iconColor = Color(0xFF2196F3)) {
                         if (customer != null) {
@@ -301,7 +301,7 @@ fun AdminOrderDetailsScreen(
                     }
                 }
 
-                // 4. Order Items
+                // Order Items
                 if (orderDetails.isNotEmpty()) {
                     item {
                         ModernSectionCard(title = "Items Ordered", icon = Icons.Default.ShoppingBag, iconColor = Color(0xFFE91E63)) {
@@ -339,7 +339,7 @@ fun AdminOrderDetailsScreen(
                     }
                 }
 
-                // 5. Payment Info
+                // Payment Info
                 if (payment != null) {
                     item {
                         ModernSectionCard(title = "Payment", icon = Icons.Default.Payment, iconColor = Color(0xFF009688)) {
@@ -350,7 +350,7 @@ fun AdminOrderDetailsScreen(
                     }
                 }
 
-                // 6. Action Button (Update Status)
+                // Action Button
                 item {
                     var expanded by remember { mutableStateOf(false) }
 
@@ -414,7 +414,6 @@ fun AdminOrderDetailsScreen(
     }
 }
 
-// --- Local Helpers (No external files required) ---
 
 @Composable
 fun ModernSectionCard(

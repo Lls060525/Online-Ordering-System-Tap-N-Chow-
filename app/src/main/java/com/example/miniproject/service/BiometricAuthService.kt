@@ -50,7 +50,7 @@ class BiometricAuthService(private val context: Context) {
         return null
     }
 
-    // ... (Keep your existing admin functions: forceSaveTestCredentials, saveAdminCredentials, etc.) ...
+
 
     fun checkBiometricAvailability(): BiometricStatus {
         val biometricManager = BiometricManager.from(context)
@@ -63,7 +63,7 @@ class BiometricAuthService(private val context: Context) {
         }
     }
 
-    // --- NEW FUNCTION: Generic Payment Authorization ---
+    // --- Generic Payment Authorization ---
     suspend fun authorizePayment(amount: Double): Boolean {
         val activity = findFragmentActivity()
         if (activity == null) return false
@@ -94,7 +94,7 @@ class BiometricAuthService(private val context: Context) {
 
                             override fun onAuthenticationFailed() {
                                 super.onAuthenticationFailed()
-                                // Fingerprint didn't match, let them try again (don't resume yet)
+
                             }
                         }
                     )
@@ -105,8 +105,6 @@ class BiometricAuthService(private val context: Context) {
                         .setNegativeButtonText("Cancel")
                         .build()
 
-                    // We don't need a CryptoObject for simple verification,
-                    // just checking if the user is present is enough for this level of security.
                     biometricPrompt.authenticate(promptInfo)
 
                 } catch (e: Exception) {
@@ -115,36 +113,5 @@ class BiometricAuthService(private val context: Context) {
                 }
             }
         }
-    }
-
-    // ... (Keep getOrCreateSecretKey, createSecretKey, getCipher private functions) ...
-    private fun getOrCreateSecretKey(): SecretKey {
-        val keyStore = KeyStore.getInstance(KEYSTORE_NAME)
-        keyStore.load(null)
-        if (!keyStore.containsAlias(KEY_NAME)) createSecretKey()
-        return keyStore.getKey(KEY_NAME, null) as SecretKey
-    }
-
-    private fun createSecretKey() {
-        val keyGenerator = KeyGenerator.getInstance(
-            KeyProperties.KEY_ALGORITHM_AES,
-            KEYSTORE_NAME
-        )
-        val keyGenParameterSpec = KeyGenParameterSpec.Builder(
-            KEY_NAME,
-            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-        )
-            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-            .setKeySize(256)
-            .setUserAuthenticationRequired(true)
-            .setInvalidatedByBiometricEnrollment(true)
-            .build()
-        keyGenerator.init(keyGenParameterSpec)
-        keyGenerator.generateKey()
-    }
-
-    private fun getCipher(): Cipher {
-        return Cipher.getInstance(CIPHER_TRANSFORMATION)
     }
 }

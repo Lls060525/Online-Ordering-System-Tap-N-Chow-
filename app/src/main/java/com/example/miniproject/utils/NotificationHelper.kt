@@ -59,6 +59,7 @@ class NotificationHelper(private val context: Context) {
             notificationManager.notify(NOTIFICATION_ID, builder.build())
         } catch (e: SecurityException) {
             // Handle permission exception if necessary
+
             e.printStackTrace()
         }
     }

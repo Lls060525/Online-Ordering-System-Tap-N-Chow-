@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import java.util.Locale
 
 object GeocodingHelper {
+
     suspend fun getAddressFromCoordinates(context: Context, lat: Double, lng: Double): String {
         return withContext(Dispatchers.IO) {
             try {

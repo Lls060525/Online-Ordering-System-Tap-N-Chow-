@@ -15,7 +15,7 @@ object PayPalConfig {
     // Currency
     const val CURRENCY = "MYR"
 
-    // Intent (AUTHORIZE or CAPTURE)
+    // Intent
     const val INTENT = "CAPTURE" // Use CAPTURE for immediate payment
 
     // Shipping preference
