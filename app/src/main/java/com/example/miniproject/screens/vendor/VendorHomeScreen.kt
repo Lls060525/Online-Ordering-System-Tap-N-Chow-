@@ -61,7 +61,7 @@ import com.example.miniproject.R
 import com.example.miniproject.model.Product
 import com.example.miniproject.model.Vendor
 import com.example.miniproject.model.VendorRating
-import com.example.miniproject.screens.VendorOrdersScreen.VendorOrdersContent
+import com.example.miniproject.screens.vendor.VendorOrdersScreen.VendorOrdersContent
 import com.example.miniproject.service.AuthService
 import com.example.miniproject.service.DatabaseService
 import com.example.miniproject.utils.ImageConverter

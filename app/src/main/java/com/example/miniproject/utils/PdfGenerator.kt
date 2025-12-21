@@ -11,7 +11,7 @@ import android.widget.Toast
 import com.example.miniproject.R
 import com.example.miniproject.model.Order
 import com.example.miniproject.model.Vendor
-import com.example.miniproject.screens.SalesData
+import com.example.miniproject.screens.vendor.SalesData
 import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date

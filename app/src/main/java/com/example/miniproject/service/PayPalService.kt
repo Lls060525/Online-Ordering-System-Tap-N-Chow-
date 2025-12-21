@@ -77,7 +77,7 @@ class PayPalService {
                         amount = Amount(value = "%.2f".format(amount)),
                         description = description,
                         custom_id = orderId,
-                        invoice_id = orderId,
+                        invoice_id = "${orderId}_${System.currentTimeMillis()}",
                         payee = payeeData
                     )
                 )

@@ -1846,7 +1846,7 @@ class DatabaseService {
 
                 for ((productId, quantityToRestore) in productQuantities) {
                     val productRef = db.collection("products").document(productId)
-                    val productSnap = transaction.get(productRef) // 👈 這裡只讀，不寫
+                    val productSnap = transaction.get(productRef)
 
                     if (productSnap.exists()) {
                         val currentStock = productSnap.getLong("stock") ?: 0L
