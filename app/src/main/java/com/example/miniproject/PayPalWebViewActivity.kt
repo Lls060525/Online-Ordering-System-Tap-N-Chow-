@@ -7,6 +7,7 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -23,12 +24,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.miniproject.config.PayPalConfig
 import com.example.miniproject.service.DatabaseService
-import com.example.miniproject.service.EmailService // 確保引入了 EmailService
+import com.example.miniproject.service.EmailService
 import com.example.miniproject.service.PayPalService
 import com.example.miniproject.ui.theme.MiniProjectTheme
 import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.GlobalScope // 引入 GlobalScope
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
 class PayPalWebViewActivity : ComponentActivity() {
@@ -77,7 +79,7 @@ fun PayPalWebView(url: String, orderId: String) {
             if (event == Lifecycle.Event.ON_DESTROY) {
                 if (!isPaymentCompleted) {
                     Log.d("PayPalWebView", "User closed activity. Deleting order $orderId")
-                    kotlinx.coroutines.GlobalScope.launch {
+                    GlobalScope.launch {
                         databaseService.deleteOrderAndRestoreStock(orderId)
                     }
                 }
@@ -102,6 +104,24 @@ fun PayPalWebView(url: String, orderId: String) {
 
                 webViewClient = object : WebViewClient() {
                     override fun shouldOverrideUrlLoading(view: WebView?, url: String): Boolean {
+
+                        if (url.contains("${PayPalConfig.RETURN_URL}/cancel") || url.endsWith("/cancel")) {
+                            Log.d("PayPalWebView", "User cancelled payment on web URL: $url")
+                            isLoading = false
+                            isPaymentCompleted = true
+
+                            // 執行刪除訂單
+                            coroutineScope.launch {
+                                databaseService.deleteOrderAndRestoreStock(orderId)
+
+                                (context as? PayPalWebViewActivity)?.runOnUiThread {
+                                    Toast.makeText(context, "Payment Cancelled", Toast.LENGTH_SHORT).show()
+                                    (context as? PayPalWebViewActivity)?.finish()
+                                }
+                            }
+                            return true
+                        }
+
                         if (url.contains("com.example.miniproject.paypeltest")) {
                             val uri = android.net.Uri.parse(url)
                             val token = uri.getQueryParameter("token")
@@ -141,7 +161,6 @@ fun PayPalWebView(url: String, orderId: String) {
                                                             val items = databaseService.getOrderDetails(orderId)
 
                                                             if (customer != null && items.isNotEmpty()) {
-
                                                                 EmailService.sendReceiptEmail(customer, order, items)
                                                                 Log.d("ReceiptSystem", "Background: Receipt sent!")
                                                             }
@@ -150,9 +169,8 @@ fun PayPalWebView(url: String, orderId: String) {
                                                         Log.e("ReceiptSystem", "Background Error: ${e.message}")
                                                     }
                                                 }
-                                                // ----------------------------------------
 
-                                                // 頁面跳轉
+                                                // 頁面跳轉回主頁
                                                 (context as? PayPalWebViewActivity)?.run {
                                                     val intent = android.content.Intent(this, MainActivity::class.java).apply {
                                                         putExtra("ORDER_ID", orderId)
@@ -220,12 +238,19 @@ fun PayPalWebView(url: String, orderId: String) {
         AlertDialog(
             onDismissRequest = {
                 errorMessage = null
+
+                if (!isPaymentCompleted) {
+                    GlobalScope.launch { databaseService.deleteOrderAndRestoreStock(orderId) }
+                }
                 (context as? PayPalWebViewActivity)?.finish()
             },
             title = { Text("Payment Error") },
             text = { Text(errorMessage ?: "Unknown error") },
             confirmButton = {
                 Button(onClick = {
+                    if (!isPaymentCompleted) {
+                        GlobalScope.launch { databaseService.deleteOrderAndRestoreStock(orderId) }
+                    }
                     (context as? PayPalWebViewActivity)?.finish()
                 }) {
                     Text("OK")

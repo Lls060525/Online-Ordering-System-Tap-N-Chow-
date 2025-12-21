@@ -1827,28 +1827,51 @@ class DatabaseService {
 
     suspend fun deleteOrderAndRestoreStock(orderId: String): Result<Boolean> {
         return try {
-            println("DEBUG: Deleting failed order: $orderId")
+            println("DEBUG: Attempting to delete order: $orderId")
+
+            val orderRef = db.collection("orders").document(orderId)
 
             val orderDetails = getOrderDetails(orderId)
-            val order = getOrderById(orderId)
 
+            val productQuantities = orderDetails.groupBy { it.productId }
+                .mapValues { (_, details) -> details.sumOf { it.quantity } }
 
             db.runTransaction { transaction ->
 
-                for (detail in orderDetails) {
-                    val productRef = db.collection("products").document(detail.productId)
-                    val snapshot = transaction.get(productRef)
-                    if (snapshot.exists()) {
-                        val currentStock = snapshot.getLong("stock")?.toInt() ?: 0
-                        transaction.update(productRef, "stock", currentStock + detail.quantity)
+                val orderSnapshot = transaction.get(orderRef)
+                if (!orderSnapshot.exists()) return@runTransaction
+
+
+                val productStockMap = mutableMapOf<com.google.firebase.firestore.DocumentReference, Long>()
+
+                for ((productId, quantityToRestore) in productQuantities) {
+                    val productRef = db.collection("products").document(productId)
+                    val productSnap = transaction.get(productRef) // 👈 這裡只讀，不寫
+
+                    if (productSnap.exists()) {
+                        val currentStock = productSnap.getLong("stock") ?: 0L
+                        val newStock = currentStock + quantityToRestore
+                        productStockMap[productRef] = newStock
                     }
                 }
-                if (order != null) {
-                    val coinsToDeduct = order.totalPrice.toInt()
-                    val accountRef = db.collection("customer_accounts").document(order.customerId)
+
+                for ((ref, newStock) in productStockMap) {
+                    transaction.update(ref, "stock", newStock)
+                }
+
+
+                val customerId = orderSnapshot.getString("customerId")
+                val totalPrice = orderSnapshot.getDouble("totalPrice") ?: 0.0
+                if (customerId != null && totalPrice > 0) {
+                    val coinsToDeduct = totalPrice.toInt()
+                    val accountRef = db.collection("customer_accounts").document(customerId)
                     transaction.update(accountRef, "tapNChowCoins", FieldValue.increment(-coinsToDeduct.toLong()))
                 }
+
+                transaction.delete(orderRef)
+
             }.await()
+
             val detailsQuery = db.collection("order_details").whereEqualTo("orderId", orderId).get().await()
             for (doc in detailsQuery.documents) {
                 db.collection("order_details").document(doc.id).delete()
@@ -1859,10 +1882,9 @@ class DatabaseService {
                 db.collection("payments").document(doc.id).delete()
             }
 
-            db.collection("orders").document(orderId).delete().await()
-
-            println("DEBUG: Order $orderId completely deleted.")
+            println("DEBUG: Order $orderId successfully deleted and stock restored.")
             Result.success(true)
+
         } catch (e: Exception) {
             println("Error deleting order: ${e.message}")
             Result.failure(e)
@@ -1873,7 +1895,6 @@ class DatabaseService {
         return try {
             println("DEBUG: Starting Batch Calculation...")
 
-            // 1. 一次性獲取所有訂單 (1次網路請求)
             val allOrders = getAllOrders()
 
 

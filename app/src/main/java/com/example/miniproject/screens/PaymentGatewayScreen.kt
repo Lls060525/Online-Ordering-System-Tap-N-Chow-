@@ -271,6 +271,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
         coroutineScope.launch {
             isLoading = true
             errorMessage = null
+            var currentOrderId: String? = null
             try {
                 val orderRequest = OrderRequest(
                     customerId = customer!!.customerId,
@@ -286,10 +287,17 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
                 val createOrderResult = databaseService.createOrderWithDetails(orderRequest)
                 if (createOrderResult.isSuccess) {
                     val orderId = createOrderResult.getOrThrow()
+                    currentOrderId = orderId
                     if (selectedVoucher != null) {
-                        databaseService.trackVoucherUsage(customer!!.customerId, selectedVoucher!!.voucherId)
+                        databaseService.trackVoucherUsage(
+                            customer!!.customerId,
+                            selectedVoucher!!.voucherId
+                        )
                     }
 
+                    // --- KEY CHANGE HERE ---
+                    // Get vendor email from the loaded vendor object
+                    // We treat the 'paypalLink' field as the storage for the PayPal Business Email
                     val vendorEmail = vendor?.paypalLink
 
                     val paypalResult = payPalService.createOrder(
@@ -311,10 +319,29 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
                             }
                             context.startActivity(intent)
                             isLoading = false
-                        } else { errorMessage = "PayPal URL not found"; isLoading = false }
-                    } else { errorMessage = "PayPal failed: ${paypalResult.exceptionOrNull()?.message}"; isLoading = false }
-                } else { errorMessage = "Order failed: ${createOrderResult.exceptionOrNull()?.message}"; isLoading = false }
-            } catch (e: Exception) { errorMessage = "Error: ${e.message}"; isLoading = false }
+                        } else {
+                            errorMessage = "PayPal URL not found (Status: ${paypalOrder.status})"
+                            databaseService.deleteOrderAndRestoreStock(orderId)
+                            isLoading = false
+                        }
+                    } else {
+                        val errorMsg = paypalResult.exceptionOrNull()?.message
+                        errorMessage = "PayPal failed: $errorMsg"
+                        databaseService.deleteOrderAndRestoreStock(orderId)
+                        isLoading = false
+                    }
+                } else {
+                    errorMessage = "Order creation failed: ${createOrderResult.exceptionOrNull()?.message}"
+                    isLoading = false
+                }
+            } catch (e: Exception) {
+                errorMessage = "Error: ${e.message}"
+
+                if (currentOrderId != null) {
+                    databaseService.deleteOrderAndRestoreStock(currentOrderId)
+                }
+                isLoading = false
+            }
         }
     }
 
@@ -322,6 +349,7 @@ fun PaymentGatewayScreen(navController: NavController, vendorId: String?) {
         coroutineScope.launch {
             isLoading = true
             errorMessage = null
+            var currentOrderId: String? = null
             try {
                 val orderRequest = OrderRequest(
                     customerId = customer!!.customerId,

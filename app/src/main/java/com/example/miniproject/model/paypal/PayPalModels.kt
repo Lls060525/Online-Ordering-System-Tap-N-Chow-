@@ -42,7 +42,7 @@ data class Amount(
 @Serializable
 data class ApplicationContext(
     val return_url: String = PayPalConfig.RETURN_URL,
-    val cancel_url: String = PayPalConfig.RETURN_URL,
+    val cancel_url: String = "${PayPalConfig.RETURN_URL}/cancel",
     val brand_name: String = "Tap N Chow",
     val shipping_preference: String = PayPalConfig.SHIPPING_PREFERENCE,
     val user_action: String = PayPalConfig.USER_ACTION

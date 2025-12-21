@@ -825,12 +825,19 @@ data class SalesData(
 )
 
 // Helper function to calculate vendor sales data
+// --- Helper function to calculate vendor sales data ---
 private suspend fun calculateVendorSalesData(
     vendorId: String,
-    allOrders: List<Order>,
+    vendorOrders: List<Order>, // 👈 注意：這裡傳入的已經是篩選好的訂單
     databaseService: DatabaseService
 ): SalesData {
-    val vendorOrders = mutableListOf<Order>()
+
+    // 1. 🔥 關鍵優化：先一次性抓取該 Vendor 的所有商品 ID
+    // 這樣在迴圈裡面就不用一直去聯網查 "這是誰的商品"
+    val myProducts = databaseService.getProductsByVendor(vendorId)
+    val myProductIds = myProducts.map { it.productId }.toSet() // 轉成 Set 查詢速度最快
+
+    val filteredOrders = mutableListOf<Order>()
 
     // Variables for financial totals (Only non-cancelled)
     var totalRevenue = 0.0
@@ -844,11 +851,10 @@ private suspend fun calculateVendorSalesData(
 
     // Get current date for last 7 days calculation
     val calendar = Calendar.getInstance()
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     val monthFormat = SimpleDateFormat("MMM yyyy", Locale.getDefault())
     val shortDateFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
 
-    // Initialize last 7 days
+    // Initialize last 7 days with 0.0
     for (i in 6 downTo 0) {
         calendar.time = Date()
         calendar.add(Calendar.DAY_OF_YEAR, -i)
@@ -856,37 +862,38 @@ private suspend fun calculateVendorSalesData(
         dailyRevenue[dateKey] = 0.0
     }
 
-    for (order in allOrders) {
+    // 2. 開始遍歷訂單 (現在只會遍歷屬於你的訂單，數量少很多)
+    for (order in vendorOrders) {
+        // 這裡還是需要抓詳情，但因為訂單總數變少了，所以請求數大幅下降
         val orderDetails = databaseService.getOrderDetails(order.orderId)
+
         var vendorOrderTotal = 0.0
         var vendorOrderTax = 0.0
+        var hasMyItems = false
 
-        // Calculate vendor's portion
+        // 3. 在本地記憶體比對 ID，不需要網路請求
         for (detail in orderDetails) {
-            val product = databaseService.getProductById(detail.productId)
-            if (product?.vendorId == vendorId) {
+            if (myProductIds.contains(detail.productId)) {
                 val subtotal = detail.subtotal
                 val tax = subtotal * 0.06 // 6% tax
                 vendorOrderTotal += subtotal
                 vendorOrderTax += tax
+                hasMyItems = true
             }
         }
 
-        if (vendorOrderTotal > 0) {
+        if (hasMyItems && vendorOrderTotal >= 0) { // Safety check
             val vendorOrderWithTax = vendorOrderTotal + vendorOrderTax
 
-            // Add to list for "Recent Orders" table (we want to see Cancelled orders in history)
+            // Add to list for "Recent Orders"
             val vendorOrder = order.copy(totalPrice = vendorOrderWithTax)
-            vendorOrders.add(vendorOrder)
+            filteredOrders.add(vendorOrder)
 
-            // Update status counts (Includes cancelled)
+            // Update status counts
             orderStatusCounts[order.status] = orderStatusCounts.getOrDefault(order.status, 0) + 1
 
             // --- FILTERING LOGIC ---
-            // Only add to Revenue totals if NOT cancelled
-            // If you want STRICTLY "completed" status only, change check to: order.status.equals("completed", ignoreCase = true)
             if (!order.status.equals("cancelled", ignoreCase = true)) {
-
                 totalRevenue += vendorOrderTotal
                 totalTax += vendorOrderTax
                 validOrdersCount++
@@ -899,9 +906,16 @@ private suspend fun calculateVendorSalesData(
                 // Update daily revenue
                 val calendarToday = Calendar.getInstance().apply { time = Date() }
                 calendarToday.add(Calendar.DAY_OF_YEAR, -6)
-                if (!order.orderDate.toDate().before(calendarToday.time)) {
+                // Reset hour/min/sec for correct date comparison
+                calendarToday.set(Calendar.HOUR_OF_DAY, 0)
+                calendarToday.set(Calendar.MINUTE, 0)
+
+                if (order.orderDate.toDate().after(calendarToday.time)) {
                     val dayKey = shortDateFormat.format(order.orderDate.toDate())
-                    dailyRevenue[dayKey] = dailyRevenue.getOrDefault(dayKey, 0.0) + vendorOrderWithTax
+                    // Only update if the key exists (meaning it's within the last 7 days we initialized)
+                    if (dailyRevenue.containsKey(dayKey)) {
+                        dailyRevenue[dayKey] = dailyRevenue.getOrDefault(dayKey, 0.0) + vendorOrderWithTax
+                    }
                 }
             }
         }
@@ -909,24 +923,22 @@ private suspend fun calculateVendorSalesData(
 
     val totalRevenueWithTax = totalRevenue + totalTax
 
-    // Averages should be based on valid orders count
     val averageOrderValue = if (validOrdersCount > 0) totalRevenue / validOrdersCount else 0.0
     val averageTax = if (validOrdersCount > 0) totalTax / validOrdersCount else 0.0
     val averageOrderValueWithTax = if (validOrdersCount > 0) totalRevenueWithTax / validOrdersCount else 0.0
 
-    // Recent orders sorted newest first
-    val recentOrders = vendorOrders.sortedByDescending { it.orderDate.seconds }
+    val recentOrders = filteredOrders.sortedByDescending { it.orderDate.seconds }
 
     return SalesData(
         totalRevenue = totalRevenue,
         totalTax = totalTax,
         totalRevenueWithTax = totalRevenueWithTax,
-        totalOrders = validOrdersCount, // Use the valid count here
+        totalOrders = validOrdersCount,
         averageOrderValue = averageOrderValue,
         averageTax = averageTax,
         averageOrderValueWithTax = averageOrderValueWithTax,
         orderStatusCounts = orderStatusCounts,
-        recentOrders = recentOrders, // Contains all orders including cancelled
+        recentOrders = recentOrders,
         monthlyRevenue = monthlyRevenue,
         monthlyRevenueWithTax = monthlyRevenueWithTax,
         dailyRevenueWithTax = dailyRevenue
