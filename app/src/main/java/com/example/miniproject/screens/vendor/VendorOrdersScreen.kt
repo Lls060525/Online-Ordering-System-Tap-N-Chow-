@@ -641,6 +641,7 @@ object VendorOrdersScreen {
         onUpdateStatus: (String) -> Unit,
         onDismiss: () -> Unit
     ) {
+        var showCancelConfirmation by remember { mutableStateOf(false) }
         val nextStatus = when (order.status) {
             "pending" -> "confirmed"
             "confirmed" -> "preparing"
@@ -694,7 +695,7 @@ object VendorOrdersScreen {
             if (order.status != "cancelled" && order.status != "completed") {
                 OutlinedButton(
                     onClick = {
-                        onUpdateStatus("cancelled")
+                        showCancelConfirmation = true
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -721,8 +722,35 @@ object VendorOrdersScreen {
                 }
             }
         }
-    }
 
+        if (showCancelConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showCancelConfirmation = false },
+                title = { Text(text = "Cancel Order") },
+                text = { Text(text = "Are you sure you want to cancel this order? This action cannot be undone.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showCancelConfirmation = false
+                            onUpdateStatus("cancelled") // confirm then cancel
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Confirm Cancel")
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = { showCancelConfirmation = false } // click Back close the layout
+                    ) {
+                        Text("Back")
+                    }
+                }
+            )
+        }
+    }
     @Composable
     private fun InfoRow(label: String, value: String) {
         Row(
