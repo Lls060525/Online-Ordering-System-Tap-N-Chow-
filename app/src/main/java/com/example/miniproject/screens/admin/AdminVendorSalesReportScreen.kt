@@ -249,12 +249,12 @@ fun AdminVendorSalesReportScreen(
                         RevenueDistributionCard(salesData = salesData)
                     }
 
-                    // 4. Order Status Breakdown
+                    //  Order Status Breakdown
                     item {
                         OrderStatusCard(salesData = salesData)
                     }
 
-                    // 5. Recent Orders List
+                    //  Recent Orders List
                     item {
                         Text(
                             "Recent Orders",

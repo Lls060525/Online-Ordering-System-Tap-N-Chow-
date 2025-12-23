@@ -384,7 +384,7 @@ private fun isValidEmail(email: String): Boolean {
 }
 
 private fun isValidPhoneNumber(phone: String): Boolean {
-    val phoneRegex = "^[+]?[0-9]{10,15}\$".toRegex()
+    val phoneRegex = "^[+]?[0-9]{10,11}\$".toRegex()
     return phoneRegex.matches(phone.replace("\\s".toRegex(), ""))
 }
 

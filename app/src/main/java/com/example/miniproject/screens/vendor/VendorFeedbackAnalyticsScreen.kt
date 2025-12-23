@@ -1,4 +1,3 @@
-// [file]: com/example/miniproject/screens/VendorFeedbackAnalyticsScreen.kt
 package com.example.miniproject.screens.vendor
 
 import androidx.compose.foundation.layout.*
@@ -118,7 +117,7 @@ fun VendorFeedbackAnalyticsScreen(navController: NavController) {
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            // --- UPDATED: Safe Back Button Logic ---
+                            // Safe Back Button Logic
                             val currentTime = System.currentTimeMillis()
                             // Only allow click if 500ms have passed since the last click
                             if (currentTime - lastBackClickTime > 500) {
