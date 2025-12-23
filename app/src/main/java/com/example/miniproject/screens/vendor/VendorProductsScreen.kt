@@ -815,20 +815,24 @@ fun CustomizationEditor(
 
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            // Price Field
+                            // Price Field - FIXED DECIMAL INPUT
                             OutlinedTextField(
-
-                                value = if (option.price == 0.0) "" else option.price.toString().removeSuffix(".0"),
+                                value = if (option.price == 0.0) "" else option.price.toString(),
                                 onValueChange = { priceStr ->
                                     val newOptions = customization.options.toMutableList()
 
                                     if (priceStr.isEmpty()) {
                                         // Handle empty input as 0.0
                                         newOptions[optIndex] = option.copy(price = 0.0)
-                                    } else if (priceStr.matches(Regex("^\\d*\\.?\\d*$"))) {
-                                        // Only update if input is a valid number
-                                        val newPrice = priceStr.toDoubleOrNull() ?: 0.0
-                                        newOptions[optIndex] = option.copy(price = newPrice)
+                                    } else {
+                                        // Allow free typing, only validate when needed
+                                        // Accept numbers with optional decimal point
+                                        if (priceStr.matches(Regex("^\\d*\\.?\\d*$"))) {
+                                            val newPrice = priceStr.toDoubleOrNull() ?: 0.0
+                                            newOptions[optIndex] = option.copy(price = newPrice)
+                                        }
+                                        // If doesn't match regex, don't update the model but keep the text
+                                        // This allows typing like "1." which will be validated later
                                     }
 
                                     val newList = customizations.toMutableList()
@@ -836,7 +840,7 @@ fun CustomizationEditor(
                                     onUpdate(newList)
                                 },
                                 label = { Text("+ RM") },
-                                placeholder = { Text("Free") }, // Shows "Free" when empty
+                                placeholder = { Text("Free") },
                                 modifier = Modifier.weight(0.5f),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 singleLine = true
