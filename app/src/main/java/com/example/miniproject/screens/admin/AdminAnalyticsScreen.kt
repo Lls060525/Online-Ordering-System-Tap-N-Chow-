@@ -368,8 +368,9 @@ fun PlatformRevenueChart(
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
+            // In PlatformRevenueChart composable, update the labels section:
             val labels = when (timeRange) {
-                "day" -> listOf("12am", "6am", "12pm", "6pm")
+                "day" -> listOf("12am-6am", "6am-12pm", "12pm-6pm", "6pm-12am")
                 "week" -> listOf("Mon", "Wed", "Fri", "Sun")
                 "month" -> listOf("Week 1", "Week 2", "Week 3", "Week 4")
                 "year" -> listOf("Q1", "Q2", "Q3", "Q4")
@@ -525,37 +526,115 @@ fun TopVendorItem(vendor: Vendor, rank: Int, revenue: Double, decimalFormat: Dec
 
 @Composable
 fun RevenueTrendsCard(orders: List<Order>, selectedTimeRange: String, decimalFormat: DecimalFormat) {
-    val currentMillis = System.currentTimeMillis() / 1000
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Revenue Trends", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
-            val recentOrders = when (selectedTimeRange) {
-                "day" -> orders.filter { (currentMillis - it.orderDate.seconds) < 86400 }
-                "week" -> orders.filter { (currentMillis - it.orderDate.seconds) < 604800 }
-                "month" -> orders.filter { (currentMillis - it.orderDate.seconds) < 2592000 }
-                "year" -> orders.filter { (currentMillis - it.orderDate.seconds) < 31536000 }
-                else -> orders
+
+            // Get current date for comparison
+            val currentCalendar = Calendar.getInstance()
+            val previousCalendar = Calendar.getInstance()
+
+            // Helper function to check if an order is in a specific calendar period
+            fun isOrderInPeriod(order: Order, calendar: Calendar, timeRange: String): Boolean {
+                val orderCalendar = Calendar.getInstance().apply {
+                    timeInMillis = order.orderDate.seconds * 1000
+                }
+
+                return when (timeRange) {
+                    "day" -> {
+                        orderCalendar.get(Calendar.YEAR) == calendar.get(Calendar.YEAR) &&
+                                orderCalendar.get(Calendar.MONTH) == calendar.get(Calendar.MONTH) &&
+                                orderCalendar.get(Calendar.DAY_OF_MONTH) == calendar.get(Calendar.DAY_OF_MONTH)
+                    }
+                    "week" -> {
+                        orderCalendar.get(Calendar.YEAR) == calendar.get(Calendar.YEAR) &&
+                                orderCalendar.get(Calendar.WEEK_OF_YEAR) == calendar.get(Calendar.WEEK_OF_YEAR)
+                    }
+                    "month" -> {
+                        orderCalendar.get(Calendar.YEAR) == calendar.get(Calendar.YEAR) &&
+                                orderCalendar.get(Calendar.MONTH) == calendar.get(Calendar.MONTH)
+                    }
+                    "year" -> {
+                        orderCalendar.get(Calendar.YEAR) == calendar.get(Calendar.YEAR)
+                    }
+                    else -> true
+                }
             }
-            val previousPeriodSeconds = when (selectedTimeRange) { "day" -> 86400; "week" -> 604800; "month" -> 2592000; "year" -> 31536000; else -> 0 }
-            val previousPeriodOrders = if (previousPeriodSeconds > 0) orders.filter { (currentMillis - it.orderDate.seconds) in previousPeriodSeconds..(previousPeriodSeconds * 2) } else emptyList()
-            val currentRevenue = recentOrders.sumOf { it.totalPrice }; val previousRevenue = previousPeriodOrders.sumOf { it.totalPrice }
-            val revenueChange = if (previousRevenue > 0) ((currentRevenue - previousRevenue) / previousRevenue) * 100 else 0.0
+
+            // Current period orders
+            val recentOrders = orders.filter { order ->
+                isOrderInPeriod(order, currentCalendar, selectedTimeRange)
+            }
+
+            // Calculate previous period
+            val previousPeriodSeconds = when (selectedTimeRange) {
+                "day" -> 86400; "week" -> 604800; "month" -> 2592000; "year" -> 31536000; else -> 0
+            }
+
+            // Move calendar back for previous period
+            val previousPeriodCalendar = Calendar.getInstance().apply {
+                timeInMillis = currentCalendar.timeInMillis - (previousPeriodSeconds * 1000)
+            }
+
+            // Previous period orders
+            val previousPeriodOrders = if (previousPeriodSeconds > 0) {
+                orders.filter { order ->
+                    isOrderInPeriod(order, previousPeriodCalendar, selectedTimeRange)
+                }
+            } else emptyList()
+
+            val currentRevenue = recentOrders.sumOf { it.totalPrice }
+            val previousRevenue = previousPeriodOrders.sumOf { it.totalPrice }
+            val revenueChange = if (previousRevenue > 0) {
+                ((currentRevenue - previousRevenue) / previousRevenue) * 100
+            } else if (currentRevenue > 0) {
+                100.0 // First time with revenue
+            } else {
+                0.0 // No revenue in either period
+            }
 
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column { Text("Current Period", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant); Text("RM${decimalFormat.format(currentRevenue)}", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+                    Column {
+                        Text("Current Period", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("RM${decimalFormat.format(currentRevenue)}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
                     Column(horizontalAlignment = Alignment.End) {
                         Text("vs Previous", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(imageVector = if (revenueChange >= 0) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward, contentDescription = "Trend", modifier = Modifier.size(16.dp), tint = if (revenueChange >= 0) Color(0xFF4CAF50) else Color(0xFFF44336))
-                            Text("${String.format(Locale.getDefault(), "%.1f", revenueChange)}%", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = if (revenueChange >= 0) Color(0xFF4CAF50) else Color(0xFFF44336))
+                            Icon(
+                                imageVector = if (revenueChange >= 0) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                contentDescription = "Trend",
+                                modifier = Modifier.size(16.dp),
+                                tint = if (revenueChange >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                            )
+                            Text(
+                                "${String.format(Locale.getDefault(), "%.1f", revenueChange)}%",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (revenueChange >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                            )
                         }
                     }
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TrendMetric(label = "Orders", current = recentOrders.size, previous = previousPeriodOrders.size)
-                    TrendMetric(label = "Avg Order", current = if (recentOrders.isNotEmpty()) currentRevenue / recentOrders.size else 0.0, previous = if (previousPeriodOrders.isNotEmpty()) previousRevenue / previousPeriodOrders.size else 0.0, isCurrency = true)
-                    TrendMetric(label = "Platform Rev", current = currentRevenue * 0.10, previous = previousRevenue * 0.10, isCurrency = true)
+                    TrendMetric(
+                        label = "Orders",
+                        current = recentOrders.size,
+                        previous = previousPeriodOrders.size
+                    )
+                    TrendMetric(
+                        label = "Avg Order",
+                        current = if (recentOrders.isNotEmpty()) currentRevenue / recentOrders.size else 0.0,
+                        previous = if (previousPeriodOrders.isNotEmpty()) previousRevenue / previousPeriodOrders.size else 0.0,
+                        isCurrency = true
+                    )
+                    TrendMetric(
+                        label = "Platform Rev",
+                        current = currentRevenue * 0.10,
+                        previous = previousRevenue * 0.10,
+                        isCurrency = true
+                    )
                 }
             }
         }
@@ -578,35 +657,68 @@ fun TrendMetric(label: String, current: Number, previous: Number, isCurrency: Bo
 // ... (Rest of existing code: generatePlatformRevenueData, showDownloadNotification, etc. - Keep unchanged)
 private fun generatePlatformRevenueData(orders: List<Order>, timeRange: String): List<Double> {
     val calendar = Calendar.getInstance()
+
     return when (timeRange) {
-        "day" -> List(24) { hour -> orders.filter { (it.orderDate.seconds % 86400) / 3600 == hour.toLong() }.sumOf { it.totalPrice * 0.10 } }
+        "day" -> {
+            // For "day" view, we want the last 24 hours broken into 4 segments (6 hours each)
+            List(4) { segment ->
+                val startHour = segment * 6
+                val endHour = startHour + 6
+
+                orders.filter { order ->
+                    calendar.timeInMillis = order.orderDate.seconds * 1000
+                    val hour = calendar.get(Calendar.HOUR_OF_DAY)
+                    hour in startHour until endHour
+                }.sumOf { it.totalPrice * 0.10 }
+            }
+        }
         "week" -> {
             val weekData = MutableList(7) { 0.0 }
             orders.forEach { order ->
                 calendar.timeInMillis = order.orderDate.seconds * 1000
-                val day = calendar.get(Calendar.DAY_OF_WEEK)
-                val index = if (day == Calendar.SUNDAY) 6 else day - 2
-                if (index in 0..6) weekData[index] += (order.totalPrice * 0.10)
+                // Calendar.DAY_OF_WEEK: Sunday=1, Monday=2, etc.
+                // We want Monday=0, Sunday=6
+                val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
+                val index = when (dayOfWeek) {
+                    Calendar.MONDAY -> 0
+                    Calendar.TUESDAY -> 1
+                    Calendar.WEDNESDAY -> 2
+                    Calendar.THURSDAY -> 3
+                    Calendar.FRIDAY -> 4
+                    Calendar.SATURDAY -> 5
+                    Calendar.SUNDAY -> 6
+                    else -> 0
+                }
+                weekData[index] += (order.totalPrice * 0.10)
             }
             weekData
         }
         "month" -> {
-            val monthData = MutableList(4) { 0.0 }
-            orders.forEach { order ->
-                calendar.timeInMillis = order.orderDate.seconds * 1000
-                val week = calendar.get(Calendar.WEEK_OF_MONTH)
-                val index = (week - 1).coerceIn(0, 3)
-                monthData[index] += (order.totalPrice * 0.10)
+            // For "month" view (Week 1, Week 2, Week 3, Week 4)
+            List(4) { weekIndex ->
+                orders.filter { order ->
+                    calendar.timeInMillis = order.orderDate.seconds * 1000
+                    val weekOfMonth = calendar.get(Calendar.WEEK_OF_MONTH)
+                    weekOfMonth == weekIndex + 1
+                }.sumOf { it.totalPrice * 0.10 }
             }
-            monthData
         }
         "year" -> {
-            val yearData = MutableList(12) { 0.0 }
-            orders.forEach { order ->
-                calendar.timeInMillis = order.orderDate.seconds * 1000
-                yearData[calendar.get(Calendar.MONTH)] += (order.totalPrice * 0.10)
+            // For "year" view (Q1, Q2, Q3, Q4)
+            List(4) { quarterIndex ->
+                val targetMonths = when (quarterIndex) {
+                    0 -> listOf(0, 1, 2)   // Jan, Feb, Mar
+                    1 -> listOf(3, 4, 5)   // Apr, May, Jun
+                    2 -> listOf(6, 7, 8)   // Jul, Aug, Sep
+                    else -> listOf(9, 10, 11) // Oct, Nov, Dec
+                }
+
+                orders.filter { order ->
+                    calendar.timeInMillis = order.orderDate.seconds * 1000
+                    val month = calendar.get(Calendar.MONTH)
+                    targetMonths.contains(month)
+                }.sumOf { it.totalPrice * 0.10 }
             }
-            yearData
         }
         else -> emptyList()
     }
